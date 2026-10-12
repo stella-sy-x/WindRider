@@ -10,7 +10,6 @@ import { capeSpec, type CapeId, type WingId } from "./cosmetics/catalog";
 import { buildWing } from "./cosmetics/wings";
 import type { Appearance } from "./cosmetics/storage";
 import { buildHat, buildShoe, disposeModel } from "./cosmetics/models";
-import { FX_LIGHT, fxTime } from "./particles";
 
 // The pilot: a small low-poly flyer with chibi proportions (a big
 // head, slim limbs), a flowing cape, a scarf, and a pair of feathered
@@ -418,9 +417,9 @@ export class Avatar {
   private readonly clothMatrix = new THREE.Matrix4();
   private readonly painted: Painted[] = [];
   private readonly materials: THREE.Material[] = [];
-  /** A glowing shell around the body, bright at its silhouette; looks only (see `buildAura`) */
-  private readonly aura: THREE.Mesh;
-  private readonly auraMaterial: THREE.ShaderMaterial;
+  /** A soft round glow behind the body that silhouettes it against the scenery; looks only */
+  private readonly aura: THREE.Sprite;
+  private readonly auraMaterial: THREE.SpriteMaterial;
   /** A ghost's current fade (see `fade`); dims its aura along with the body */
   private ghostFade = 1;
   private tones: Tones;
@@ -805,9 +804,17 @@ export class Avatar {
       return tail;
     });
 
-    // A faceted glowing shell around the body, in the outfit's light tone
-    this.aura = buildAura(ghost ? AURA_OPACITY * 0.3 : AURA_OPACITY);
-    this.auraMaterial = this.aura.material as THREE.ShaderMaterial;
+    // A soft, diffused halo behind the body, tinted in the outfit's light tone
+    this.auraMaterial = new THREE.SpriteMaterial({
+      map: glowTexture(),
+      blending: THREE.AdditiveBlending,
+      transparent: true,
+      depthWrite: false,
+      fog: true,
+    });
+    this.aura = new THREE.Sprite(this.auraMaterial);
+    this.aura.scale.setScalar(AURA_SCALE);
+    this.aura.renderOrder = 3;
     this.group.add(this.aura);
 
     this.repaint();
@@ -827,14 +834,14 @@ export class Avatar {
         applyPaint(painted, capeTones);
       } else applyPaint(painted, this.tones);
     }
-    (this.auraMaterial.uniforms.auraColor.value as THREE.Color).copy(this.tones.clothLight);
+    this.auraMaterial.color.copy(this.tones.clothLight);
   }
 
-  /** Brightness of the aura shell this frame; 0 hides it. Ghosts glow at half strength and fade with the body. */
-  private setAuraIntensity(intensity: number) {
-    const value = intensity * FX.aura * (1 + ATMOSPHERE.night.value * 1.5) * (this.ghost ? 0.5 * this.ghostFade : 1);
-    this.auraMaterial.uniforms.intensity.value = value;
-    this.aura.visible = value > 0.05;
+  /** The halo's opacity this frame, 0..1 before tuning; ghosts wear a dimmer one that thins out with them */
+  private setAuraOpacity(k: number) {
+    const value = AURA_OPACITY * k * FX.aura * (1 + ATMOSPHERE.night.value * 1.5) * (this.ghost ? 0.3 * this.ghostFade : 1);
+    this.auraMaterial.opacity = value;
+    this.aura.visible = value > 0.01;
   }
 
   setColor(color: string) {
@@ -1069,11 +1076,10 @@ export class Avatar {
     this.pony[0].rotation.set(-1.25 + this.pitchRate * 0.1 + sway * 0.5, 0, -turn * 0.4 + sway);
     this.pony[1].rotation.set(0.25 + sway * 0.4, 0, sway * 1.2);
 
-    // Aura: a soft glow when cruising, brighter with speed and skimming the ground, with a slow living pulse
-    this.setAuraIntensity((0.3 + speedK * 0.5 + proximity * 0.4) * (1 + 0.1 * Math.sin(t * 2)));
-    // ...and the shell breathes a little
-    const breathe = 1 + 0.03 * Math.sin(t * 1.7 + 0.8);
-    this.aura.scale.set(AURA_SIZE.x * breathe, AURA_SIZE.y * breathe, AURA_SIZE.z * breathe);
+    // Aura: a faint halo when cruising, a touch brighter with speed and skimming the ground...
+    this.setAuraOpacity(0.4 + speedK * 0.6 + proximity * 0.3);
+    // ...with a gentle living pulse in its size
+    this.aura.scale.setScalar(AURA_SCALE * (1 + 0.03 * Math.sin(t * 1.5)));
 
     if (!this.detailed && dt > 0) return;
     this.clothTime += dt * (4.5 + this.speed * 0.11) * A.clothSpeed;
@@ -1228,8 +1234,8 @@ export class Avatar {
     this.pony[1].rotation.set(0.25 + flop * 0.4, 0, wave(11, 2) * 0.8);
 
     // The aura fades out with the dissolve
-    this.setAuraIntensity(0.4 * vanish);
-    this.aura.scale.set(AURA_SIZE.x, AURA_SIZE.y, AURA_SIZE.z);
+    this.setAuraOpacity(0.6 * vanish);
+    this.aura.scale.setScalar(AURA_SCALE);
 
     if (!this.detailed) return;
     // Cloth whips around hard
@@ -1252,9 +1258,9 @@ export class Avatar {
   fade(opacity: number) {
     if (!this.ghost) return;
     for (const material of this.materials) material.opacity = opacity;
+    // The halo follows (ghosts wear 0.3 of it, see `setAuraOpacity`); the next pose applies it
     this.ghostFade = opacity;
-    // Ghosts wear a dimmer shell, and it thins out with them
-    this.auraMaterial.uniforms.opacity.value = AURA_OPACITY * 0.3 * opacity;
+    this.auraMaterial.opacity *= opacity;
   }
 
   /** Hides the pilot (e.g. after a crash) */
@@ -1272,87 +1278,16 @@ export class Avatar {
     this.shoes.forEach(disposeModel);
     this.painted.forEach((p) => p.geometry.dispose());
     this.materials.forEach((m) => m.dispose());
-    this.aura.geometry.dispose();
     this.auraMaterial.dispose();
   }
 }
 
-// --- aura shell -----------------------------------------------------------------------
+// --- aura halo ------------------------------------------------------------------------
 
-/** Base alpha of the shell at its brightest edge; ghosts wear a third of it */
-const AURA_OPACITY = 0.35;
-/** Half-extents of the shell (m, in `group` space): a little wider than the body, longer along the flight axis (z) */
-const AURA_SIZE = new THREE.Vector3(1.05, 0.9, 1.35);
-
-const auraVertex = /* glsl */ `
-  varying vec3 vNormal;
-  varying vec3 vView;
-  #include <fog_pars_vertex>
-
-  void main() {
-    vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
-    vNormal = normalize(normalMatrix * normal);
-    vView = normalize(-mvPosition.xyz);
-    gl_Position = projectionMatrix * mvPosition;
-    #include <fog_vertex>
-  }
-`;
-
-const auraFragment = /* glsl */ `
-  uniform vec3 auraColor;
-  uniform float intensity;
-  uniform float opacity;
-  uniform float boost;
-  varying vec3 vNormal;
-  varying vec3 vView;
-  #include <fog_pars_fragment>
-
-  void main() {
-    // Bright where the shell turns away from the eye (its silhouette), clear where it faces us.
-    // The base is clamped to 0..1 so pow() never sees a negative.
-    float facing = clamp(1.0 - abs(dot(normalize(vNormal), normalize(vView))), 0.0, 1.0);
-    float fresnel = pow(facing, 2.5);
-    vec3 c = mix(auraColor, vec3(1.0), 0.2) * fresnel * intensity * boost;
-    float a = fresnel * opacity;
-    #ifdef USE_FOG
-      float fogK = 1.0 - smoothstep(fogNear, fogFar, vFogDepth);
-      c *= fogK;
-      a *= fogK;
-    #endif
-    if (a < 0.002) discard;
-    gl_FragColor = vec4(c, a);
-  }
-`;
-
-/**
- * A low-poly glowing shell around the pilot: a faceted icosahedron whose edges glow
- * (Fresnel) and whose centre stays clear, so the character stands out from the
- * scenery from every angle and reads as a real volume. Looks only: nothing reads it.
- */
-function buildAura(opacity: number): THREE.Mesh {
-  const geometry = new THREE.IcosahedronGeometry(1, 1);
-  const material = new THREE.ShaderMaterial({
-    uniforms: {
-      ...THREE.UniformsUtils.clone(THREE.UniformsLib.fog),
-      time: fxTime,
-      boost: FX_LIGHT.boost,
-      auraColor: { value: new THREE.Color("#ffffff") },
-      intensity: { value: 1 },
-      opacity: { value: opacity },
-    },
-    vertexShader: auraVertex,
-    fragmentShader: auraFragment,
-    transparent: true,
-    depthWrite: false,
-    side: THREE.FrontSide,
-    blending: THREE.AdditiveBlending,
-    fog: true,
-  });
-  const mesh = new THREE.Mesh(geometry, material);
-  mesh.scale.copy(AURA_SIZE);
-  mesh.renderOrder = 3;
-  return mesh;
-}
+/** Base alpha of the halo at full strength: faint on purpose, just enough to lift the silhouette off the scenery */
+const AURA_OPACITY = 0.18;
+/** Side of the halo sprite (m): a little larger than the body so it reads as a soft glow, not an outline */
+const AURA_SCALE = 2.0;
 
 function slow01(speed: number) {
   return clamp((35 - speed) / 20, 0, 1);
