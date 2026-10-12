@@ -322,7 +322,7 @@ export class FloraView {
   private readonly flowerColors: THREE.Color[] = [];
   private readonly grassBase = new THREE.Color();
   private readonly grassTip = new THREE.Color();
-  private readonly tints: THREE.Color[][] = [];
+  private readonly speciesTints: THREE.Color[][] = [];
   private readonly nodes = new Map<number, NodeFlora>();
   private readonly geometries: THREE.BufferGeometry[] = [];
   private readonly materials: THREE.Material[] = [];
@@ -352,7 +352,7 @@ export class FloraView {
       const material = plantMaterial(SPECIES[spec.id].sway, false, 0, null, foliageTint);
       this.materials.push(material);
       this.full.push(new InstancePool(geometry, material, this.group, 256));
-      this.tints.push((spec.tints ?? []).map((t) => new THREE.Color(t)));
+      this.speciesTints.push((spec.tints ?? []).map((t) => new THREE.Color(t)));
     }
     // Structures follow the species, as in the nodes' plant lists
     for (const spec of structuresOf(world.biome)) {
@@ -362,7 +362,7 @@ export class FloraView {
       const material = plantMaterial(info.sway, false, 0, { spin: info.spin });
       this.materials.push(material);
       this.full.push(new InstancePool(geometry, material, this.group, 32));
-      this.tints.push([]);
+      this.speciesTints.push([]);
     }
     this.atlas = new THREE.WebGLRenderTarget(CELL_W * ATLAS_COLUMNS, CELL_H * ATLAS_ROWS, { samples: 0 });
     this.atlas.texture.generateMipmaps = true;
@@ -479,7 +479,7 @@ export class FloraView {
   }
 
   private plantColor(species: number, variant: number, out: THREE.Color) {
-    const tints = this.tints[species];
+    const tints = this.speciesTints[species];
     if (tints.length) out.copy(tints[Math.floor(variant * tints.length) % tints.length]);
     else out.setScalar(1);
     return out.multiplyScalar(0.86 + 0.28 * ((variant * 7.13) % 1));
