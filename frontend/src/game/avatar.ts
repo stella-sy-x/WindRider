@@ -550,7 +550,7 @@ export class Avatar {
       .add(sphere(0.013, 8, 6), nose, [0, 0.102, -0.166], [0, 0, 0], [0.85, 0.8, 1.25])
       .add(new THREE.TorusGeometry(0.017, 0.004, 4, 10, Math.PI * 0.75), lip, [0, 0.066, -0.158], [0.35, 0, Math.PI * 1.125])
       .add(sphere(0.02, 8, 6), "blush", [0.08, 0.09, -0.143], [0, 0.5, 0], [1.2, 0.6, 0.3])
-      .add(sphere(0.02, 8, 6), "blush", [-0.08, 0.09, -0.143], [0, -0.5, 0], [1.2, 0.6, 0.3]), skinMat, false);
+      .add(sphere(0.02, 8, 6), "blush", [-0.08, 0.09, -0.143], [0, -0.5, 0], [1.2, 0.6, 0.3]), skinMat);
 
     // Two styles, swapped by `setStyle`: 1 has the ponytail, bangs and big lashed eyes; 2 short tousled hair and straighter brows
     for (const style of [1, 2] as const) {
