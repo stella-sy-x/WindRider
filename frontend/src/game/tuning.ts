@@ -114,7 +114,7 @@ export const TERRAIN = {
   lodFar: 700, // closer than this at half detail (12 m), further at quarter (24 m)
   lodHysteresis: 48, // extra distance before merging fine detail again
   cacheMiB: 48, // bounded cache of hidden terrain (estimated CPU + GPU buffers)
-  viewDistance: 1500,
+  viewDistance: 1400, // metres: the default fog ends at 1300 (WorldView FOG_FAR), so nothing is built much beyond it
   readyRadius: 260, // the start waits until the land this close has arrived
   arrivalsPerFrame: 12, // arrived land meshes taken in per frame once you're flying (each costs about 0.04 ms)
   fadeIn: 1.8, // seconds for land that has just arrived to fade in out of the haze and its plants to grow in, and for a change of detail to dissolve across

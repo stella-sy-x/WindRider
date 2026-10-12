@@ -141,6 +141,7 @@ export interface NetState {
 
 const tmp = new THREE.Vector3();
 const tmp2 = new THREE.Vector3();
+const lineAt = new THREE.Vector3();
 const projected = new THREE.Vector3();
 const at = new THREE.Vector3();
 const vel = new THREE.Vector3();
@@ -818,6 +819,7 @@ export class Game {
     this.prevQuaternion.copy(this.flight.quaternion);
     this.prevVelocity.copy(this.flight.velocity);
     this.flight.step(STEP, input, this.proximity * this.proximity, FLIGHT);
+    this.airWall(STEP);
 
     const { x, y, z } = this.flight.position;
     const rock = this.world.rock.distance(x, y, z);
@@ -851,6 +853,32 @@ export class Game {
         if (!this.view.gates.passing(i) && this.crossed(i)) this.gateBurst(i);
       }
     }
+  }
+
+  /**
+   * The air wall: a soft boundary either side of the racing line. Past
+   * `lateralLimit` metres from the line (measured across the course, at the
+   * pilot's z) a wind grows that carries the pilot back towards it, at full
+   * strength `lateralWall` metres further out; nothing gets past that
+   */
+  private airWall(dt: number) {
+    const f = this.flight;
+    const line = this.world.course.pointAt(f.position.z, lineAt);
+    const dx = f.position.x - line.x;
+    const dy = f.position.y - line.y;
+    const distance = Math.hypot(dx, dy);
+    const limit = FLIGHT.lateralLimit;
+    if (distance <= limit) return;
+    const wall = Math.max(FLIGHT.lateralWall, 0.01);
+    const nx = dx / distance;
+    const ny = dy / distance;
+    // The wind: the further out, the harder it pushes, never past the line itself
+    const push = clamp((distance - limit) / wall, 0, 1);
+    const carried = Math.min(push * FLIGHT.lateralPush * dt, distance - limit);
+    // The hard limit: held at the wall
+    const held = Math.min(distance - carried, limit + wall);
+    f.position.x = line.x + nx * held;
+    f.position.y = line.y + ny * held;
   }
 
   /** The hitbox against everything solid where the pilot is now; `hitLand` says what was hit */
