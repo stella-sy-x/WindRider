@@ -24,18 +24,23 @@ export const SHOES = [
   { id: "ember", name: "Ember greaves", description: "Coral boots with gold toes and flame-shaped fins.", color: "#dc8062" },
 ] as const;
 export type CapeId = typeof CAPES[number]["id"];
-/** Shapes share the pilot's two animated wing joints; all are visual only. */
+/**
+ * Chunky faceted wings on the pilot's two animated wing joints; all are visual only.
+ * `shape` picks the paddles' proportions (see PLANS in wings.ts), `color` the body
+ * and `accent` the tip band, jewels and wingtip particles.
+ */
 export const WINGS = [
-  { id: "classic", name: "Wayfarer feathers", description: "Your original feathered glider.", color: "#f1dce9", accent: "#f3c869", shape: "feather" },
-  { id: "prism", name: "Prismatic plumage", description: "Layered jewel-colored feathers with gilded shafts.", color: "#bc8aca", accent: "#69d9ce", shape: "feather" },
-  { id: "gale", name: "Zephyr filigree", description: "Sweeping jade sails, gold wind spirals and suspended pearls.", color: "#66bfaa", accent: "#e7ffe2", shape: "sail" },
-  { id: "tide", name: "Pearl tide", description: "Scalloped ocean fins with pearl chains and coral inlays.", color: "#638dc8", accent: "#a9f0ef", shape: "fin" },
-  { id: "frost", name: "Glacial cathedral", description: "Faceted ice blades around a silver snowflake lattice.", color: "#b1dfee", accent: "#faf4ff", shape: "crystal" },
-  { id: "ember", name: "Phoenix sunrise", description: "Long flame feathers, gold veins and ember dust.", color: "#dd665b", accent: "#ffd181", shape: "flame" },
-  { id: "storm", name: "Thunder sovereign", description: "Angular violet blades, lightning tracery and amethyst gems.", color: "#8c72c9", accent: "#f1c7ff", shape: "blade" },
-  { id: "astral", name: "Constellation wings", description: "Floating star fragments stitched into wings by golden constellations.", color: "#747ab8", accent: "#c4e5ff", shape: "stars" },
+  { id: "classic", name: "Wayfarer feathers", description: "Your original feathered glider.", color: "#b98a63", accent: "#f6e6c8", shape: "feather" },
+  { id: "prism", name: "Prismatic plumage", description: "Broad jewel-colored plates, a different hue on every one.", color: "#bc8aca", accent: "#69d9ce", shape: "feather" },
+  { id: "gale", name: "Zephyr filigree", description: "Wide slate-blue sails on gilded spars.", color: "#7f93ad", accent: "#f3c869", shape: "sail" },
+  { id: "tide", name: "Pearl tide", description: "Curling sea-green fins tipped with pearl.", color: "#4f9fa6", accent: "#eef6ff", shape: "fin" },
+  { id: "frost", name: "Glacial cathedral", description: "Thick faceted ice shards with frosted points.", color: "#a9d6ea", accent: "#faf4ff", shape: "crystal" },
+  { id: "ember", name: "Phoenix sunrise", description: "Swept flame tongues burning gold at the tips.", color: "#dd5a3c", accent: "#ffc864", shape: "flame" },
+  { id: "storm", name: "Thunder sovereign", description: "Dark angular blades edged in crackling light.", color: "#5a4f6e", accent: "#f1c7ff", shape: "blade" },
+  { id: "astral", name: "Constellation wings", description: "Deep indigo plates ending in glowing starlight.", color: "#4a4f9c", accent: "#dff0ff", shape: "stars" },
 ] as const;
 export type WingId = typeof WINGS[number]["id"];
+export type WingShape = typeof WINGS[number]["shape"];
 const wingById = Object.fromEntries(WINGS.map(w => [w.id, w])) as Record<WingId, typeof WINGS[number]>;
 export const wingSpec = (id: WingId) => wingById[id] ?? WINGS[0];
 export type HatId = typeof HATS[number]["id"];
