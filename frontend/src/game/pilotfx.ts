@@ -25,7 +25,7 @@ export interface PilotFxOptions {
 
 /**
  * Everything a pilot leaves in the air: glowing ribbons from the wingtips and
- * the cape, light motes shed from the wings like in Sky, puffs of air on each
+ * the cape, light motes shed from the wings, puffs of air on each
  * downstroke, and a spiral of stars during barrel rolls.
  */
 export class PilotFx {

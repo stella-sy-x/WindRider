@@ -6,7 +6,7 @@ import { outlineMaterial, toonMaterial } from "../toon";
 // jetpack, candies, a golden feather, helmets and fruits. Models only (what
 // they do comes later). Each is built from primitives at runtime, painted per
 // vertex and drawn with the pilot's toon material and ink outline, so it sits
-// in the same Genshin / Sky look. Units match the avatar's body (about 1.1
+// in the same toon look. Units match the avatar's body (about 1.1
 // tall before the avatar's own scale); `y` is up, `-z` the front.
 
 export type ItemId =
@@ -121,7 +121,7 @@ function lollipop(): THREE.BufferGeometry {
 function starCandy(): THREE.BufferGeometry {
   const b = new Builder();
   b.add(star(0.08, 0.04, 0.035), (p, out) => blend("#fff3a8", "#ffbf3c", Math.hypot(p.x, p.y) * 12, out), 0.6);
-  // A little face, as on Genshin's sweets
+  // A little face on the candy
   b.add(sphere(0.007, 6, 5), "#5a3a2a", 0, [0.018, 0.008, -0.034]);
   b.add(sphere(0.007, 6, 5), "#5a3a2a", 0, [-0.018, 0.008, -0.034]);
   b.add(sphere(0.008, 6, 5), "#ff8fa8", 0, [0.032, -0.008, -0.03], [0, 0, 0], [1.3, 0.7, 0.5]);
@@ -129,7 +129,7 @@ function starCandy(): THREE.BufferGeometry {
   return b.build();
 }
 
-/** A golden feather like Sky's winged light: it glows by itself */
+/** A golden feather that glows by itself */
 function goldenFeather(): THREE.BufferGeometry {
   const b = new Builder();
   b.add(leaf(0.34, 0.075, 0.01), (p, out) => blend("#fff1c2", GOLD, Math.abs(p.x) * 14 + (1 - p.y * 3) * 0.3, out), 0.9, [0, 0.0, 0]);
@@ -156,7 +156,7 @@ function aviatorCap(): THREE.BufferGeometry {
   return b.build();
 }
 
-/** A white-and-gold winged helm with a glowing gem, Genshin-knight style */
+/** A white-and-gold winged helm with a glowing gem */
 function wingedHelm(): THREE.BufferGeometry {
   const b = new Builder();
   b.add(new THREE.SphereGeometry(0.19, 22, 12, 0, Math.PI * 2, 0, Math.PI * 0.5), (p, out) => out.set(Math.abs(p.x) < 0.02 ? GOLD : "#f4f1ff"), 0, [0, 0, 0]);

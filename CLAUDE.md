@@ -2,9 +2,8 @@
 
 This file is Claude's memory for Wind Rider. Read it before touching code.
 
-## Art direction: Genshin Impact and Sky (光遇)
+## Art direction
 
-Wind Rider is styled after Genshin Impact and Sky: Children of the Light.
 Cel-shaded toon material, chibi proportions, soft silhouettes, warm colors,
 gold trims, capes and feathers. Painted skies, bloom, particles, glass UI.
 No realistic assets or photo textures.

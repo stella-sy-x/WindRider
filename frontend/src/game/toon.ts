@@ -1,8 +1,8 @@
 import * as THREE from "three";
 import { fxTime } from "./particles";
 
-// Cel shading in the style of Genshin Impact: hard light bands from a tiny
-// gradient texture, a soft rim light, and ink outlines from an inverted hull.
+// Cel shading: hard light bands from a tiny gradient texture, a soft rim
+// light, and ink outlines from an inverted hull.
 
 /**
  * Light shared by every toon material, set per biome: the rim takes the sun's

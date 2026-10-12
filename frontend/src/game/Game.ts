@@ -1055,7 +1055,7 @@ export class Game {
         }
       }
     }
-    // At the end the pilot dissolves into light, like a Sky child returning home
+    // At the end the pilot dissolves into light
     if (!this.dissolved && d.time >= DISSOLVE_AT) {
       this.dissolved = true;
       color.set(this.world.palette.accent).lerp(WHITE, 0.5);

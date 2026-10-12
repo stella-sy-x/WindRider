@@ -11,8 +11,8 @@ import { buildWing } from "./cosmetics/wings";
 import type { Appearance } from "./cosmetics/storage";
 import { buildHat, buildShoe, disposeModel } from "./cosmetics/models";
 
-// The pilot: a small cel-shaded flyer with Genshin / Sky proportions (a big
-// head, slim limbs), a Sky-style cape, a scarf, and a pair of feathered
+// The pilot: a small cel-shaded flyer with chibi proportions (a big
+// head, slim limbs), a flowing cape, a scarf, and a pair of feathered
 // glider wings on the back. Everything is built from primitives at runtime.
 //
 // The body is modelled standing (up +y, facing -z, right +x) and then laid
@@ -779,7 +779,7 @@ export class Avatar {
       return tail;
     });
 
-    // A soft glow around the body, like a Sky child's light
+    // A soft glow around the body
     this.aura = new THREE.Sprite(
       new THREE.SpriteMaterial({
         map: glowTexture(),
@@ -1020,7 +1020,7 @@ export class Avatar {
       side.wing.rotation.set(-0.15 * Math.cos(this.flapPhase) * amp, -lift(s) * s, (-0.18 - sweep) * s);
       side.wingOuter.rotation.set(0, -(amp * 0.8 * strokeOuter + 0.05) * s, (-0.1 - sweep * 0.7) * s);
 
-      // Arms reach out like a Sky glide and follow the wings a little
+      // Arms reach out in a glide pose and follow the wings a little
       const glide = 1.3 - speedK * 0.35 - barrelTuck * 0.5 + this.brake * 0.25 - this.boost * 0.15;
       const armLift = 0.25 + stroke * amp * 0.35 + turn * 0.25 * s * A.limbSwing;
       side.shoulder.rotation.set(0, -armLift * s, glide * s);

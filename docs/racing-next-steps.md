@@ -2,7 +2,7 @@
 
 ## Current State (post adventure-mode strip)
 
-Pure browser wingsuit racer: solo time trials, multiplayer race rooms, 9 biomes with seeded courses. Cel-shaded Genshin/Sky art style. Test mode for debugging.
+Pure browser wingsuit racer: solo time trials, multiplayer race rooms, 9 biomes with seeded courses. Cel-shaded toon art style. Test mode for debugging.
 
 ## Priority 1: Controls (hand-feel is the lifeline)
 
