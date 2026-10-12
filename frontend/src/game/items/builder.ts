@@ -49,9 +49,9 @@ export class Builder {
   }
 }
 
-export const sphere = (r: number, w = 16, h = 12) => new THREE.SphereGeometry(r, w, h);
-export const cyl = (top: number, bottom: number, h: number, n = 14, rows = 1) => new THREE.CylinderGeometry(top, bottom, h, n, rows);
-export const lathe = (profile: [number, number][], n = 18) =>
+export const sphere = (r: number, w = 8, h = 6) => new THREE.SphereGeometry(r, w, h);
+export const cyl = (top: number, bottom: number, h: number, n = 8, rows = 1) => new THREE.CylinderGeometry(top, bottom, h, n, rows);
+export const lathe = (profile: [number, number][], n = 8) =>
   new THREE.LatheGeometry(
     profile.map(([r, y]) => new THREE.Vector2(r, y)),
     n,
@@ -71,7 +71,7 @@ export function star(outer: number, inner: number, depth: number, points = 5): T
 }
 
 /** A leaf or feather shape along +y, with a little thickness */
-export function leaf(length: number, width: number, depth = 0.008, segments = 6): THREE.BufferGeometry {
+export function leaf(length: number, width: number, depth = 0.008, segments = 3): THREE.BufferGeometry {
   const shape = new THREE.Shape();
   shape.moveTo(0, 0);
   shape.quadraticCurveTo(width, length * 0.4, 0, length);

@@ -33,16 +33,16 @@ function blade(length: number, width: number, shape: string) {
     } else s.quadraticCurveTo(length * .5, width * .8, 0, width * .45);
   }
   s.closePath();
-  return new THREE.ExtrudeGeometry(s, { depth: .018, bevelEnabled: false, curveSegments: 7 });
+  return new THREE.ExtrudeGeometry(s, { depth: .018, bevelEnabled: false, curveSegments: 3 });
 }
 
 /** Two merged, outlined pieces per side, attached to the existing flapping joints. */
 export function buildWing(id: WingId, hand: number) {
   const side = 1;
   const spec = wingSpec(id), inner = new Builder(), outer = new Builder();
-  const count = spec.shape === "stars" ? 6 : spec.shape === "sail" ? 3 : 7;
+  const count = spec.shape === "stars" ? 6 : spec.shape === "sail" ? 3 : 5;
   const rainbow = ["#bd8bc9", "#8d9fdf", "#73cbd5", "#8bd0b0", "#efc681", "#e49fb7", "#b48dd3"];
-  for (const [builder, base, n] of [[inner, .65, 4], [outer, 1, count]] as const) {
+  for (const [builder, base, n] of [[inner, .65, 3], [outer, 1, count]] as const) {
     for (let i = 0; i < n; i++) {
       const a = builder === inner ? -.75 - i * .22 : .14 - i * (1.1 / Math.max(1, n - 1));
       const angle = side > 0 ? a : Math.PI - a;
@@ -65,11 +65,11 @@ export function buildWing(id: WingId, hand: number) {
       }
     }
     // Layered coverts soften the mechanical root and make the fan read as crafted plumage.
-    for (let i = 0; i < 4; i++) builder.add(blade(.25, .075, "feather"), spec.accent, 0,
+    for (let i = 0; i < 3; i++) builder.add(blade(.25, .075, "feather"), spec.accent, 0,
       [side * (.07 + i * .075), -.02, .055], [0, 0, side > 0 ? -.9 : Math.PI + .9]);
   }
   if (id === "gale" || id === "tide") {
-    outer.add(new THREE.TorusGeometry(.17, .009, 5, 20, Math.PI * 1.65), GOLD, .25, [side * .4, -.15, .07], [0, 0, side * -.3]);
+    outer.add(new THREE.TorusGeometry(.17, .009, 5, 8, Math.PI * 1.65), GOLD, .25, [side * .4, -.15, .07], [0, 0, side * -.3]);
     for (let i = 0; i < 5; i++) outer.add(new THREE.SphereGeometry(.023, 8, 6), "#fff2d8", .2, [side * (.22 + i * .08), -.27 - Math.sin(i) * .05, .055]);
   }
   if (id === "frost" || id === "storm") {

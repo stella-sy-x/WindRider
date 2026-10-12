@@ -59,7 +59,7 @@ function firework(): THREE.BufferGeometry {
   const b = new Builder();
   const bodyH = 0.72;
   // Paper body with a red and cream spiral, gold bands at both ends
-  b.add(cyl(0.1, 0.1, bodyH, 24, 16), (p, out) => {
+  b.add(cyl(0.1, 0.1, bodyH, 8, 4), (p, out) => {
     const y = p.y + bodyH / 2;
     if (y < 0.04 || (y > 0.66 && y < 0.7)) out.set(GOLD);
     else {
@@ -68,10 +68,10 @@ function firework(): THREE.BufferGeometry {
     }
   }, 0, [0, bodyH / 2, 0]);
   // Nose cone in deep blue with gold rings, a glowing star at the tip
-  b.add(lathe([[0.001, 0.3], [0.03, 0.26], [0.07, 0.17], [0.1, 0.06], [0.108, 0.0], [0.001, 0.0]], 24), (p, out) => out.set(p.y > 0.06 && p.y < 0.09 ? GOLD : p.y > 0.2 ? "#5b7ce8" : "#3a4fb8"), 0, [0, bodyH, 0]);
+  b.add(lathe([[0.001, 0.3], [0.03, 0.26], [0.07, 0.17], [0.1, 0.06], [0.108, 0.0], [0.001, 0.0]], 8), (p, out) => out.set(p.y > 0.06 && p.y < 0.09 ? GOLD : p.y > 0.2 ? "#5b7ce8" : "#3a4fb8"), 0, [0, bodyH, 0]);
   b.add(star(0.06, 0.026, 0.02), GOLD, 1, [0, bodyH + 0.34, 0]);
   // Nozzle, flared, in dark brass
-  b.add(lathe([[0.07, 0.0], [0.065, -0.03], [0.08, -0.08], [0.095, -0.11], [0.085, -0.11], [0.055, -0.03], [0.001, -0.03]], 20), (p, out) => blend("#6b4a3a", GOLD_DEEP, -p.y * 9, out), 0, [0, 0.0, 0]);
+  b.add(lathe([[0.07, 0.0], [0.065, -0.03], [0.08, -0.08], [0.095, -0.11], [0.085, -0.11], [0.055, -0.03], [0.001, -0.03]], 8), (p, out) => blend("#6b4a3a", GOLD_DEEP, -p.y * 9, out), 0, [0, 0.0, 0]);
   // Four fins
   const fin = new THREE.Shape();
   fin.moveTo(0, 0);
@@ -81,24 +81,24 @@ function firework(): THREE.BufferGeometry {
   fin.lineTo(0, 0);
   for (let i = 0; i < 4; i++) {
     const a = (i * Math.PI) / 2 + Math.PI / 4;
-    b.add(new THREE.ExtrudeGeometry(fin, { depth: 0.016, bevelEnabled: false }).translate(0, 0, -0.008), (p, out) => out.set(p.x > 0.085 ? GOLD : "#e8483f"), 0, [Math.cos(a) * 0.09, 0.02, -Math.sin(a) * 0.09], [0, a, 0]);
+    b.add(new THREE.ExtrudeGeometry(fin, { depth: 0.016, bevelEnabled: false, curveSegments: 3 }).translate(0, 0, -0.008), (p, out) => out.set(p.x > 0.085 ? GOLD : "#e8483f"), 0, [Math.cos(a) * 0.09, 0.02, -Math.sin(a) * 0.09], [0, a, 0]);
   }
   // Leather straps with gold buckles, and a curled fuse with a glowing tip
   for (const y of [0.22, 0.52]) {
-    b.add(new THREE.TorusGeometry(0.106, 0.014, 6, 28), "#7a4b33", 0, [0, y, 0], [Math.PI / 2, 0, 0]);
+    b.add(new THREE.TorusGeometry(0.106, 0.014, 6, 8), "#7a4b33", 0, [0, y, 0], [Math.PI / 2, 0, 0]);
     b.add(new THREE.BoxGeometry(0.04, 0.035, 0.02), GOLD, 0.4, [0, y, -0.115]);
   }
-  b.add(new THREE.TorusGeometry(0.035, 0.006, 5, 14, Math.PI * 1.4), "#4a3a35", 0, [0.11, 0.1, 0], [0, Math.PI / 2, 0]);
+  b.add(new THREE.TorusGeometry(0.035, 0.006, 5, 8, Math.PI * 1.4), "#4a3a35", 0, [0.11, 0.1, 0], [0, Math.PI / 2, 0]);
   b.add(sphere(0.012, 8, 6), "#ffd27a", 1, [0.12, 0.13, 0.03]);
   return b.build();
 }
 
 function candyWrapped(): THREE.BufferGeometry {
   const b = new Builder();
-  b.add(sphere(0.06, 18, 12), (p, out) => out.set(Math.sin(Math.atan2(p.y, p.z) * 4 + p.x * 40) > 0.3 ? "#fff4f8" : "#ff6f9f"), 0.15, [0, 0, 0], [0, 0, 0], [1.35, 1, 1]);
+  b.add(sphere(0.06, 8, 6), (p, out) => out.set(Math.sin(Math.atan2(p.y, p.z) * 4 + p.x * 40) > 0.3 ? "#fff4f8" : "#ff6f9f"), 0.15, [0, 0, 0], [0, 0, 0], [1.35, 1, 1]);
   for (const s of [1, -1]) {
     // Twisted wrapper ends, fanned out
-    b.add(new THREE.ConeGeometry(0.045, 0.07, 8, 1, true), (p, out) => blend("#ffc1d8", "#ffffff", p.y * 8 + 0.5, out), 0.1, [s * 0.1, 0, 0], [0, 0, s * (Math.PI / 2)]);
+    b.add(new THREE.ConeGeometry(0.045, 0.07, 6, 1, true), (p, out) => blend("#ffc1d8", "#ffffff", p.y * 8 + 0.5, out), 0.1, [s * 0.1, 0, 0], [0, 0, s * (Math.PI / 2)]);
     b.add(cyl(0.012, 0.012, 0.02, 8), "#ffb0cc", 0, [s * 0.075, 0, 0], [0, 0, Math.PI / 2]);
   }
   return b.build();
@@ -107,14 +107,14 @@ function candyWrapped(): THREE.BufferGeometry {
 function lollipop(): THREE.BufferGeometry {
   const b = new Builder();
   const colors = ["#ff6f9f", "#fff4f8", "#ffd45c", "#fff4f8", "#7fd6ff", "#fff4f8"];
-  b.add(cyl(0.09, 0.09, 0.03, 32, 1), (p, out) => {
+  b.add(cyl(0.09, 0.09, 0.03, 8, 1), (p, out) => {
     const r = Math.hypot(p.x, p.z);
     const a = Math.atan2(p.z, p.x);
     const band = Math.floor(((a / (Math.PI * 2) + 1) * 6 + r * 50) % 6);
     out.set(r > 0.085 ? "#ffffff" : colors[band]);
   }, 0.15, [0, 0.2, 0], [Math.PI / 2, 0, 0]);
   b.add(cyl(0.008, 0.008, 0.22, 8), "#fffaf0", 0, [0, 0.07, 0]);
-  b.add(new THREE.TorusGeometry(0.02, 0.006, 5, 12), "#ff6f9f", 0, [0, 0.12, 0], [Math.PI / 2, 0, 0]);
+  b.add(new THREE.TorusGeometry(0.02, 0.006, 5, 8), "#ff6f9f", 0, [0, 0.12, 0], [Math.PI / 2, 0, 0]);
   return b.build();
 }
 
@@ -143,24 +143,24 @@ function goldenFeather(): THREE.BufferGeometry {
 /** A leather aviator cap with ear flaps and goggles up on the forehead (fits the pilot's head: radius 0.17) */
 function aviatorCap(): THREE.BufferGeometry {
   const b = new Builder();
-  b.add(new THREE.SphereGeometry(0.19, 22, 12, 0, Math.PI * 2, 0, Math.PI * 0.55), (p, out) => out.set(Math.abs(p.x) < 0.012 ? "#5e3c2b" : "#9a6444"), 0, [0, 0, 0.005]);
+  b.add(new THREE.SphereGeometry(0.19, 8, 6, 0, Math.PI * 2, 0, Math.PI * 0.55), (p, out) => out.set(Math.abs(p.x) < 0.012 ? "#5e3c2b" : "#9a6444"), 0, [0, 0, 0.005]);
   for (const s of [1, -1]) {
-    b.add(new THREE.CapsuleGeometry(0.045, 0.07, 4, 10), "#9a6444", 0, [s * 0.165, -0.06, 0.01], [0, 0, s * 0.15], [0.55, 1, 1]);
-    b.add(sphere(0.03, 10, 8), "#f6e7cf", 0, [s * 0.172, -0.1, 0.01], [0, 0, 0], [0.5, 1, 1]);
+    b.add(new THREE.CapsuleGeometry(0.045, 0.07, 4, 6), "#9a6444", 0, [s * 0.165, -0.06, 0.01], [0, 0, s * 0.15], [0.55, 1, 1]);
+    b.add(sphere(0.03, 8, 6), "#f6e7cf", 0, [s * 0.172, -0.1, 0.01], [0, 0, 0], [0.5, 1, 1]);
     // Goggles: brass rims and teal glass that catches the light
-    b.add(new THREE.TorusGeometry(0.045, 0.012, 6, 16), GOLD_DEEP, 0.2, [s * 0.055, 0.07, -0.16], [0.5, 0, 0]);
-    b.add(sphere(0.042, 12, 8), "#7fe0e6", 0.5, [s * 0.055, 0.07, -0.16], [0.5, 0, 0], [1, 1, 0.4]);
+    b.add(new THREE.TorusGeometry(0.045, 0.012, 6, 8), GOLD_DEEP, 0.2, [s * 0.055, 0.07, -0.16], [0.5, 0, 0]);
+    b.add(sphere(0.042, 8, 6), "#7fe0e6", 0.5, [s * 0.055, 0.07, -0.16], [0.5, 0, 0], [1, 1, 0.4]);
   }
   b.add(cyl(0.012, 0.012, 0.04, 6), "#5e3c2b", 0, [0, 0.07, -0.165], [0, 0, Math.PI / 2]);
-  b.add(new THREE.TorusGeometry(0.18, 0.012, 5, 30, Math.PI), "#3c2a24", 0, [0, 0.08, 0.02], [-0.25, 0, 0]);
+  b.add(new THREE.TorusGeometry(0.18, 0.012, 5, 8, Math.PI), "#3c2a24", 0, [0, 0.08, 0.02], [-0.25, 0, 0]);
   return b.build();
 }
 
 /** A white-and-gold winged helm with a glowing gem */
 function wingedHelm(): THREE.BufferGeometry {
   const b = new Builder();
-  b.add(new THREE.SphereGeometry(0.19, 22, 12, 0, Math.PI * 2, 0, Math.PI * 0.5), (p, out) => out.set(Math.abs(p.x) < 0.02 ? GOLD : "#f4f1ff"), 0, [0, 0, 0]);
-  b.add(new THREE.TorusGeometry(0.19, 0.016, 6, 32), GOLD, 0.4, [0, 0.0, 0], [Math.PI / 2, 0, 0]);
+  b.add(new THREE.SphereGeometry(0.19, 8, 6, 0, Math.PI * 2, 0, Math.PI * 0.5), (p, out) => out.set(Math.abs(p.x) < 0.02 ? GOLD : "#f4f1ff"), 0, [0, 0, 0]);
+  b.add(new THREE.TorusGeometry(0.19, 0.016, 6, 8), GOLD, 0.4, [0, 0.0, 0], [Math.PI / 2, 0, 0]);
   b.add(new THREE.OctahedronGeometry(0.035, 0), "#6fe3ff", 1, [0, 0.06, -0.19], [0, 0, 0], [0.8, 1.2, 0.5]);
   for (const s of [1, -1]) {
     // Little wings, three feathers each, sweeping back
@@ -173,7 +173,7 @@ function wingedHelm(): THREE.BufferGeometry {
 
 function apple(): THREE.BufferGeometry {
   const b = new Builder();
-  b.add(lathe([[0.001, -0.06], [0.035, -0.065], [0.065, -0.035], [0.072, 0.01], [0.06, 0.05], [0.025, 0.06], [0.001, 0.045]], 20), (p, out) => blend("#e33b3b", "#ffd25a", (p.x + 0.07) * 4 - 0.4, out), 0.05);
+  b.add(lathe([[0.001, -0.06], [0.035, -0.065], [0.065, -0.035], [0.072, 0.01], [0.06, 0.05], [0.025, 0.06], [0.001, 0.045]], 8), (p, out) => blend("#e33b3b", "#ffd25a", (p.x + 0.07) * 4 - 0.4, out), 0.05);
   b.add(cyl(0.005, 0.006, 0.05, 6), "#6b4a2a", 0, [0.004, 0.07, 0], [0, 0, -0.2]);
   b.add(leaf(0.06, 0.025), "#5fbf4a", 0, [0.012, 0.075, 0], [0.4, 0, -1.1]);
   return b.build();
@@ -181,7 +181,7 @@ function apple(): THREE.BufferGeometry {
 
 function peach(): THREE.BufferGeometry {
   const b = new Builder();
-  b.add(sphere(0.065, 18, 14), (p, out) => {
+  b.add(sphere(0.065, 8, 6), (p, out) => {
     blend("#ffcf9a", "#ff7f8a", (p.y + 0.05) * 9 + p.x * 3, out);
     // The crease down one side
     if (Math.abs(p.x) < 0.006 && p.z < 0) out.multiplyScalar(0.8);
@@ -198,7 +198,7 @@ function grapes(): THREE.BufferGeometry {
     for (let i = 0; i < n; i++) {
       const a = (i / n) * Math.PI * 2 + row * 0.6;
       const r = n > 1 ? 0.03 + n * 0.006 : 0;
-      b.add(sphere(0.026, 10, 8), (p, out) => blend("#9b5fd9", "#d4b0ff", p.y * 20 + 0.2, out), 0.1, [Math.cos(a) * r, -row * 0.035, Math.sin(a) * r]);
+      b.add(sphere(0.026, 6, 5), (p, out) => blend("#9b5fd9", "#d4b0ff", p.y * 20 + 0.2, out), 0.1, [Math.cos(a) * r, -row * 0.035, Math.sin(a) * r]);
     }
   });
   b.add(cyl(0.005, 0.006, 0.06, 6), "#6b4a2a", 0, [0, 0.05, 0], [0, 0, 0.3]);
@@ -209,7 +209,7 @@ function grapes(): THREE.BufferGeometry {
 function cherries(): THREE.BufferGeometry {
   const b = new Builder();
   for (const s of [1, -1]) {
-    b.add(sphere(0.034, 14, 10), (p, out) => blend("#d81f3f", "#ff7a8a", p.y * 14 + p.x * 6 * s, out), 0.1, [s * 0.04, 0, 0]);
+    b.add(sphere(0.034, 8, 6), (p, out) => blend("#d81f3f", "#ff7a8a", p.y * 14 + p.x * 6 * s, out), 0.1, [s * 0.04, 0, 0]);
     b.add(cyl(0.004, 0.004, 0.11, 6), "#5e8a3a", 0, [s * 0.022, 0.06, 0], [0, 0, s * 0.42]);
   }
   b.add(leaf(0.06, 0.025), "#6fcf5a", 0, [0, 0.11, 0], [0.4, 0, -1.3]);
@@ -219,7 +219,7 @@ function cherries(): THREE.BufferGeometry {
 /** An oval fruit with five ridges: a star in cross-section, tapering at both ends */
 function starfruit(): THREE.BufferGeometry {
   const b = new Builder();
-  const body = lathe([[0.001, -0.09], [0.03, -0.075], [0.05, -0.04], [0.055, 0], [0.05, 0.04], [0.03, 0.075], [0.001, 0.09]], 40);
+  const body = lathe([[0.001, -0.09], [0.03, -0.075], [0.05, -0.04], [0.055, 0], [0.05, 0.04], [0.03, 0.075], [0.001, 0.09]], 8);
   const position = body.getAttribute("position") as THREE.BufferAttribute;
   for (let i = 0; i < position.count; i++) {
     const x = position.getX(i);
@@ -313,7 +313,7 @@ export function fireworkFlame(time: { value: number }): THREE.Mesh {
     });
   }
   // A cone pointing down from the nozzle: y from 0 to -1
-  const mesh = new THREE.Mesh(new THREE.ConeGeometry(0.075, 1, 14, 1, true).rotateX(Math.PI).translate(0, -0.5, 0), flameMaterial);
+  const mesh = new THREE.Mesh(new THREE.ConeGeometry(0.075, 1, 6, 1, true).rotateX(Math.PI).translate(0, -0.5, 0), flameMaterial);
   mesh.position.y = -0.1;
   mesh.renderOrder = 7;
   mesh.frustumCulled = false;

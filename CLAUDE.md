@@ -39,6 +39,7 @@ cd frontend && npm install && npm run dev  # http://localhost:5173
 4. Tunable looks go in `tuning.ts`, physics in `FLIGHT` (flight.ts).
 5. Shader safety: never `pow()` on negatives, never divide by zero.
 6. Don't add Claude as co-author on commits.
+7. Models: Opus 4.6 (1M context) as main agent, Fable 5.1 for subagents.
 
 ### Architecture (frontend/src)
 

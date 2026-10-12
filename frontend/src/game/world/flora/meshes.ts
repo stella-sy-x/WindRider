@@ -104,7 +104,7 @@ function pine(c: Colors, tiers = 4, width = 1, snow?: THREE.Color): THREE.Buffer
     const r = width * (1 - t * 0.78);
     const h = 0.5 - t * 0.18;
     const y = 0.2 + t * 0.66;
-    const cone = new THREE.ConeGeometry(r, h, 7, 1).rotateY(random() * 6.28).translate(0, y + h / 2, 0);
+    const cone = new THREE.ConeGeometry(r, h, 6, 1).rotateY(random() * 6.28).translate(0, y + h / 2, 0);
     const foliage = i % 2 ? c.foliage2 : c.foliage;
     const p = part(cone, { color: foliage, shade: [0.62, 1.12], sway: [0.25 + t * 0.6, 0.45 + t * 0.55] });
     if (snow) {
@@ -123,11 +123,11 @@ function pine(c: Colors, tiers = 4, width = 1, snow?: THREE.Color): THREE.Buffer
 
 function oak(c: Colors, trunkTop = 0.5, spread = 1): THREE.BufferGeometry[] {
   const parts = [
-    part(limb(v(0, 0, 0), v(0.02, trunkTop, 0), 0.11, 0.07, 6), { color: c.trunk, sway: [0, 0.25] }),
+    part(limb(v(0, 0, 0), v(0.02, trunkTop, 0), 0.11, 0.07, 5), { color: c.trunk, sway: [0, 0.25] }),
     part(limb(v(0.02, trunkTop * 0.75, 0), v(0.32 * spread, trunkTop + 0.18, 0.08), 0.045, 0.025), { color: c.trunk, sway: [0.2, 0.5] }),
     part(limb(v(0, trunkTop * 0.8, 0), v(-0.28 * spread, trunkTop + 0.2, -0.12), 0.045, 0.025), { color: c.trunk, sway: [0.2, 0.5] }),
   ];
-  const blobs = 7;
+  const blobs = 5;
   for (let i = 0; i < blobs; i++) {
     const a = (i / blobs) * Math.PI * 2 + random() * 0.6;
     const ring = i === 0 ? 0 : rr(0.35, 0.6) * spread;
@@ -140,7 +140,7 @@ function oak(c: Colors, trunkTop = 0.5, spread = 1): THREE.BufferGeometry[] {
 }
 
 function birch(c: Colors): THREE.BufferGeometry[] {
-  const trunk = part(limb(v(0, 0, 0), v(0.03, 0.72, 0.01), 0.07, 0.04, 6), { color: c.trunk, color2: c.trunk.clone().multiplyScalar(0.25), share2: 0.18, shade: [0.9, 1.05], sway: [0, 0.4] });
+  const trunk = part(limb(v(0, 0, 0), v(0.03, 0.72, 0.01), 0.07, 0.04, 5), { color: c.trunk, color2: c.trunk.clone().multiplyScalar(0.25), share2: 0.18, shade: [0.9, 1.05], sway: [0, 0.4] });
   const parts = [trunk];
   for (let i = 0; i < 4; i++) {
     const a = (i / 4) * Math.PI * 2 + random();
@@ -168,7 +168,7 @@ function palm(c: Colors): THREE.BufferGeometry[] {
   for (let i = 1; i <= segments; i++) {
     const t = i / segments;
     const next = v(0.28 * t * t, 0.92 * t, 0);
-    parts.push(part(limb(prev, next, 0.05 - t * 0.012, 0.045 - t * 0.012, 6), { color: i % 2 ? c.trunk : c.trunk.clone().multiplyScalar(0.8), sway: [t * 0.3, t * 0.35] }));
+    parts.push(part(limb(prev, next, 0.05 - t * 0.012, 0.045 - t * 0.012, 5), { color: i % 2 ? c.trunk : c.trunk.clone().multiplyScalar(0.8), sway: [t * 0.3, t * 0.35] }));
     prev = next;
   }
   const crown = prev;
@@ -180,7 +180,7 @@ function palm(c: Colors): THREE.BufferGeometry[] {
     const side = v(-dir.z, 0, dir.x);
     const length = rr(0.5, 0.62);
     const positions: number[] = [];
-    const steps = 4;
+    const steps = 3;
     const at = (s: number) => crown.clone().addScaledVector(dir, length * s).add(v(0, 0.12 * s - 0.42 * s * s, 0));
     for (let s = 0; s < steps; s++) {
       const p0 = at(s / steps);
@@ -208,15 +208,15 @@ function palm(c: Colors): THREE.BufferGeometry[] {
 }
 
 function jungle(c: Colors): THREE.BufferGeometry[] {
-  const parts = [part(limb(v(0, 0, 0), v(0, 0.72, 0), 0.08, 0.05, 6), { color: c.trunk, sway: [0, 0.2] })];
+  const parts = [part(limb(v(0, 0, 0), v(0, 0.72, 0), 0.08, 0.05, 5), { color: c.trunk, sway: [0, 0.2] })];
   // Buttress roots
   for (let i = 0; i < 4; i++) {
     const a = (i / 4) * Math.PI * 2 + 0.4;
     parts.push(part(limb(v(Math.cos(a) * 0.2, 0, Math.sin(a) * 0.2), v(0, 0.22, 0), 0.03, 0.05, 4), { color: c.trunk, sway: [0, 0] }));
   }
   // A wide, flat crown: an umbrella of blobs
-  for (let i = 0; i < 8; i++) {
-    const a = (i / 8) * Math.PI * 2 + random() * 0.4;
+  for (let i = 0; i < 5; i++) {
+    const a = (i / 5) * Math.PI * 2 + random() * 0.4;
     const ring = i === 0 ? 0 : rr(0.42, 0.68);
     const g = blob(i === 0 ? 0.42 : rr(0.3, 0.38), 0.55).translate(Math.cos(a) * ring, rr(0.76, 0.9), Math.sin(a) * ring);
     parts.push(part(g, { color: i % 2 ? c.foliage : c.foliage2, shade: [0.55, 1.12], sway: [0.6, 1] }));
@@ -225,11 +225,11 @@ function jungle(c: Colors): THREE.BufferGeometry[] {
 }
 
 function mushroom(c: Colors): THREE.BufferGeometry[] {
-  const parts = [part(limb(v(0, 0, 0), v(0.03, 0.62, 0), 0.13, 0.09, 8), { color: c.trunk, shade: [0.8, 1.05], sway: [0, 0.3] })];
+  const parts = [part(limb(v(0, 0, 0), v(0.03, 0.62, 0), 0.13, 0.09, 5), { color: c.trunk, shade: [0.8, 1.05], sway: [0, 0.3] })];
   // The cap: a dome with glowing spots, glowing gills underneath
-  const cap = new THREE.SphereGeometry(0.5, 12, 5, 0, Math.PI * 2, 0, Math.PI / 2).scale(1, 0.5, 1).translate(0.03, 0.58, 0);
+  const cap = new THREE.SphereGeometry(0.5, 8, 5, 0, Math.PI * 2, 0, Math.PI / 2).scale(1, 0.5, 1).translate(0.03, 0.58, 0);
   parts.push(part(cap, { color: c.foliage, color2: c.foliage2, share2: 0.16, shade: [0.75, 1.15], sway: [0.3, 0.4], glow: 0.2, glow2: 1 }));
-  const gills = new THREE.CircleGeometry(0.48, 12).rotateX(Math.PI / 2).translate(0.03, 0.585, 0);
+  const gills = new THREE.CircleGeometry(0.48, 8).rotateX(Math.PI / 2).translate(0.03, 0.585, 0);
   parts.push(part(gills, { color: c.foliage2, shade: [1, 1], sway: [0.3, 0.3], glow: 0.85 }));
   return parts;
 }
@@ -288,10 +288,10 @@ function boulder(c: Colors): THREE.BufferGeometry[] {
 }
 
 function redwood(c: Colors): THREE.BufferGeometry[] {
-  const parts = [part(limb(v(0, 0, 0), v(0, 0.75, 0), 0.32, 0.18, 7), { color: c.trunk, shade: [0.7, 1.05], sway: [0, 0.1] })];
+  const parts = [part(limb(v(0, 0, 0), v(0, 0.75, 0), 0.32, 0.18, 5), { color: c.trunk, shade: [0.7, 1.05], sway: [0, 0.1] })];
   for (let i = 0; i < 5; i++) {
     const t = i / 5;
-    const g = new THREE.ConeGeometry(0.9 - t * 0.55, 0.3, 7).translate(0, 0.5 + t * 0.42, 0);
+    const g = new THREE.ConeGeometry(0.9 - t * 0.55, 0.3, 6).translate(0, 0.5 + t * 0.42, 0);
     parts.push(part(g, { color: i % 2 ? c.foliage : c.foliage2, shade: [0.6, 1.1], sway: [0.3, 0.5] }));
   }
   return parts;
@@ -418,7 +418,7 @@ function sponge(c: Colors): THREE.BufferGeometry[] {
   spots.forEach(([x, z, top], i) => {
     const r = 0.2 + top * 0.12;
     const lean = v(x * 0.25, top, z * 0.25);
-    const tube = limb(v(x, 0, z), v(x, 0, z).add(lean), r * 0.75, r, 6, true);
+    const tube = limb(v(x, 0, z), v(x, 0, z).add(lean), r * 0.75, r, 5, true);
     parts.push(part(tube, { color: i % 2 ? c.foliage2 : c.foliage, shade: [0.65, 1.15], sway: [0, 0] }));
     // The mouth, glowing a little
     const mouth = new THREE.CircleGeometry(r * 0.95, 6).rotateX(-Math.PI / 2).translate(x + lean.x, top - 0.03, z + lean.z);
