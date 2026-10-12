@@ -116,6 +116,20 @@ export class InstancePool {
     this.dirty = true;
   }
 
+  /** Rewrites `born` for an owner's instances, e.g. to have them dissolve out (BORN_FRESH, atmosphere.ts) */
+  setBorn(owner: number, born: number) {
+    const list = this.slots.get(owner);
+    if (!list) return;
+    const b = this.born.array as Float32Array;
+    let from = Infinity;
+    for (const slot of list) {
+      b[slot] = born;
+      if (slot < from) from = slot;
+    }
+    this.dirty = true;
+    this.dirtyFrom = Math.min(this.dirtyFrom, from);
+  }
+
   has(owner: number): boolean {
     return this.slots.has(owner);
   }

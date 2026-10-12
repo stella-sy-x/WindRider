@@ -9,7 +9,8 @@ import { sceneryTime as fxTime } from "../particles";
 // - rims that light up on edges seen against the sun (backlight),
 // - rock strata: soft horizontal bands on cliffs,
 // - under the sea: ripples of light from the surface running over everything,
-// - land and plants that have just arrived fade in out of the haze (the `born` attribute).
+// - land and plants that have just arrived fade in out of the haze, and a change of level of
+//   detail dissolves from the old level to the new (the `born` attribute, BORN_FRESH).
 // The sky is a dome with the same light; under the sea it shows the water's
 // surface from below instead.
 
@@ -42,12 +43,82 @@ export const ATMOSPHERE = {
 };
 
 /**
- * The time to write into a geometry's `born` attribute (per vertex for land, per instance for
- * plants) so that it fades in from now on. Geometry without the attribute reads 0: long there
+ * The `born` attribute (per vertex for land, per instance for plants) says how something came
+ * to be on screen, in one float against the wall clock `atmoNow`:
+ *   0           long there (geometry without the attribute reads this)
+ *   t           swapped in at time t for another level of detail: its pixels dissolve in (a
+ *               dither) over TERRAIN.fadeIn, among the pixels the old level is still showing
+ *   FRESH + t   arrived at t where nothing was drawn: dissolves in out of the haze's color,
+ *               and its plants grow out of the ground
+ *   -t          on its way out since t, replaced by a level that is dissolving in: its pixels
+ *               dissolve out, showing exactly the ones the new level does not show yet, so
+ *               the two always add up to the whole ground and nothing needs sorting
+ * FRESH is 2^17: float32 still keeps 1/64 s above it, and the wall clock stays below it for 36 h.
  */
-export function bornNow(): number {
+export const BORN_FRESH = 131072;
+
+/** The wall clock the fades run on, in seconds (the scenery's clock can slow or stand still) */
+export function wallNow(): number {
   return ATMOSPHERE.now.value;
 }
+
+/** `born` for land or plants arriving where nothing was drawn: out of the haze, from now */
+export function bornFresh(): number {
+  return BORN_FRESH + wallNow();
+}
+
+/** `born` for a level of detail taking over from another: dissolves in from now */
+export function bornSwapped(): number {
+  return wallNow();
+}
+
+/** `born` for a level of detail being taken over: dissolves out from now */
+export function bornLeaving(): number {
+  return -wallNow();
+}
+
+/**
+ * `born` for something on its way out since `since` that is wanted again: swapped in at the
+ * time that has it show as many pixels as it still did, so it carries on from there
+ */
+export function bornResuming(since: number): number {
+  const now = wallNow();
+  const fadeIn = 1 / Math.max(ATMOSPHERE.revealRate.value, 1e-6);
+  // Leaving shows 1 - (now - since) / fadeIn of its pixels, arriving (now - t) / fadeIn
+  return Math.min(now, Math.max(1e-3, now - fadeIn + (now - since)));
+}
+
+/** GLSL to read `born` (see BORN_FRESH); needs the uniforms atmoNow and atmoRevealRate */
+export const BORN_GLSL = /* glsl */ `
+  // How far along its fade something is, 0 to 1 (1 when long there)
+  float atmoAge(float born) {
+    float t = abs(born);
+    t -= step(${BORN_FRESH}.0, t) * ${BORN_FRESH}.0;
+    return born == 0.0 ? 1.0 : clamp((atmoNow - t) * atmoRevealRate, 0.0, 1.0);
+  }
+  // 1 where it arrived out of nothing (melts out of the haze, plants grow), 0 for a change of detail
+  float atmoFresh(float born) { return step(${BORN_FRESH}.0, born); }
+  // 1 where it is on its way out
+  float atmoLeaving(float born) { return step(born, -1e-3); }
+  // The share of the pixels it shows: arriving grows from 0 to 1, leaving shrinks from 1 to 0
+  float atmoCover(float born) {
+    float age = atmoAge(born);
+    return mix(age, 1.0 - age, atmoLeaving(born));
+  }
+`;
+
+/**
+ * GLSL for the dissolve, in the fragment shader: true for a pixel to discard. Something arriving
+ * shows the pixels whose hash is below its cover, something leaving shows the others, so the
+ * two always add up to the whole. In 2×2 pixel blocks, which is less noisy and also keeps
+ * each GPU quad whole, so screen-space derivatives (the terrain's face normals) are unaffected
+ */
+export const DITHER_GLSL = /* glsl */ `
+  bool atmoDithered(float cover, float leaving) {
+    float h = fract(sin(dot(floor(gl_FragCoord.xy * 0.5), vec2(12.9898, 78.233))) * 43758.5453);
+    return leaving > 0.5 ? h < 1.0 - cover : h >= cover;
+  }
+`;
 
 /**
  * Mist: below a level a little under the camera (rock far beneath you sinks into
@@ -105,9 +176,12 @@ const PARS = /* glsl */ `
   uniform float atmoTime;
   varying vec3 vAtmoWorld;
   varying float vAtmoReveal;
+  varying float vAtmoCover;
+  varying float vAtmoLeaving;
   ${SUN_GLOW}
   ${MIST}
   ${CAUSTICS}
+  ${DITHER_GLSL}
 `;
 
 /** Adds the haze, mist, backlight and strata to a Lambert material (terrain, rocks) */
@@ -135,6 +209,9 @@ export function atmospheric<T extends THREE.MeshLambertMaterial>(material: T, st
         uniform float atmoRevealRate;
         varying vec3 vAtmoWorld;
         varying float vAtmoReveal;
+        varying float vAtmoCover;
+        varying float vAtmoLeaving;
+        ${BORN_GLSL}
         void main() {`,
       )
       .replace(
@@ -145,10 +222,19 @@ export function atmospheric<T extends THREE.MeshLambertMaterial>(material: T, st
           atmoWorld = instanceMatrix * atmoWorld;
         #endif
         vAtmoWorld = (modelMatrix * atmoWorld).xyz;
-        vAtmoReveal = clamp((atmoNow - born) * atmoRevealRate, 0.0, 1.0);`,
+        // Only what arrived out of nothing melts out of the haze; a change of detail dissolves (born: BORN_FRESH)
+        vAtmoReveal = mix(1.0, atmoAge(born), atmoFresh(born));
+        vAtmoCover = atmoCover(born);
+        vAtmoLeaving = atmoLeaving(born);`,
       );
     shader.fragmentShader = shader.fragmentShader
-      .replace("void main() {", `${PARS}\nvoid main() {`)
+      .replace(
+        "void main() {",
+        `${PARS}
+        void main() {
+          // Arriving or leaving land shows only its share of the pixels (see DITHER_GLSL)
+          if (atmoDithered(vAtmoCover, vAtmoLeaving)) discard;`,
+      )
       .replace(
         "#include <color_fragment>",
         `#include <color_fragment>

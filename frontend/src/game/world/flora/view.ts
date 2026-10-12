@@ -2,7 +2,7 @@ import * as THREE from "three";
 import { sceneryTime as fxTime } from "../../particles";
 import { TOON_LIGHT } from "../../toon";
 import { FLORA, STRUCTURES, TERRAIN } from "../../tuning";
-import { ATMOSPHERE, MIST, atmospheric, bornNow } from "../atmosphere";
+import { ATMOSPHERE, BORN_GLSL, DITHER_GLSL, MIST, atmospheric } from "../atmosphere";
 import type { VegetationSpec } from "../biomes/types";
 import { type Palette, sunDirection } from "../palette";
 import { STRUCTURE_INFO, structuresOf } from "../structures/kinds";
@@ -49,6 +49,17 @@ const TINT_PARS = /* glsl */ `
 `;
 const TINT_FRAGMENT = /* glsl */ `diffuseColor.rgb = mix(diffuseColor.rgb, floraTint, floraTintStrength);`;
 
+/**
+ * GLSL: plants shrink a little (to 0.85) over the band past `floraFull`, where full trees give way to
+ * impostors, so the swap is a dissolve between two things of one size. Both shaders apply it
+ */
+const FAR_SCALE_GLSL = /* glsl */ `
+  uniform float floraFull;
+  float floraFarScale(float dist) { return 1.0 - 0.15 * smoothstep(floraFull, floraFull * 1.5, dist); }
+`;
+/** Where full trees give way to impostors: a full-detail node's box is within lodDetail (+ hysteresis) of the camera */
+const floraFull = { get value() { return TERRAIN.lodDetail + TERRAIN.lodHysteresis; } };
+
 const ATLAS_COLUMNS = 4;
 const ATLAS_ROWS = 4;
 const CELL_W = 256;
@@ -82,6 +93,7 @@ function plantMaterial(
     shader.uniforms.floraGust = FLORA_UNIFORMS.gust;
     shader.uniforms.floraWind = wind;
     shader.uniforms.floraFade = { get value() { return FLORA.grassDistance; } };
+    shader.uniforms.floraFull = floraFull;
     shader.uniforms.floraLights = { get value() { return built ? STRUCTURES.lights : 1; } };
     if (spin) shader.uniforms.floraSpin = { get value() { return spin.rate * STRUCTURES.sails; } };
     if (tint) {
@@ -98,6 +110,7 @@ function plantMaterial(
         uniform float floraWind;
         uniform float floraGust;
         uniform float floraFade;
+        ${FAR_SCALE_GLSL}
         varying float vGlow;
         varying float vBlade;
         void main() {`,
@@ -131,15 +144,19 @@ function plantMaterial(
           transformed.x += w * (sin(floraTime * 1.7 + phase) * 0.7 + sin(floraTime * 3.3 + phase * 1.9) * 0.3);
           transformed.z += w * cos(floraTime * 1.3 + phase) * 0.5;
           #ifdef USE_INSTANCING
-            // Plants of land that has just arrived grow out of the ground (born, atmoNow: atmosphere.ts)
-            float grown = clamp((atmoNow - born) * atmoRevealRate, 0.0, 1.0);
+            // Plants of land that has just arrived grow out of the ground; a change of detail
+            // dissolves instead, at full size (born: BORN_FRESH, atmosphere.ts)
+            float grown = mix(1.0, atmoAge(born), atmoFresh(born));
             transformed *= grown * (2.0 - grown);
           #endif
+          float far = distance(root, cameraPosition);
           ${grass ? `
           // Tufts shrink away with distance instead of popping
-          float far = distance(root, cameraPosition);
           transformed *= 1.0 - smoothstep(floraFade * 0.7, floraFade, far);
-          vBlade = sway;` : "vGlow = glow;"}
+          vBlade = sway;` : `
+          // Towards where impostors take over, trees shrink a little, as the impostors do
+          transformed *= floraFarScale(far);
+          vGlow = glow;`}
         }`,
       );
     shader.fragmentShader = shader.fragmentShader
@@ -191,21 +208,38 @@ const impostorVertex = /* glsl */ `
   uniform float atmoNow;
   uniform float atmoRevealRate;
   uniform vec2 cells;
+  #ifdef USE_FOG
+    uniform float fogFar;
+  #endif
+  ${BORN_GLSL}
+  ${FAR_SCALE_GLSL}
   varying vec2 vUv;
   varying vec3 vTint;
   varying vec3 vWorld;
+  varying float vCover;
+  varying float vLeaving;
   #include <fog_pars_vertex>
   void main() {
     // instanceMatrix carries the plant's foot (column 3), width and height (scales of x and y) and atlas cell (z scale)
     vec3 foot = vec3(instanceMatrix[3][0], instanceMatrix[3][1], instanceMatrix[3][2]);
-    // Plants of land that has just arrived grow out of the ground, like the full meshes
-    float grown = clamp((atmoNow - born) * atmoRevealRate, 0.0, 1.0);
+    // Plants of land that has just arrived grow out of the ground, like the full meshes; a change
+    // of detail dissolves instead, at full size (born: BORN_FRESH, atmosphere.ts)
+    float grown = mix(1.0, atmoAge(born), atmoFresh(born));
     grown *= 2.0 - grown;
-    float width = instanceMatrix[0][0] * grown;
-    float height = instanceMatrix[1][1] * grown;
+    vCover = atmoCover(born);
+    vLeaving = atmoLeaving(born);
+    vec3 toCamera = cameraPosition - foot;
+    float dist = length(toCamera);
+    // The same small shrink the full trees have where they give way to impostors, and towards
+    // the fog's far edge impostors shrink away into the haze instead of popping out of view
+    float size = grown * floraFarScale(dist);
+    #ifdef USE_FOG
+      size *= 1.0 - smoothstep(fogFar * 0.7, fogFar, dist);
+    #endif
+    float width = instanceMatrix[0][0] * size;
+    float height = instanceMatrix[1][1] * size;
     float cell = floor(instanceMatrix[2][2] + 0.5);
     // Turn to face the camera, about the vertical only
-    vec3 toCamera = cameraPosition - foot;
     vec3 right = normalize(vec3(toCamera.z, 0.0, -toCamera.x) + vec3(1e-4, 0.0, 0.0));
     vec3 world = foot + right * position.x * width + vec3(0.0, (position.y + ${FRAME_Y0.toFixed(3)}) * height, 0.0);
     vec2 corner = vec2(mod(cell, cells.x), floor(cell / cells.x));
@@ -228,11 +262,16 @@ const impostorFragment = /* glsl */ `
   uniform float atmoMistHeight;
   uniform float atmoMistThickness;
   ${MIST}
+  ${DITHER_GLSL}
   varying vec2 vUv;
   varying vec3 vTint;
   varying vec3 vWorld;
+  varying float vCover;
+  varying float vLeaving;
   #include <fog_pars_fragment>
   void main() {
+    // Arriving or leaving plants show only their share of the pixels (see DITHER_GLSL)
+    if (atmoDithered(vCover, vLeaving)) discard;
     vec4 texel = texture2D(atlas, vUv);
     if (texel.a < 0.5) discard;
     vec3 color = texel.rgb * vTint;
@@ -383,6 +422,7 @@ export class FloraView {
     this.impostorMaterial.uniforms.atmoMistThickness = ATMOSPHERE.mistThickness;
     this.impostorMaterial.uniforms.atmoNow = ATMOSPHERE.now;
     this.impostorMaterial.uniforms.atmoRevealRate = ATMOSPHERE.revealRate;
+    this.impostorMaterial.uniforms.floraFull = floraFull;
     this.materials.push(this.impostorMaterial);
     const quad = new THREE.PlaneGeometry(2, FRAME_Y1 - FRAME_Y0).translate(0, (FRAME_Y1 - FRAME_Y0) / 2, 0);
     this.geometries.push(quad);
@@ -455,15 +495,28 @@ export class FloraView {
 
   /**
    * A node came on screen: its plants appear, as full meshes or impostors by its level of detail.
-   * `fresh`: nothing stood there before (not a change of detail), so they grow in
+   * `born` says how (BORN_FRESH, atmosphere.ts): growing out of the ground where nothing stood,
+   * or dissolving in for a change of detail. Plants of the node still on their way out go first
    */
-  show(key: number, lod: number, plants: Float32Array, tufts: Float32Array, box: THREE.Box3, fresh = false) {
+  show(key: number, lod: number, plants: Float32Array, tufts: Float32Array, box: THREE.Box3, born = 0) {
+    if (this.nodes.has(key)) this.hide(key);
     const node: NodeFlora = { lod, plants, tufts, box, impostors: false, full: false, grass: false };
     this.nodes.set(key, node);
-    const born = fresh ? bornNow() : 0;
     if (lod === 0) this.addFull(key, node, born);
     else this.addImpostors(key, node, born);
     this.lastGrassCheck.set(Infinity, 0, 0);
+  }
+
+  /** Rewrites `born` for a node's plants, e.g. to have them dissolve out while their replacements dissolve in */
+  setBorn(key: number, born: number) {
+    const node = this.nodes.get(key);
+    if (!node) return;
+    if (node.full) for (const pool of this.full) pool.setBorn(key, born);
+    if (node.impostors) this.impostors?.setBorn(key, born);
+    if (node.grass) {
+      this.grass?.setBorn(key, born);
+      this.flowers?.setBorn(key, born);
+    }
   }
 
   hide(key: number) {

@@ -17,7 +17,8 @@ import { reloadForNewBuild } from "../../staleBuild";
 import { DEEP, TERRAIN } from "../tuning";
 
 export const VIEW_DISTANCE = 1400;
-const FOG_NEAR = 250;
+// Near enough that the haze is already on the land where detail changes (TERRAIN.lodDetail, lodNear)
+const FOG_NEAR = 120;
 const FOG_FAR = 1300;
 const REQUESTS_PER_WORKER = 4;
 

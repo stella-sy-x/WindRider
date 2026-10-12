@@ -117,7 +117,7 @@ export const TERRAIN = {
   viewDistance: 1500,
   readyRadius: 260, // the start waits until the land this close has arrived
   arrivalsPerFrame: 12, // arrived land meshes taken in per frame once you're flying (each costs about 0.04 ms)
-  fadeIn: 0.9, // seconds for land that has just arrived to fade in out of the haze, and its plants to grow in
+  fadeIn: 1.8, // seconds for land that has just arrived to fade in out of the haze and its plants to grow in, and for a change of detail to dissolve across
   snowLine: 0, // metres added to the biome's snow line
   coverSlope: 0, // added to the slope where grass (moss, sand…) gives way to rock
   texture: 1, // strength of the painted noise on cliffs

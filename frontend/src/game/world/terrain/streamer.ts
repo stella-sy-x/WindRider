@@ -1,6 +1,6 @@
 import * as THREE from "three";
 import { TERRAIN } from "../../tuning";
-import { bornNow } from "../atmosphere";
+import { bornFresh, bornLeaving, bornResuming, bornSwapped, wallNow } from "../atmosphere";
 import { PLANT_STRIDE } from "../flora/species";
 import type { FloraView } from "../flora/view";
 import { kindInfo } from "../structures/kinds";
@@ -14,8 +14,11 @@ import { NODE_SIZE, type TerrainMesh, VOXEL, nodeKey } from "./mesh";
 // node has 16 cells a side, so the triangle count per node stays the same and
 // far land is coarse. A coarse node stays on screen until all of its finer
 // replacements have arrived (and the other way round when merging), so the land
-// never shows holes or two levels at once. Land that comes on screen where none
-// was shown before fades in out of the haze (its `born` attribute, atmosphere.ts).
+// never shows holes. The change of level then dissolves over TERRAIN.fadeIn: the
+// old level goes on being drawn, dying, showing exactly the pixels the new level
+// does not show yet (the `born` attribute, BORN_FRESH in atmosphere.ts), while
+// collisions switch to the new level at once. Land that comes on screen where
+// none was shown before fades in out of the haze instead.
 
 export const LOD_LEVELS = 4;
 const ROOT_LOD = LOD_LEVELS - 1;
@@ -45,6 +48,7 @@ interface Node {
   plants: Float32Array | null;
   tufts: Float32Array | null;
   shown: boolean;
+  dying: number; // replaced by another level but still drawn, dissolving out: the wall time that began (0: not)
   split: boolean; // hysteresis: keep fine detail until beyond the outer threshold
   desired: number; // the update stamp it was last wanted in
 }
@@ -68,6 +72,7 @@ export class LandStreamer {
   private cacheBytes = 0;
   private desired: Node[] = [];
   private readonly wanted: { node: Node; d: number }[] = [];
+  private readonly dying = new Set<Node>();
 
   constructor(world: World, group: THREE.Group, material: THREE.Material, flora: FloraView | null, collider: LandCollider) {
     this.world = world;
@@ -122,6 +127,7 @@ export class LandStreamer {
       plants: null,
       tufts: null,
       shown: false,
+      dying: 0,
       split: false,
       desired: -1,
     };
@@ -171,8 +177,9 @@ export class LandStreamer {
       const seconds = Math.min(TERRAIN.lodLookAheadSeconds, TERRAIN.lodLookAheadMax / velocity!.length());
       this.lookAhead.addScaledVector(velocity!, seconds);
     }
-    // Take in a few of the arrived meshes (all of them while nothing is on screen yet)
     this.trimCache();
+    this.finishDying();
+    // Take in a few of the arrived meshes (all of them while nothing is on screen yet)
     if (this.arrived.length) {
       const budget = this.ready ? TERRAIN.arrivalsPerFrame : this.arrived.length;
       for (const result of this.arrived.splice(0, budget)) this.take(result);
@@ -273,12 +280,13 @@ export class LandStreamer {
         // Splitting: wait until everything wanted under the coarse node has arrived
         if (!this.allLoaded(shownAncestor)) continue;
         this.showUnder(shownAncestor);
-        this.hide(shownAncestor);
+        // The coarse node dissolves out while its finer replacements dissolve in
+        this.fade(shownAncestor);
       } else {
         // Fresh: no finer land stood here either, so this is land arriving, not changing detail
         this.show(node, !this.anyShown(node));
-        // Merging: the finer nodes it replaces go
-        if (node.children) for (const child of node.children) this.hideTree(child);
+        // Merging: the finer nodes it replaces dissolve out
+        if (node.children) for (const child of node.children) this.fadeTree(child);
       }
     }
   }
@@ -288,8 +296,9 @@ export class LandStreamer {
     return null;
   }
 
+  /** Is land drawn here (on screen, or still dissolving out)? Then what comes is a change of detail, not an arrival */
   private anyShown(node: Node): boolean {
-    if (node.shown) return true;
+    if (node.shown || node.dying) return true;
     if (node.children) for (const child of node.children) if (this.anyShown(child)) return true;
     return false;
   }
@@ -326,25 +335,60 @@ export class LandStreamer {
       this.cacheBytes -= cached.bytes;
       this.cache.delete(node.key);
     }
+    // Arriving where nothing stood it melts out of the haze; replacing another level it dissolves in
+    // among that level's pixels; still dissolving out from an earlier showing, it carries on from there
+    const born = node.dying ? bornResuming(node.dying) : fresh ? bornFresh() : bornSwapped();
+    if (node.dying) {
+      node.dying = 0;
+      this.dying.delete(node);
+    }
     node.shown = true;
     if (node.mesh) {
-      // Fades in from now if fresh; otherwise it must not still carry a fade from an earlier showing
-      const born = node.mesh.geometry.getAttribute("born") as THREE.BufferAttribute;
-      const now = bornNow();
-      if (fresh || born.array[0] > now - 10) {
-        (born.array as Float32Array).fill(fresh ? now : 0);
-        born.needsUpdate = true;
-      }
+      this.setBorn(node.mesh, born);
       this.group.add(node.mesh);
       // What is on screen is what you hit
       this.collider.add(node.key, node.mesh.geometry.getAttribute("position").array as Float32Array, VOXEL << node.lod);
     }
-    if (node.plants && this.flora) this.flora.show(node.key, node.lod, node.plants, node.tufts!, node.box, fresh);
+    if (node.plants && this.flora) this.flora.show(node.key, node.lod, node.plants, node.tufts!, node.box, born);
+  }
+
+  private setBorn(mesh: THREE.Mesh, born: number) {
+    const attribute = mesh.geometry.getAttribute("born") as THREE.BufferAttribute;
+    (attribute.array as Float32Array).fill(born);
+    attribute.needsUpdate = true;
+  }
+
+  /**
+   * Taken over by another level of detail: stays drawn for TERRAIN.fadeIn, dissolving out
+   * (`finishDying` takes it off), while you already hit the new level. Nothing drawn: off at once
+   */
+  private fade(node: Node) {
+    if (!node.shown || (!node.mesh && !(node.plants && this.flora))) {
+      this.hide(node);
+      return;
+    }
+    node.shown = false;
+    node.dying = wallNow();
+    this.dying.add(node);
+    this.collider.remove(node.key);
+    const born = bornLeaving();
+    if (node.mesh) this.setBorn(node.mesh, born);
+    this.flora?.setBorn(node.key, born);
+  }
+
+  private finishDying() {
+    if (!this.dying.size) return;
+    const gone = wallNow() - TERRAIN.fadeIn;
+    for (const node of this.dying) if (node.dying <= gone) this.hide(node);
   }
 
   private hide(node: Node) {
-    if (node.shown) this.flora?.hide(node.key);
+    if (node.shown || node.dying) this.flora?.hide(node.key);
     node.shown = false;
+    if (node.dying) {
+      node.dying = 0;
+      this.dying.delete(node);
+    }
     this.collider.remove(node.key);
     if (node.mesh) this.group.remove(node.mesh);
     if (node.state !== "loaded" || this.cache.has(node.key)) return;
@@ -372,9 +416,11 @@ export class LandStreamer {
     }
   }
 
-  private hideTree(node: Node) {
-    if (node.shown || node.state === "loaded") this.hide(node);
-    if (node.children) for (const child of node.children) this.hideTree(child);
+  /** A merge: what is on screen under the coarse node dissolves out; what is already dissolving out carries on */
+  private fadeTree(node: Node) {
+    if (node.shown) this.fade(node);
+    else if (node.state === "loaded" && !node.dying) this.hide(node);
+    if (node.children) for (const child of node.children) this.fadeTree(child);
   }
 
   /**
@@ -419,6 +465,7 @@ export class LandStreamer {
     for (const node of this.byKey.values()) if (node.mesh) node.mesh.geometry.dispose();
     this.byKey.clear();
     this.cache.clear();
+    this.dying.clear();
     this.cacheBytes = 0;
     this.arrived.length = 0;
   }
