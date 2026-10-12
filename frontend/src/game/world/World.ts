@@ -2,7 +2,6 @@ import { Vector3 } from "three";
 import { makeRng, range } from "../rng";
 import type { Biome, Level } from "./biomes";
 import { Course } from "./course";
-import { RockField } from "./islands";
 import type { Palette } from "./palette";
 import { TerrainField } from "./terrain/field";
 import { Ground } from "./terrain/ground";
@@ -38,7 +37,7 @@ export interface IslandFall {
   drop: number; // metres down to where it fades into the clouds
 }
 
-/** Anything with a signed distance: the legacy islands or a generator-v2 field */
+/** Anything with a signed distance: the land's terrain field */
 export interface Rock {
   distance(x: number, y: number, z: number): number;
 }
@@ -52,10 +51,8 @@ export class World {
   readonly palette: Palette;
   /** All the land, for collisions */
   readonly rock: Rock;
-  /** The race map's islands (Sky Isles only) */
-  readonly legacy: RockField | null = null;
-  /** Generator-v2 land (every other biome) */
-  readonly land: TerrainField | null = null;
+  /** The land: ground and rock shapes, one distance field */
+  readonly land: TerrainField;
   /** The stepped valley floor and its river, if the biome has one */
   readonly steps: Steps | null = null;
   /** Whether the biome has a sea. Its surface follows the racing line down (`seaAt`) */
@@ -75,23 +72,18 @@ export class World {
     this.palette = level.palette;
     this.course = new Course(this.seed);
     const terrain = this.biome.terrain;
-    if (terrain.kind === "legacyIslands") {
-      this.legacy = new RockField(this.seed, this.course);
-      this.rock = this.legacy;
-    } else {
-      const noise = makeNoise(this.seed, "land");
-      const ground = terrain.ground ? new Ground(this.course, terrain.ground, makeRng(this.seed, "ground"), noise) : null;
-      const field = new TerrainField(this.course, ground, terrain.groundSurface, noise);
-      if (terrain.sea) {
-        this.hasSea = true;
-        this.seaTable = this.buildSeaTable(terrain.sea.level);
-      }
-      buildLand({ course: this.course, field, ground, rng: makeRng(this.seed, "land"), noise, seaAt: this.hasSea ? (z) => this.seaAt(z) : null }, terrain.land);
-      this.land = field;
-      this.rock = field;
-      this.steps = ground?.steps?.river ? ground.steps : null;
-      if (terrain.islandFalls) this.findIslandFalls(terrain.islandFalls.chance);
+    const noise = makeNoise(this.seed, "land");
+    const ground = terrain.ground ? new Ground(this.course, terrain.ground, makeRng(this.seed, "ground"), noise) : null;
+    const field = new TerrainField(this.course, ground, terrain.groundSurface, noise);
+    if (terrain.sea) {
+      this.hasSea = true;
+      this.seaTable = this.buildSeaTable(terrain.sea.level);
     }
+    buildLand({ course: this.course, field, ground, rng: makeRng(this.seed, "land"), noise, seaAt: this.hasSea ? (z) => this.seaAt(z) : null }, terrain.land);
+    this.land = field;
+    this.rock = field;
+    this.steps = ground?.steps?.river ? ground.steps : null;
+    if (terrain.islandFalls) this.findIslandFalls(terrain.islandFalls.chance);
     this.startDirection = this.startHeading();
   }
 
@@ -136,7 +128,7 @@ export class World {
   /** Finds a rim to pour from on some of the big floating islands */
   private findIslandFalls(chance: number) {
     const rng = makeRng(this.seed, "island falls");
-    const field = this.land!;
+    const field = this.land;
     for (const shape of field.shapes) {
       if (!(shape instanceof NoiseIsland) || shape.anchor.size < 24) continue;
       const roll = rng();
@@ -208,7 +200,7 @@ export class World {
   valleyFloor(z: number): number {
     const sea = this.seaAt(z);
     if (sea !== null) return sea;
-    const ground = this.land?.ground;
+    const ground = this.land.ground;
     if (!ground) return this.course.y(z) - 40;
     if (ground.steps) return ground.steps.level(z);
     return ground.spec.level !== null ? ground.height(this.course.x(z), z) : this.course.y(z) - ground.spec.depth;

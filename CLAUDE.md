@@ -11,7 +11,7 @@ No realistic assets or photo textures.
 ## The game
 
 Wind Rider is a browser wingsuit racer. Seeded procedural courses through
-floating islands and nine biomes, crystal gates, multiplayer race rooms.
+floating islands and eight biomes, crystal gates, multiplayer race rooms.
 React + Three.js frontend, FastAPI backend behind Caddy, `docker compose`.
 
 ### Modes
@@ -72,6 +72,22 @@ Backend: `app.py` endpoints, `rooms.py` race state machine and SSE relay,
 `store.py` SQLite ghosts and runs, `models.py` Pydantic models.
 
 ## Change log
+
+### 2026-10-12: Unify visual style (Claude)
+
+- Removed external IP references (Genshin Impact, Sky)
+- Replaced cel-shading with low-poly flat shading (deleted toon gradient,
+  rim light, ink outlines; unified to MeshLambertMaterial + flatShading)
+- Applied Plan B poly budget: avatar ≤2400 verts, wings ≤1500/pair,
+  pets ≤1500, hats/shoes ≤400, items ≤600, trees ≤400. Max 12 segments.
+- Deleted Sky Isles biome and legacy terrain renderer (islands.ts,
+  mesher.ts, legacy branches in WorldView/World/worker). Unified to v2
+  renderer only. Biome count 9 → 8. Existing Sky Isles ghosts/leaderboards
+  invalidated.
+- Improved Archipelago: sun 9°→28°, island noise 0.16→0.08, holes 35%→10%,
+  vegetation density 6%→25%, pine-dominant, added 3 day moods.
+- Fixed iOS Chrome fullscreen (webkit prefix fallback).
+- Build and lint pass. Backend untouched.
 
 ### 2026-10-12: Strip adventure mode, keep pure racing (Claude)
 

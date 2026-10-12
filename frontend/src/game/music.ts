@@ -1,6 +1,5 @@
 // Background music: one looping track per mood, crossfaded when the biome
-// changes. Biomes that sound alike share a track (Sky Isles and Archipelago
-// keep playing without a break). At night the same track is dimmed and
+// changes. Biomes that sound alike share a track. At night the same track is dimmed and
 // muffled, so every biome has a day and a night feel without extra files.
 // Files live in public/audio/music, named `<biome>_<title>.mp3`.
 
@@ -19,7 +18,6 @@ type TrackId = keyof typeof TRACKS;
 
 /** Which track plays in which biome */
 const TRACK_OF: Record<BiomeId, TrackId> = {
-  skyIsles: "sky",
   archipelago: "sky",
   glacier: "glacier",
   aurora: "glacier", // until the finale gets a track of its own
