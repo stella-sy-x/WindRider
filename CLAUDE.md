@@ -46,7 +46,7 @@ cd frontend && npm install && npm run dev  # http://localhost:5173
 |:-----|:-----|
 | `game/Game.ts` | Frame loop, physics steps, race state, HUD, effects, rendering |
 | `game/flight.ts` | Arcade flight model (`FLIGHT` constants). Physics only |
-| `game/avatar.ts` | Cel-shaded chibi pilot, animation, cloth, face |
+| `game/avatar.ts` | Low-poly chibi pilot, animation, cloth, face |
 | `game/camera.ts` | Chase camera, crash fall camera |
 | `game/particles.ts` | GPU particle system |
 | `game/pilotfx.ts` | Wingtip ribbons, motes, roll arcs, boost dust |
