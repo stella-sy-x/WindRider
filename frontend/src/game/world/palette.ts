@@ -1,4 +1,4 @@
-import { MathUtils, Vector3 } from "three";
+import { Color, type ColorRepresentation, MathUtils, Vector3 } from "three";
 
 export interface Palette {
   name: string;
@@ -30,4 +30,50 @@ export function sunDirection(palette: Palette): Vector3 {
   const el = MathUtils.degToRad(palette.sunElevation);
   const az = MathUtils.degToRad(palette.sunAzimuth);
   return new Vector3(Math.sin(az) * Math.cos(el), Math.sin(el), Math.cos(az) * Math.cos(el));
+}
+
+/**
+ * How far a mood's land and plant colors sit from the biome's baked look, per channel. A biome's
+ * surfaces and species are authored in the colors of its first mood (whose `rock`, `grass`,
+ * `forest` and `trunk` are the ground, its cover, the main tree and its trunk); every other mood
+ * repaints them by its palette's distance from that one, when the land is meshed and the plants
+ * are built, so a seed's mood is baked into its vertices. The same whole-palette repaint the
+ * legacy Sky Isles made per mood: a surface or species that differs from the ground or the main
+ * tree (greyer gates, strata, a second shade of needles) keeps that difference. The shifts are
+ * in sRGB, the space the hex colors are written in: there a step reads the same on dark and
+ * bright colors, where in linear light it would crush the dark ones to black
+ */
+export interface MoodShift {
+  rock: Color;
+  grass: Color;
+  forest: Color;
+  trunk: Color;
+}
+
+/** The repaint that takes `baked` (a biome's first mood) to `mood` */
+export function moodShift(baked: Palette, mood: Palette): MoodShift {
+  const between = (from: string, to: string) => {
+    // Color.sub clamps at zero; the shift is signed
+    const a = new Color(from).convertLinearToSRGB();
+    const b = new Color(to).convertLinearToSRGB();
+    return new Color(b.r - a.r, b.g - a.g, b.b - a.b);
+  };
+  return {
+    rock: between(baked.rock, mood.rock),
+    grass: between(baked.grass, mood.grass),
+    forest: between(baked.forest, mood.forest),
+    trunk: between(baked.trunk, mood.trunk),
+  };
+}
+
+/**
+ * `color` moved by `shift` (a MoodShift channel), as a linear color like any other, every channel
+ * kept in 0..1: a vertex color below zero would be pow()ed by the sRGB encode
+ */
+export function shifted(color: ColorRepresentation, shift: Color, out = new Color()): Color {
+  out.set(color).convertLinearToSRGB();
+  out.r = MathUtils.clamp(out.r + shift.r, 0, 1);
+  out.g = MathUtils.clamp(out.g + shift.g, 0, 1);
+  out.b = MathUtils.clamp(out.b + shift.b, 0, 1);
+  return out.convertSRGBToLinear();
 }

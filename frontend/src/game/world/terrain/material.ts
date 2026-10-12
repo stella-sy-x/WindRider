@@ -10,7 +10,9 @@ import type { Layers } from "../biomes/types";
 // a band of soil where it breaks, rock on the steep; sand and dark wet rock at
 // the water's edge; snow above the snow line on faces flat enough to hold it.
 // Cliffs get a soft triplanar noise so they read as painted stone. Inputs are
-// constant over a face, so the land keeps its flat-shaded, low-poly look.
+// constant over a face, so the land keeps its flat-shaded, low-poly look. The
+// mood's colors arrive baked in the faces (terrain/mesh.ts); nothing here is
+// per mood.
 
 export interface TerrainUniforms {
   dirt: { value: THREE.Color };
@@ -22,10 +24,6 @@ export interface TerrainUniforms {
   texture: { value: number };
   textureScale: { value: number };
   glow: { value: number };
-  /** The mood's rock and grass (palette.rock, palette.grass): the baked faces shift toward them by tintStrength */
-  rockTint: { value: THREE.Color };
-  coverTint: { value: THREE.Color };
-  tintStrength: { value: number };
 }
 
 const PARS = /* glsl */ `
@@ -38,9 +36,6 @@ const PARS = /* glsl */ `
   uniform float terrainTexture;
   uniform float terrainTextureScale;
   uniform float terrainGlow;
-  uniform vec3 terrainRockTint;
-  uniform vec3 terrainCoverTint;
-  uniform float terrainTintStrength;
   varying vec4 vRock;
   varying vec4 vCover;
   varying float vSnow;
@@ -74,9 +69,6 @@ export function terrainMaterial(layers: Layers): { material: THREE.MeshLambertMa
     texture: { value: layers.texture },
     textureScale: { value: 1 },
     glow: { value: 1 },
-    rockTint: { value: new THREE.Color(1, 1, 1) },
-    coverTint: { value: new THREE.Color(1, 1, 1) },
-    tintStrength: { value: 0 },
   };
   const material = atmospheric(new THREE.MeshLambertMaterial({ flatShading: true }), 0.35);
   const atmosphere = material.onBeforeCompile;
@@ -91,9 +83,6 @@ export function terrainMaterial(layers: Layers): { material: THREE.MeshLambertMa
     shader.uniforms.terrainTexture = uniforms.texture;
     shader.uniforms.terrainTextureScale = uniforms.textureScale;
     shader.uniforms.terrainGlow = uniforms.glow;
-    shader.uniforms.terrainRockTint = uniforms.rockTint;
-    shader.uniforms.terrainCoverTint = uniforms.coverTint;
-    shader.uniforms.terrainTintStrength = uniforms.tintStrength;
     shader.vertexShader = shader.vertexShader
       .replace(
         "void main() {",
@@ -123,12 +112,8 @@ export function terrainMaterial(layers: Layers): { material: THREE.MeshLambertMa
           float slope = terrainCoverSlope;
           float coverW = smoothstep(slope - 0.14, slope + 0.04, up);
           float dirtW = smoothstep(slope - 0.34, slope - 0.14, up) * (1.0 - coverW);
-          // The mood's tint: the baked rock and cover shift part of the way toward the palette,
-          // keeping their per-surface variation (crystal faces below keep their own color)
-          vec3 rockColor = mix(vRock.rgb, terrainRockTint, terrainTintStrength);
-          vec3 coverColor = mix(vCover.rgb, terrainCoverTint, terrainTintStrength);
-          vec3 color = mix(rockColor, mix(terrainDirt, rockColor, 0.2), dirtW * 0.85);
-          color = mix(color, coverColor, coverW);
+          vec3 color = mix(vRock.rgb, mix(terrainDirt, vRock.rgb, 0.2), dirtW * 0.85);
+          color = mix(color, vCover.rgb, coverW);
           // The water's edge: sand on the flat, dark wet rock on the steep
           float wet = vCover.a;
           float flatness = smoothstep(0.25, 0.55, up);
@@ -167,7 +152,7 @@ export function terrainMaterial(layers: Layers): { material: THREE.MeshLambertMa
         }`,
       );
   };
-  material.customProgramCacheKey = () => "windrider-terrain-crystal-v4-tint";
+  material.customProgramCacheKey = () => "windrider-terrain-crystal-v5-baked";
   return { material, uniforms };
 }
 
@@ -178,5 +163,4 @@ export function applyTerrainTuning(uniforms: TerrainUniforms, layers: Layers) {
   uniforms.texture.value = layers.texture * TERRAIN.texture;
   uniforms.textureScale.value = TERRAIN.textureScale;
   uniforms.glow.value = TERRAIN.glow;
-  uniforms.tintStrength.value = TERRAIN.tintStrength;
 }

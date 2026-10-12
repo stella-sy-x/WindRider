@@ -123,7 +123,6 @@ export const TERRAIN = {
   texture: 1, // strength of the painted noise on cliffs
   textureScale: 1,
   glow: 1, // glowing cracks and spots
-  tintStrength: 0.35, // how far rock, cover and plants shift toward the mood palette (0 = baked colors, 1 = the palette alone)
 };
 
 /** Plants and grass. Looks only: colliders don't move with the wind */

@@ -1,13 +1,16 @@
 import * as THREE from "three";
 import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
 import type { FloraSpecies } from "../biomes/types";
+import { type MoodShift, shifted } from "../palette";
 import type { SpeciesId } from "./species";
 
 // Low-poly plant meshes built from primitives, one per species, 1 m tall with
 // a radius of about 1 m (instances scale them). Every vertex carries a color
 // (shaded darker towards the bottom of each part, for volume), a sway weight
 // (0 on the trunk's foot, 1 on the leaves; the shader moves it with the wind)
-// and a glow weight (self-lit caps and crystals).
+// and a glow weight (self-lit caps and crystals). The colors are the mood's:
+// a species' authored colors repainted by the seed's palette (World.mood) as
+// the mesh is built, so a mood is baked into the plants' vertices.
 
 export interface Paint {
   color: THREE.Color;
@@ -391,14 +394,45 @@ function sponge(c: Colors): THREE.BufferGeometry[] {
   return parts;
 }
 
-/** Builds a species' mesh in a biome's colors */
-export function speciesGeometry(spec: FloraSpecies, snow: THREE.Color): THREE.BufferGeometry {
+/**
+ * Which of the mood's colors a species follows: trees and bushes take the palette's forest for
+ * their foliage and its trunk for their wood, rocks take its rock. The rest (mushroom caps, crystals,
+ * sea life) are lit or colored in their own right and keep their authored colors in every mood
+ */
+const FOLLOWS: Record<SpeciesId, "forest" | "rock" | null> = {
+  pine: "forest",
+  fir: "forest",
+  snowFir: "forest",
+  oak: "forest",
+  birch: "forest",
+  bush: "forest",
+  palm: "forest",
+  jungle: "forest",
+  redwood: "forest",
+  deadTree: "forest",
+  basalt: "rock",
+  boulder: "rock",
+  mushroom: null,
+  crystal: null,
+  kelp: null,
+  coral: null,
+  seaFan: null,
+  anemone: null,
+  sponge: null,
+};
+
+/** Builds a species' mesh in a biome's colors, repainted for the mood */
+export function speciesGeometry(spec: FloraSpecies, snow: THREE.Color, mood: MoodShift): THREE.BufferGeometry {
   reseed(spec.id.length * 7919 + 17);
-  const foliage = new THREE.Color(spec.foliage);
+  const follows = FOLLOWS[spec.id];
+  const none = new THREE.Color(0, 0, 0);
+  const foliageShift = follows === "forest" ? mood.forest : follows === "rock" ? mood.rock : none;
+  const trunkShift = follows === "forest" ? mood.trunk : none;
+  const foliage = shifted(spec.foliage, foliageShift);
   const colors: Colors = {
     foliage,
-    foliage2: new THREE.Color(spec.foliage2 ?? foliage.clone().multiplyScalar(0.82).getHex()),
-    trunk: new THREE.Color(spec.trunk ?? "#5a4330"),
+    foliage2: spec.foliage2 ? shifted(spec.foliage2, foliageShift) : foliage.clone().multiplyScalar(0.82),
+    trunk: shifted(spec.trunk ?? "#5a4330", trunkShift),
   };
   const builders: Record<SpeciesId, () => THREE.BufferGeometry[]> = {
     pine: () => pine(colors, 4, 1),

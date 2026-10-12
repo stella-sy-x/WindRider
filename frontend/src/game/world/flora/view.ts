@@ -4,7 +4,7 @@ import { TOON_LIGHT } from "../../toon";
 import { FLORA, STRUCTURES, TERRAIN } from "../../tuning";
 import { ATMOSPHERE, BORN_GLSL, MIST, atmospheric } from "../atmosphere";
 import type { VegetationSpec } from "../biomes/types";
-import { type Palette, sunDirection } from "../palette";
+import { shifted, sunDirection } from "../palette";
 import { STRUCTURE_INFO, structuresOf } from "../structures/kinds";
 import { structureGeometry } from "../structures/models";
 import type { World } from "../World";
@@ -16,7 +16,9 @@ import { PLANT_STRIDE, SPECIES, TUFT_STRIDE } from "./species";
 // species, swaying in the wind), camera-facing impostors further out (one pool
 // for every species, drawn from an atlas baked at load), and grass tufts and
 // flowers close by. Land nodes hand over their plants when they come on screen
-// and take them back when they go.
+// and take them back when they go. The mood's colors are baked into the
+// species meshes and the tufts' instance colors (World.mood); the materials
+// know nothing of moods.
 
 /** Shared by every plant material: wind, time and how much caps and crystals glow */
 const FLORA_UNIFORMS = {
@@ -24,30 +26,6 @@ const FLORA_UNIFORMS = {
   glow: { value: 0.2 },
   gust: { value: 1 },
 };
-
-/**
- * The mood's colors for a level's plants: trees and bushes shift toward `foliage` (palette.forest),
- * grass tufts toward `grass` (palette.grass), by `strength` (TERRAIN.tintStrength). Structures and
- * flowers keep their own colors. One set per FloraView, as the terrain's tints are per material
- */
-export interface FloraTints {
-  foliage: { value: THREE.Color };
-  grass: { value: THREE.Color };
-  strength: { value: number };
-}
-
-/** A plant material's share of the mood tint: which color it leans toward, and how far */
-interface Tint {
-  color: { value: THREE.Color };
-  strength: { value: number };
-}
-
-/** GLSL for the mood tint, after the vertex and instance colors and before any shading: `mix` keeps the baked variation */
-const TINT_PARS = /* glsl */ `
-  uniform vec3 floraTint;
-  uniform float floraTintStrength;
-`;
-const TINT_FRAGMENT = /* glsl */ `diffuseColor.rgb = mix(diffuseColor.rgb, floraTint, floraTintStrength);`;
 
 /**
  * GLSL: plants shrink a little (to 0.85) over the band past `floraFull`, where full trees give way to
@@ -72,15 +50,13 @@ const FRAME_Y1 = 1.1;
 /**
  * Lambert, hazed by the atmosphere, with leaves moving in the wind and self-lit parts.
  * `built`: a structure, whose lights follow STRUCTURES.lights and whose `spin` parts
- * turn about the model's z axis at height `spin.y`.
- * `tint`: the mood color this plant leans toward, or null to keep its own (structures, flowers)
+ * turn about the model's z axis at height `spin.y`
  */
 function plantMaterial(
   sway: number,
   grass = false,
   grassGlow = 0,
   built: { spin: { y: number; rate: number; upright?: boolean } | null } | null = null,
-  tint: Tint | null = null,
 ): THREE.MeshLambertMaterial {
   const spin = built?.spin ?? null;
   const material = atmospheric(new THREE.MeshLambertMaterial({ vertexColors: !grass, side: grass ? THREE.DoubleSide : THREE.FrontSide }), 0);
@@ -96,10 +72,6 @@ function plantMaterial(
     shader.uniforms.floraFull = floraFull;
     shader.uniforms.floraLights = { get value() { return built ? STRUCTURES.lights : 1; } };
     if (spin) shader.uniforms.floraSpin = { get value() { return spin.rate * STRUCTURES.sails; } };
-    if (tint) {
-      shader.uniforms.floraTint = tint.color;
-      shader.uniforms.floraTintStrength = tint.strength;
-    }
     shader.vertexShader = shader.vertexShader
       .replace(
         "void main() {",
@@ -164,7 +136,6 @@ function plantMaterial(
         "void main() {",
         `uniform float floraGlow;
         uniform float floraLights;
-        ${tint ? TINT_PARS : ""}
         varying float vGlow;
         varying float vBlade;
         void main() {`,
@@ -172,7 +143,6 @@ function plantMaterial(
       .replace(
         "#include <color_fragment>",
         `#include <color_fragment>
-        ${tint ? TINT_FRAGMENT : ""}
         ${grass ? "diffuseColor.rgb *= 0.55 + 0.6 * vBlade;" : ""}`,
       )
       .replace(
@@ -184,22 +154,7 @@ function plantMaterial(
           totalEmissiveRadiance += diffuseColor.rgb * vGlow * floraGlow * floraLights;`,
       );
   };
-  material.customProgramCacheKey = () => `windrider-flora-${grass}-${grassGlow}-${spin ? `${spin.y}${spin.upright ? "u" : ""}` : ""}-${tint ? "tint" : ""}`;
-  return material;
-}
-
-/** The impostor atlas is baked with the same mood tint as the full meshes, so far plants match near ones */
-function bakeMaterial(tint: Tint): THREE.MeshLambertMaterial {
-  const material = new THREE.MeshLambertMaterial({ vertexColors: true });
-  material.emissive.setScalar(0);
-  material.onBeforeCompile = (shader) => {
-    shader.uniforms.floraTint = tint.color;
-    shader.uniforms.floraTintStrength = tint.strength;
-    shader.fragmentShader = shader.fragmentShader
-      .replace("void main() {", `${TINT_PARS}\nvoid main() {`)
-      .replace("#include <color_fragment>", `#include <color_fragment>\n${TINT_FRAGMENT}`);
-  };
-  material.customProgramCacheKey = () => "windrider-flora-bake-tint";
+  material.customProgramCacheKey = () => `windrider-flora-${grass}-${grassGlow}-${spin ? `${spin.y}${spin.upright ? "u" : ""}` : ""}`;
   return material;
 }
 
@@ -365,28 +320,20 @@ export class FloraView {
   private readonly materials: THREE.Material[] = [];
   private readonly atlas: THREE.WebGLRenderTarget | null = null;
   private readonly impostorMaterial: THREE.ShaderMaterial | null = null;
-  /** The mood's colors for these plants; WorldView.light() keeps them on the palette */
-  readonly tints: FloraTints = {
-    foliage: { value: new THREE.Color(1, 1, 1) },
-    grass: { value: new THREE.Color(1, 1, 1) },
-    strength: { value: TERRAIN.tintStrength },
-  };
   private baked = false;
   private lastGrassCheck = new THREE.Vector3(Infinity, 0, 0);
 
   constructor(world: World, parent: THREE.Group) {
     this.world = world;
     parent.add(this.group);
-    this.setTint(world.palette);
-    const foliageTint: Tint = { color: this.tints.foliage, strength: this.tints.strength };
-    const grassTint: Tint = { color: this.tints.grass, strength: this.tints.strength };
     const veg = world.biome.vegetation as Extract<VegetationSpec, { kind: "flora" }>;
     const terrain = world.biome.terrain;
     const snow = new THREE.Color(terrain.kind === "v2" ? terrain.layers.snow : "#ffffff");
     for (const spec of veg.species) {
-      const geometry = speciesGeometry(spec, snow);
+      // Built in the mood's colors: the meshes are this level's, as the land's are
+      const geometry = speciesGeometry(spec, snow, world.mood);
       this.geometries.push(geometry);
-      const material = plantMaterial(SPECIES[spec.id].sway, false, 0, null, foliageTint);
+      const material = plantMaterial(SPECIES[spec.id].sway);
       this.materials.push(material);
       this.full.push(new InstancePool(geometry, material, this.group, 256));
       this.speciesTints.push((spec.tints ?? []).map((t) => new THREE.Color(t)));
@@ -430,24 +377,19 @@ export class FloraView {
       const tuft = tuftGeometry();
       const flower = flowerGeometry();
       this.geometries.push(tuft, flower);
-      const grassMaterial = plantMaterial(0.12, true, 0, null, grassTint);
+      const grassMaterial = plantMaterial(0.12, true);
       const flowerMaterial = plantMaterial(0.08, true, veg.grass.glow ?? 0);
       this.materials.push(grassMaterial, flowerMaterial);
       this.grass = new InstancePool(tuft, grassMaterial, this.group, 2048);
       this.flowers = new InstancePool(flower, flowerMaterial, this.group, 512);
-      this.grassBase.set(veg.grass.color);
-      this.grassTip.set(veg.grass.tip);
+      // Tufts follow the mood's grass, as the land's cover does; flowers keep their colors
+      shifted(veg.grass.color, world.mood.grass, this.grassBase);
+      shifted(veg.grass.tip, world.mood.grass, this.grassTip);
       for (const c of veg.grass.flowers) this.flowerColors.push(new THREE.Color(c));
     }
   }
 
-  /** The mood's colors: trees lean toward the palette's forest, grass toward its grass */
-  setTint(palette: Palette) {
-    this.tints.foliage.value.set(palette.forest);
-    this.tints.grass.value.set(palette.grass);
-  }
-
-  /** Renders each species once into the impostor atlas, in this level's light and mood tint */
+  /** Renders each species once into the impostor atlas, in this level's light (the meshes already carry the mood's colors) */
   bake(renderer: THREE.WebGLRenderer) {
     if (this.baked || !this.atlas) return;
     this.baked = true;
@@ -469,11 +411,8 @@ export class FloraView {
     renderer.setClearColor(new THREE.Color(palette.horizon).multiplyScalar(0.5), 0);
     renderer.clear();
     renderer.setScissorTest(true);
-    const species = this.world.biome.vegetation.kind === "flora" ? this.world.biome.vegetation.species.length : 0;
-    const foliageTint: Tint = { color: this.tints.foliage, strength: this.tints.strength };
     this.geometries.slice(0, this.full.length).forEach((geometry, i) => {
-      // Species take the mood tint like their full meshes; structures (after the species) keep their colors
-      const material = i < species ? bakeMaterial(foliageTint) : new THREE.MeshLambertMaterial({ vertexColors: true });
+      const material = new THREE.MeshLambertMaterial({ vertexColors: true });
       material.emissive.setScalar(0);
       const mesh = new THREE.Mesh(geometry, material);
       scene.add(mesh);
@@ -621,7 +560,6 @@ export class FloraView {
   update(camera: THREE.Camera) {
     FLORA_UNIFORMS.glow.value = TOON_LIGHT.glow.value * FLORA.glow;
     FLORA_UNIFORMS.gust.value = FLORA.wind;
-    this.tints.strength.value = TERRAIN.tintStrength;
     if (this.grass && this.lastGrassCheck.distanceToSquared(camera.position) > 10 * 10) {
       this.lastGrassCheck.copy(camera.position);
       for (const [key, node] of this.nodes) {

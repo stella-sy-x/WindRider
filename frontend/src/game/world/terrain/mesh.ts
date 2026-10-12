@@ -4,6 +4,7 @@ import { TERRAIN_DETAIL } from "../../tuning";
 import { hash3 } from "../../rng";
 import type { Surface } from "../biomes/types";
 import { cleanMesh, remapFaces } from "../meshCleanup";
+import { type MoodShift, shifted } from "../palette";
 import type { World } from "../World";
 
 // Surface nets for generator-v2 land, at any level of detail. A node of LOD n
@@ -15,7 +16,9 @@ import type { World } from "../World";
 // Every triangle is painted flat: a rock color (with strata and streaks), the
 // color of what would cover it if it were flat (grass, moss, sand…), how wet it
 // is, how much it glows and how high it is for snow. The terrain shader blends
-// those by slope; see terrainMaterial.ts.
+// those by slope; see terrainMaterial.ts. The colors are the mood's: each
+// surface's rock and cover are repainted by the seed's palette (World.mood)
+// here, as the mesh is cut, so a mood is baked into the land's vertices.
 
 export const VOXEL = 3;
 export const NODE_CELLS = 16;
@@ -63,21 +66,32 @@ interface Paint {
   surface: Surface;
 }
 
-const paintCache = new Map<Surface, Paint>();
+/** One paint per surface per world: the same surface is painted differently by every mood */
+const paintCache = new WeakMap<World, Map<Surface, Paint>>();
 
-function paintFor(surface: Surface): Paint {
-  let paint = paintCache.get(surface);
+/**
+ * A surface in the mood's colors: its rock moved by the palette's rock, its cover by the palette's
+ * grass (MoodShift). Undersides keep their authored color, dark whatever the mood (or follow the
+ * repainted rock when none is given). Crystal keeps all its own colors: it is a material, not land
+ */
+function paintFor(world: World, mood: MoodShift, surface: Surface): Paint {
+  let paints = paintCache.get(world);
+  if (!paints) paintCache.set(world, (paints = new Map()));
+  let paint = paints.get(surface);
   if (!paint) {
-    const rock = new Color(surface.rock);
+    const none = new Color(0, 0, 0);
+    const rockShift = surface.crystal ? none : mood.rock;
+    const coverShift = surface.crystal ? none : mood.grass;
+    const rock = shifted(surface.rock, rockShift);
     paint = {
       rock,
-      rock2: new Color(surface.rock2 ?? surface.rock),
-      under: new Color(surface.under ?? rock.clone().multiplyScalar(0.6).getHex()),
-      top: new Color(surface.top),
-      top2: new Color(surface.top2 ?? surface.top),
+      rock2: shifted(surface.rock2 ?? surface.rock, rockShift),
+      under: surface.under ? new Color(surface.under) : rock.clone().multiplyScalar(0.6),
+      top: shifted(surface.top, coverShift),
+      top2: shifted(surface.top2 ?? surface.top, coverShift),
       surface,
     };
-    paintCache.set(surface, paint);
+    paints.set(surface, paint);
   }
   return paint;
 }
@@ -185,6 +199,7 @@ export function meshNode(world: World, lod: number, ix: number, iy: number, iz: 
     (s) => s.max.x + 20 >= ox && s.min.x - 20 <= ox + C * S && s.max.y + 20 >= oy && s.min.y - 20 <= oy + C * S && s.max.z + 20 >= oz && s.min.z - 20 <= oz + C * S,
   );
   const steps = world.steps;
+  const mood = world.mood;
   const seaAt = world.hasSea ? (z: number) => world.seaAt(z)! : null;
   const noise = field.noise.n2;
   const rock = new Color();
@@ -228,7 +243,7 @@ export function meshNode(world: World, lod: number, ix: number, iy: number, iz: 
     const mz = az + (e1z + e2z) / 3;
     const jitter = hash3(Math.round(mx * 4), Math.round(my * 4), Math.round(mz * 4));
     const id = shapesNear ? field.surfaceAt(mx, my, mz) : field.groundSurface;
-    const paint = paintFor(surfaces[id] ?? surfaces[0]);
+    const paint = paintFor(world, mood, surfaces[id] ?? surfaces[0]);
     const s = paint.surface;
     crystal = s.crystal ? 255 : 0;
     const above = my - world.course.y(mz);

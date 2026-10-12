@@ -8,10 +8,12 @@ import type { Biome } from "./types";
 // rock: no strata, no holes, no arches carved through it; the islands read
 // as simple soft shapes and the forests and clouds do the talking.
 //
-// In the v2 renderer the land and the trees take their colors from the
-// surface and species specs below; the moods change the light, sky, mist and
-// clouds around them (their grass/rock/forest fields are kept for the Palette
-// type and for anything that still reads them).
+// The surfaces and species below are authored in the first mood's colors
+// (Alpine: its rock, grass, forest and trunk are the island rock, its cap, the
+// pine and its trunk). Every other mood repaints them by its palette as the
+// land is meshed and the trees are built (World.mood, palette.ts), so Winter's
+// islands come out white-capped and grey and Starlight's purple, as they did
+// in Sky Isles, besides the mood's light, sky, mist and clouds.
 
 // Moods lifted from Sky Isles, with every sun kept between 22° and 34° up and
 // 25°–40° off the course so it never sits straight ahead of the pilot.

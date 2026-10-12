@@ -2,7 +2,7 @@ import { Vector3 } from "three";
 import { makeRng, range } from "../rng";
 import type { Biome, Level } from "./biomes";
 import { Course } from "./course";
-import type { Palette } from "./palette";
+import { type MoodShift, type Palette, moodShift } from "./palette";
 import { TerrainField } from "./terrain/field";
 import { Ground } from "./terrain/ground";
 import { makeNoise } from "./terrain/noise";
@@ -49,6 +49,8 @@ export class World {
   readonly seed: number;
   readonly course: Course;
   readonly palette: Palette;
+  /** This mood's repaint of the biome's baked land and plant colors (moodShift): the meshers bake it into the vertices */
+  readonly mood: MoodShift;
   /** All the land, for collisions */
   readonly rock: Rock;
   /** The land: ground and rock shapes, one distance field */
@@ -70,6 +72,7 @@ export class World {
     this.biome = level.biome;
     this.seed = level.seed;
     this.palette = level.palette;
+    this.mood = moodShift(this.biome.moods[0], this.palette);
     this.course = new Course(this.seed);
     const terrain = this.biome.terrain;
     const noise = makeNoise(this.seed, "land");

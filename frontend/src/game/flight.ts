@@ -31,7 +31,7 @@ export const FLIGHT = {
   brakeFloor: 22, // brake force fades here; climbing can still stall
   minSpeed: 6, // steering denominator only; never injects speed
   // The air wall (Game.airWall): a soft boundary either side of the racing line
-  lateralLimit: 120, // metres from the line where the wind starts pushing you back
+  lateralLimit: 60, // metres from the line where the wind starts pushing you back
   lateralWall: 30, // metres further out the wind reaches full strength and holds you there
   lateralPush: 20, // m/s the wind carries you back towards the line at full strength
   // The hitbox (see touching()): a ball for the body, a flat rectangle per wing.
