@@ -7,8 +7,9 @@ import { type StructureId, WRECK_PITCH } from "./kinds";
 // Structure meshes built from primitives like the plants (flora/meshes.ts):
 // 1 m tall, in true proportions, the door facing +z, the plinth reaching below
 // the ground so uneven sites don't show a gap. Every vertex carries a color, a
-// sway weight (banners), a glow weight (windows, lanterns, gold: dim by day,
-// lit at night) and a spin weight (1 on parts turning about the z axis: sails).
+// sway weight (bells, lanterns, flames), a glow weight (windows, lanterns, gold:
+// dim by day, lit at night) and a spin weight (1 on parts turning about the z
+// axis: sail spars).
 
 interface Colors {
   stone: THREE.Color;
@@ -56,9 +57,6 @@ function watchtower(c: Colors): THREE.BufferGeometry[] {
     parts.push(piece(onWall(0.03, 0.06, 0.02, wall - 0.004, y, 0.9 + i * 1.9), lit));
   }
   for (let i = 0; i < 4; i++) parts.push(piece(onWall(0.055, 0.07, 0.02, 0.108, 0.8, (i / 4) * Math.PI * 2 + 0.4), lit));
-  // A banner hanging off the gallery, loose at the bottom
-  parts.push(piece(onWall(0.07, 0.2, 0.006, 0.2, 0.585, 2.2), { color: c.cloth, shade: [0.85, 1.05], sway: [1, 0.05] }));
-  parts.push(piece(onWall(0.07, 0.025, 0.008, 0.2, 0.5, 2.2), { color: c.trim, shade: [1, 1], sway: [1, 0.9], glow: 0.5 }));
   return parts;
 }
 
@@ -100,12 +98,11 @@ function windmill(c: Colors, hub: number): THREE.BufferGeometry[] {
     const wall = 0.2 - 0.07 * ((y - 0.03) / 0.73);
     parts.push(piece(onWall(0.035, 0.06, 0.02, wall - 0.004, y, 2.4 + i * 2.1), lit));
   }
-  // Four sails: a spar and a sheet of cloth on its trailing side
+  // Four sail spars (the sheets of cloth were paper-thin and will be redone as solid blades)
   for (let i = 0; i < 4; i++) {
     const turn = Math.PI / 4 + (i * Math.PI) / 2;
     const spar = new THREE.BoxGeometry(0.014, 0.42, 0.014).translate(0, 0.21, 0).rotateZ(turn).translate(0, hub, 0.21);
-    const sheet = new THREE.BoxGeometry(0.085, 0.3, 0.006).translate(0.05, 0.26, 0).rotateZ(turn).translate(0, hub, 0.21);
-    parts.push(piece(spar, wood, 1), piece(sheet, { color: c.cloth, shade: [0.92, 1.05] }, 1));
+    parts.push(piece(spar, wood, 1));
   }
   return parts;
 }
@@ -160,8 +157,6 @@ function monastery(c: Colors): THREE.BufferGeometry[] {
     const a = (k * Math.PI) / 2 + Math.PI / 4;
     parts.push(piece(new THREE.IcosahedronGeometry(0.02, 0).translate(Math.sin(a) * 0.5, 0.59, Math.cos(a) * 0.5), gold));
   }
-  // Banners down the front, either side of the door
-  for (const side of [-1, 1]) parts.push(piece(onFace(0.05, 0.2, 0.006, side * 0.2, 0.2, 0.305, 0), { color: c.cloth, shade: [0.9, 1.1], sway: [1, 0.05] }));
   return parts;
 }
 
@@ -196,31 +191,15 @@ function stoneHut(c: Colors): THREE.BufferGeometry[] {
   ];
 }
 
-const FLAGS = ["#3f74d6", "#f6f4ec", "#d6463c", "#3f9f5c", "#f2c53d"];
-
+/** A prayer pole on its cairn (the strings of paper flags were stripped, to be redone as solid pennants) */
 function prayerPole(c: Colors): THREE.BufferGeometry[] {
-  const parts = [
+  return [
     piece(limb(v(0, -0.3, 0), v(0, 1, 0), 0.02, 0.012, 5), { color: c.wood, shade: [0.8, 1.05] }),
     // A cairn at its foot
     piece(new THREE.CylinderGeometry(0.11, 0.2, 0.36, 6).translate(0, -0.14, 0), { color: c.stone, color2: c.stone2, share2: 0.4, shade: [0.75, 1.08] }),
     piece(new THREE.CylinderGeometry(0.06, 0.09, 0.07, 6).translate(0, 0.075, 0), { color: c.stone2, shade: [0.8, 1.08] }),
     piece(new THREE.IcosahedronGeometry(0.022, 0).translate(0, 1, 0), { color: c.trim, shade: [1, 1], glow: 0.7 }),
   ];
-  // Strings of flags from the top down to pegs all around
-  const top = v(0, 0.97, 0);
-  for (let i = 0; i < 5; i++) {
-    const a = (i / 5) * Math.PI * 2 + 0.3;
-    const peg = v(Math.sin(a) * 0.62, 0.03, Math.cos(a) * 0.62);
-    parts.push(piece(limb(top, peg, 0.004, 0.004, 3), { color: c.wood, sway: [0.05, 0.5] }));
-    for (let k = 1; k <= 9; k++) {
-      const t = k / 10;
-      // (the string sags a little under its flags)
-      const at = top.clone().lerp(peg, t);
-      const flag = new THREE.BoxGeometry(0.075, 0.065, 0.004).translate(0, -0.04, 0).rotateY(a + Math.PI / 2).translate(at.x, at.y, at.z);
-      parts.push(piece(flag, { color: new THREE.Color(FLAGS[(k + i) % FLAGS.length]), shade: [0.9, 1.05], sway: [1, 0.4] }));
-    }
-  }
-  return parts;
 }
 
 function lighthouse(c: Colors, lamp: number): THREE.BufferGeometry[] {
@@ -257,9 +236,8 @@ function stiltHut(c: Colors): THREE.BufferGeometry[] {
     piece(onFace(0.1, 0.09, 0.02, 0.13, 0.61, 0.272, 0), lit),
     piece(onFace(0.1, 0.09, 0.02, 0, 0.61, 0.272, 1), lit),
     piece(onFace(0.1, 0.09, 0.02, 0, 0.61, 0.272, 3), lit),
-    // A lantern hanging off the corner of the deck
+    // A lantern at the corner of the deck
     piece(new THREE.BoxGeometry(0.05, 0.06, 0.05).translate(0.36, 0.55, 0.36), { color: c.light, shade: [1, 1], glow: LIT * 0.7 }),
-    piece(limb(v(0.36, 0.46, 0.36), v(0.36, 0.66, 0.36), 0.008, 0.008, 4), wood),
   ];
   for (let i = 0; i < 4; i++) parts.push(piece(limb(v(i % 2 ? 0.32 : -0.32, -0.32, i < 2 ? 0.32 : -0.32), v(i % 2 ? 0.3 : -0.3, 0.46, i < 2 ? 0.3 : -0.3), 0.025, 0.02, 5), wood));
   return parts;
@@ -293,8 +271,7 @@ function shrineGate(c: Colors): THREE.BufferGeometry[] {
     parts.push(piece(limb(v(side * 0.36, -0.32, 0), v(side * 0.35, 0.92, 0), 0.045, 0.036, 8), post));
     parts.push(piece(new THREE.CylinderGeometry(0.07, 0.085, 0.4, 6).translate(side * 0.36, -0.12, 0), { color: c.stone, color2: c.stone2, share2: 0.3, shade: [0.72, 1.08] }));
     parts.push(piece(new THREE.BoxGeometry(0.05, 0.07, 0.09).translate(side * 0.5, 0.94, 0), { color: c.trim, shade: [1, 1], glow: 0.7 }));
-    // A lantern hanging under the lintel, swinging
-    parts.push(piece(limb(v(side * 0.2, 0.76, 0), v(side * 0.2, 0.66, 0), 0.005, 0.005, 3), { color: c.wood, sway: [0.5, 0.05] }));
+    // A lantern under the lintel, swinging
     parts.push(piece(new THREE.BoxGeometry(0.055, 0.075, 0.055).translate(side * 0.2, 0.62, 0), { color: c.light, shade: [1, 1], glow: LIT, sway: [0.8, 0.5] }));
   }
   return parts;
@@ -474,8 +451,6 @@ function ethMainBuilding(c: Colors): THREE.BufferGeometry[] {
         for (let i = 0; i < 3; i++) parts.push(piece(box(0.04, row ? 0.075 : 0.06, 0.02, side * (0.86 + i * 0.09), 0.29 + row * 0.11, face * 0.422), lit));
       }
     }
-    // Banners in the university's blue either side of the doors
-    parts.push(piece(box(0.035, 0.16, 0.006, side * 0.42, 0.36, 0.378), { color: c.cloth, shade: [0.9, 1.1], sway: [1, 0.05] }));
   }
   return parts;
 }
@@ -516,8 +491,8 @@ function einsteinBust(c: Colors): THREE.BufferGeometry[] {
 /**
  * A sunken galleon, bow (+x) up on a mound of reef: planks crusted with coral
  * (`wood`, `stone2`), the deck (`roof`), a stern castle with windows still lit,
- * the main mast standing with the rags of a sail, the fore mast snapped, and
- * a spilled chest of gold beside it. `stone` is the mound it rests on.
+ * the main mast standing, the fore mast snapped, and a spilled chest of gold
+ * beside it. `stone` is the mound it rests on.
  */
 function shipwreck(c: Colors): THREE.BufferGeometry[] {
   const planks: Paint = { color: c.wood, color2: c.stone2, share2: 0.16, shade: [0.85, 1.1] };
@@ -550,12 +525,11 @@ function shipwreck(c: Colors): THREE.BufferGeometry[] {
     [new THREE.BoxGeometry(0.012, 0.05, 0.05).translate(-0.752, 0.24, 0), lit],
     [new THREE.BoxGeometry(0.012, 0.05, 0.05).translate(-0.752, 0.24, 0.09), lit],
     [new THREE.BoxGeometry(0.012, 0.05, 0.05).translate(-0.752, 0.24, -0.09), lit],
-    [limb(v(-0.74, 0.31, 0), v(-0.8, 0.42, 0), 0.008, 0.006, 4), timber],
     [new THREE.BoxGeometry(0.04, 0.05, 0.04).translate(-0.8, 0.44, 0), { color: c.light, shade: [1, 1], glow: LIT * 0.8 }],
     // Bowsprit and figurehead
     [limb(v(0.74, 0.25, 0), v(1.04, 0.34, 0), 0.016, 0.008, 5), timber],
     [new THREE.IcosahedronGeometry(0.03, 0).translate(0.86, 0.24, 0), gold],
-    // The main mast, its crow's nest, a yard hanging askew and what is left of the sail
+    // The main mast, its crow's nest and a yard hanging askew (the rags of sail were paper-thin: gone until redone)
     [limb(v(0.04, 0.1, 0), v(0.04, 1, 0), 0.024, 0.012, 6), timber],
     [new THREE.CylinderGeometry(0.045, 0.035, 0.04, 6).translate(0.04, 0.86, 0), timber],
     [limb(v(0.04, 0.68, -0.27), v(0.04, 0.76, 0.27), 0.011, 0.011, 4), timber],
@@ -564,14 +538,6 @@ function shipwreck(c: Colors): THREE.BufferGeometry[] {
     [limb(v(0.46, 0.12, 0), v(0.47, 0.4, 0.01), 0.02, 0.017, 5), timber],
     [limb(v(0.47, 0.38, 0.01), v(0.34, 0.16, 0.42), 0.016, 0.009, 5), timber],
   ];
-  for (const [z, drop] of [
-    [-0.17, 0.3],
-    [0, 0.18],
-    [0.16, 0.36],
-  ]) {
-    const y = 0.72 + z * 0.15;
-    ship.push([new THREE.BoxGeometry(0.006, drop, 0.15).translate(0.04, y - drop / 2, z), { color: c.cloth, shade: [0.8, 1.05], sway: [1, 0.05] }]);
-  }
   const parts = ship.map(([geometry, paint]) => piece(geometry.rotateZ(WRECK_PITCH), paint));
   // The reef it came to rest on, and a chest that broke open
   parts.push(piece(new THREE.IcosahedronGeometry(1, 1).scale(0.72, 0.2, 0.3).translate(-0.04, -0.14, 0), { color: c.stone, color2: c.stone2, share2: 0.3, shade: [0.7, 1.05] }));

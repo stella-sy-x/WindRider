@@ -87,7 +87,7 @@ export function star(outer: number, inner: number, depth: number, points = 5): T
 }
 
 /** A leaf or feather shape along +y, with a little thickness */
-export function leaf(length: number, width: number, depth = 0.008, segments = 3): THREE.BufferGeometry {
+export function leaf(length: number, width: number, depth = 0.03, segments = 3): THREE.BufferGeometry {
   const shape = new THREE.Shape();
   shape.moveTo(0, 0);
   shape.quadraticCurveTo(width, length * 0.4, 0, length);

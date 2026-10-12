@@ -10,11 +10,7 @@ export const CAPES = [
 export const HATS = [
   { id: "none", name: "Wind in your hair", description: "Keep your original hairstyle.", color: "#b7a1c4" },
   { id: "aviatorCap", name: "Aviator cap", description: "The original cap and gold-rimmed goggles.", color: "#916449" },
-  { id: "wingedHelm", name: "Winged helm", description: "The original feathered, golden helm.", color: "#f3c869" },
   { id: "starwitch", name: "Stargazer hat", description: "A soft violet point, crescent and tiny stars.", color: "#8b78ba" },
-  { id: "lotus", name: "Lotus crown", description: "Blush petals around a glowing pearl.", color: "#edabc8" },
-  { id: "antlers", name: "Grove antlers", description: "Small golden branches with fresh green leaves.", color: "#88bc99" },
-  { id: "beret", name: "Wind courier", description: "A teal beret with an ivory feather and gold clasp.", color: "#5ba6ac" },
 ] as const;
 export const SHOES = [
   { id: "classic", name: "Wayfarer boots", description: "Your original dark boots with gold cuffs.", color: "#3a3245" },

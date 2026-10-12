@@ -10,7 +10,7 @@ import { type ItemId, type ItemSlot, buildItem, disposeItem, fireworkFlame, item
 //    a sparkle. The giant firework appears in the right hand, is swung over
 //    the shoulder and strapped onto the back, where its flame can roar
 //    (`setThrust`). A helmet pops into the air above the head and drops onto
-//    it with a bounce. Candies, fruits and the feather appear in the hand and
+//    it with a bounce. Candies and fruits appear in the hand and
 //    are held up; `use()` brings them to the mouth and they vanish in light.
 //    `use("raise")` holds an item up high until it bursts into light (a relic
 //    being activated); `use("toss")` throws it down and away. Boots go on both
@@ -441,7 +441,7 @@ export class ItemDisplay {
     pivot.add(this.item);
     this.group.add(pivot);
     this.halo = new THREE.Sprite(
-      new THREE.SpriteMaterial({ map: glowTexture(), color: id === "goldenFeather" ? "#ffe39a" : "#fff4dc", blending: THREE.AdditiveBlending, transparent: true, depthWrite: false, opacity: 0.45 }),
+      new THREE.SpriteMaterial({ map: glowTexture(), color: "#fff4dc", blending: THREE.AdditiveBlending, transparent: true, depthWrite: false, opacity: 0.45 }),
     );
     this.halo.scale.setScalar(size * 1.6);
     this.halo.position.y = -size * 0.15;

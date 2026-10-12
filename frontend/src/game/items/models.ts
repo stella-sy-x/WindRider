@@ -1,22 +1,20 @@
 import * as THREE from "three";
-import { Builder, GOLD, GOLD_DEEP, blend, cyl, lathe, leaf, sphere, star } from "./builder";
+import { Builder, GOLD, GOLD_DEEP, blend, cyl, lathe, sphere, star } from "./builder";
 import { flatMaterial } from "../toon";
 
 // Items the pilot can carry: a giant firework worn on the back like a
-// jetpack, candies, a golden feather, helmets and fruits. Models only (what
-// they do comes later). Each is built from primitives at runtime, painted per
-// vertex and drawn with the pilot's flat material, so it sits
-// in the same low-poly look. Units match the avatar's body (about 1.1
-// tall before the avatar's own scale); `y` is up, `-z` the front.
+// jetpack, candies, a helmet and fruits. Models only (what they do comes
+// later). Each is built from primitives at runtime, painted per vertex and
+// drawn with the pilot's flat material, so it sits in the same low-poly look.
+// Units match the avatar's body (about 1.1 tall before the avatar's own
+// scale); `y` is up, `-z` the front.
 
 export type ItemId =
   | "firework"
   | "candyWrapped"
   | "lollipop"
   | "starCandy"
-  | "goldenFeather"
   | "aviatorCap"
-  | "wingedHelm"
   | "apple"
   | "peach"
   | "grapes"
@@ -29,7 +27,7 @@ export type ItemSlot = "back" | "head" | "hand" | "feet";
 export interface ItemInfo {
   id: ItemId;
   name: string;
-  kind: "gadget" | "candy" | "feather" | "helmet" | "fruit";
+  kind: "gadget" | "candy" | "helmet" | "fruit";
   slot: ItemSlot;
 }
 
@@ -38,9 +36,7 @@ export const ITEMS: ItemInfo[] = [
   { id: "candyWrapped", name: "Berry candy", kind: "candy", slot: "hand" },
   { id: "lollipop", name: "Swirl lollipop", kind: "candy", slot: "hand" },
   { id: "starCandy", name: "Star candy", kind: "candy", slot: "hand" },
-  { id: "goldenFeather", name: "Golden feather", kind: "feather", slot: "hand" },
   { id: "aviatorCap", name: "Aviator cap", kind: "helmet", slot: "head" },
-  { id: "wingedHelm", name: "Winged helm", kind: "helmet", slot: "head" },
   { id: "apple", name: "Apple", kind: "fruit", slot: "hand" },
   { id: "peach", name: "Peach", kind: "fruit", slot: "hand" },
   { id: "grapes", name: "Grapes", kind: "fruit", slot: "hand" },
@@ -72,17 +68,6 @@ function firework(): THREE.BufferGeometry {
   b.add(star(0.06, 0.026, 0.02), GOLD, 1, [0, bodyH + 0.34, 0]);
   // Nozzle, flared, in dark brass
   b.add(lathe([[0.07, 0.0], [0.065, -0.03], [0.08, -0.08], [0.095, -0.11], [0.085, -0.11], [0.055, -0.03], [0.001, -0.03]], 8), (p, out) => blend("#6b4a3a", GOLD_DEEP, -p.y * 9, out), 0, [0, 0.0, 0]);
-  // Four fins
-  const fin = new THREE.Shape();
-  fin.moveTo(0, 0);
-  fin.lineTo(0.12, -0.06);
-  fin.lineTo(0.12, 0.02);
-  fin.quadraticCurveTo(0.05, 0.12, 0, 0.22);
-  fin.lineTo(0, 0);
-  for (let i = 0; i < 4; i++) {
-    const a = (i * Math.PI) / 2 + Math.PI / 4;
-    b.add(new THREE.ExtrudeGeometry(fin, { depth: 0.016, bevelEnabled: false, curveSegments: 3 }).translate(0, 0, -0.008), (p, out) => out.set(p.x > 0.085 ? GOLD : "#e8483f"), 0, [Math.cos(a) * 0.09, 0.02, -Math.sin(a) * 0.09], [0, a, 0]);
-  }
   // Leather straps with gold buckles, and a curled fuse with a glowing tip
   for (const y of [0.22, 0.52]) {
     b.add(new THREE.TorusGeometry(0.106, 0.014, 6, 8), "#7a4b33", 0, [0, y, 0], [Math.PI / 2, 0, 0]);
@@ -113,7 +98,7 @@ function lollipop(): THREE.BufferGeometry {
     const band = Math.floor(((a / (Math.PI * 2) + 1) * 6 + r * 50) % 6);
     out.set(r > 0.085 ? "#ffffff" : colors[band]);
   }, 0.15, [0, 0.2, 0], [Math.PI / 2, 0, 0]);
-  b.add(cyl(0.008, 0.008, 0.22, 8), "#fffaf0", 0, [0, 0.07, 0]);
+  b.add(cyl(0.02, 0.02, 0.22, 8), "#fffaf0", 0, [0, 0.07, 0]);
   b.add(new THREE.TorusGeometry(0.02, 0.006, 5, 8), "#ff6f9f", 0, [0, 0.12, 0], [Math.PI / 2, 0, 0]);
   return b.build();
 }
@@ -121,22 +106,6 @@ function lollipop(): THREE.BufferGeometry {
 function starCandy(): THREE.BufferGeometry {
   const b = new Builder();
   b.add(star(0.08, 0.04, 0.035), (p, out) => blend("#fff3a8", "#ffbf3c", Math.hypot(p.x, p.y) * 12, out), 0.6);
-  // A little face on the candy
-  b.add(sphere(0.007, 6, 5), "#5a3a2a", 0, [0.018, 0.008, -0.034]);
-  b.add(sphere(0.007, 6, 5), "#5a3a2a", 0, [-0.018, 0.008, -0.034]);
-  b.add(sphere(0.008, 6, 5), "#ff8fa8", 0, [0.032, -0.008, -0.03], [0, 0, 0], [1.3, 0.7, 0.5]);
-  b.add(sphere(0.008, 6, 5), "#ff8fa8", 0, [-0.032, -0.008, -0.03], [0, 0, 0], [1.3, 0.7, 0.5]);
-  return b.build();
-}
-
-/** A golden feather that glows by itself */
-function goldenFeather(): THREE.BufferGeometry {
-  const b = new Builder();
-  b.add(leaf(0.34, 0.075, 0.01), (p, out) => blend("#fff1c2", GOLD, Math.abs(p.x) * 14 + (1 - p.y * 3) * 0.3, out), 0.9, [0, 0.0, 0]);
-  b.add(cyl(0.005, 0.008, 0.4, 6), GOLD_DEEP, 0.5, [0, 0.17, 0.006]);
-  // Small notches of barbs near the base
-  b.add(leaf(0.07, 0.03, 0.008), "#fff6da", 0.9, [0.02, 0.03, 0], [0, 0, -0.9]);
-  b.add(leaf(0.07, 0.03, 0.008), "#fff6da", 0.9, [-0.02, 0.03, 0], [0, 0, 0.9]);
   return b.build();
 }
 
@@ -156,26 +125,9 @@ function aviatorCap(): THREE.BufferGeometry {
   return b.build();
 }
 
-/** A white-and-gold winged helm with a glowing gem */
-function wingedHelm(): THREE.BufferGeometry {
-  const b = new Builder();
-  b.add(new THREE.SphereGeometry(0.19, 8, 6, 0, Math.PI * 2, 0, Math.PI * 0.5), (p, out) => out.set(Math.abs(p.x) < 0.02 ? GOLD : "#f4f1ff"), 0, [0, 0, 0]);
-  b.add(new THREE.TorusGeometry(0.19, 0.016, 6, 8), GOLD, 0.4, [0, 0.0, 0], [Math.PI / 2, 0, 0]);
-  b.add(new THREE.OctahedronGeometry(0.035, 0), "#6fe3ff", 1, [0, 0.06, -0.19], [0, 0, 0], [0.8, 1.2, 0.5]);
-  for (const s of [1, -1]) {
-    // Little wings, three feathers each, sweeping back
-    for (let i = 0; i < 3; i++) {
-      b.add(leaf(0.16 - i * 0.03, 0.035), (p, out) => blend("#ffffff", "#bfe9ff", p.y * 6, out), 0.2, [s * 0.19, 0.06 - i * 0.025, 0.04 + i * 0.02], [0, s * -0.35, s * (-0.9 - i * 0.35)]);
-    }
-  }
-  return b.build();
-}
-
 function apple(): THREE.BufferGeometry {
   const b = new Builder();
   b.add(lathe([[0.001, -0.06], [0.035, -0.065], [0.065, -0.035], [0.072, 0.01], [0.06, 0.05], [0.025, 0.06], [0.001, 0.045]], 8), (p, out) => blend("#e33b3b", "#ffd25a", (p.x + 0.07) * 4 - 0.4, out), 0.05);
-  b.add(cyl(0.005, 0.006, 0.05, 6), "#6b4a2a", 0, [0.004, 0.07, 0], [0, 0, -0.2]);
-  b.add(leaf(0.06, 0.025), "#5fbf4a", 0, [0.012, 0.075, 0], [0.4, 0, -1.1]);
   return b.build();
 }
 
@@ -186,8 +138,6 @@ function peach(): THREE.BufferGeometry {
     // The crease down one side
     if (Math.abs(p.x) < 0.006 && p.z < 0) out.multiplyScalar(0.8);
   }, 0.05, [0, 0, 0], [0, 0, 0], [1, 1.05, 0.97]);
-  b.add(leaf(0.07, 0.03), "#6fcf5a", 0, [0, 0.06, 0.01], [0.5, 0.6, -0.8]);
-  b.add(leaf(0.06, 0.026), "#5fbf4a", 0, [0, 0.06, 0.01], [-0.3, -0.5, 0.9]);
   return b.build();
 }
 
@@ -201,8 +151,6 @@ function grapes(): THREE.BufferGeometry {
       b.add(sphere(0.026, 6, 5), (p, out) => blend("#9b5fd9", "#d4b0ff", p.y * 20 + 0.2, out), 0.1, [Math.cos(a) * r, -row * 0.035, Math.sin(a) * r]);
     }
   });
-  b.add(cyl(0.005, 0.006, 0.06, 6), "#6b4a2a", 0, [0, 0.05, 0], [0, 0, 0.3]);
-  b.add(leaf(0.08, 0.04), "#6fcf5a", 0, [0.01, 0.06, 0], [0.3, 0, -1.2]);
   return b.build();
 }
 
@@ -210,9 +158,7 @@ function cherries(): THREE.BufferGeometry {
   const b = new Builder();
   for (const s of [1, -1]) {
     b.add(sphere(0.034, 8, 6), (p, out) => blend("#d81f3f", "#ff7a8a", p.y * 14 + p.x * 6 * s, out), 0.1, [s * 0.04, 0, 0]);
-    b.add(cyl(0.004, 0.004, 0.11, 6), "#5e8a3a", 0, [s * 0.022, 0.06, 0], [0, 0, s * 0.42]);
   }
-  b.add(leaf(0.06, 0.025), "#6fcf5a", 0, [0, 0.11, 0], [0.4, 0, -1.3]);
   return b.build();
 }
 
@@ -230,7 +176,6 @@ function starfruit(): THREE.BufferGeometry {
   }
   body.computeVertexNormals();
   b.add(body, (p, out) => blend("#cfe86a", "#ffcf3a", Math.hypot(p.x, p.z) * 18 - 0.2, out), 0.25, [0, 0, 0], [0, 0, Math.PI / 2 - 0.3]);
-  b.add(cyl(0.005, 0.006, 0.03, 6), "#6b4a2a", 0, [-0.09, 0.03, 0], [0, 0, 1.3]);
   return b.build();
 }
 
@@ -239,9 +184,7 @@ const BUILDERS: Record<ItemId, () => THREE.BufferGeometry> = {
   candyWrapped,
   lollipop,
   starCandy,
-  goldenFeather,
   aviatorCap,
-  wingedHelm,
   apple,
   peach,
   grapes,

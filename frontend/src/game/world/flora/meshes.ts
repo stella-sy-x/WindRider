@@ -172,33 +172,14 @@ function palm(c: Colors): THREE.BufferGeometry[] {
     prev = next;
   }
   const crown = prev;
-  // Fronds: folded strips drooping out of the crown
+  // Fronds: solid five-sided cones drooping out of the crown
   const fronds = 8;
   for (let i = 0; i < fronds; i++) {
     const a = (i / fronds) * Math.PI * 2 + random() * 0.4;
     const dir = v(Math.cos(a), 0, Math.sin(a));
-    const side = v(-dir.z, 0, dir.x);
     const length = rr(0.5, 0.62);
-    const positions: number[] = [];
-    const steps = 3;
-    const at = (s: number) => crown.clone().addScaledVector(dir, length * s).add(v(0, 0.12 * s - 0.42 * s * s, 0));
-    for (let s = 0; s < steps; s++) {
-      const p0 = at(s / steps);
-      const p1 = at((s + 1) / steps);
-      const w0 = 0.13 * Math.sin(Math.PI * Math.min(0.95, s / steps + 0.08));
-      const w1 = 0.13 * Math.sin(Math.PI * Math.min(0.95, (s + 1) / steps + 0.08));
-      const fold = 0.035;
-      for (const k of [-1, 1]) {
-        const e0 = p0.clone().addScaledVector(side, k * w0).add(v(0, -fold, 0));
-        const e1 = p1.clone().addScaledVector(side, k * w1).add(v(0, -fold, 0));
-        positions.push(...p0.toArray(), ...e0.toArray(), ...p1.toArray(), ...p1.toArray(), ...e0.toArray(), ...e1.toArray());
-        // And the back side, so fronds read from below
-        positions.push(...p0.toArray(), ...p1.toArray(), ...e0.toArray(), ...p1.toArray(), ...e1.toArray(), ...e0.toArray());
-      }
-    }
-    const g = new THREE.BufferGeometry();
-    g.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
-    parts.push(part(g, { color: i % 2 ? c.foliage : c.foliage2, shade: [0.75, 1.1], sway: [0.6, 1] }));
+    const tip = crown.clone().addScaledVector(dir, length).add(v(0, -0.3, 0));
+    parts.push(part(limb(crown, tip, 0.11, 0.01, 5), { color: i % 2 ? c.foliage : c.foliage2, shade: [0.75, 1.1], sway: [0.6, 1] }));
   }
   for (let i = 0; i < 3; i++) {
     const a = (i / 3) * Math.PI * 2;
@@ -307,9 +288,10 @@ export function leaves(triangles: THREE.Vector3[][]): THREE.BufferGeometry {
 }
 
 // The reef's plants stand in their thousands (kelp forests, coral gardens), so
-// they are built lean: three-sided limbs without caps, one triangle per blade.
+// they are built lean: three-sided limbs without caps. Their flat blades and
+// webs were zero-thickness triangles and are gone until redone with volume.
 
-/** Kelp: a clump of wavy stalks reaching for the surface, two broad blades at every joint */
+/** Kelp: a clump of wavy stalks reaching for the surface */
 function kelp(c: Colors): THREE.BufferGeometry[] {
   const parts: THREE.BufferGeometry[] = [];
   const stalks = 3;
@@ -320,24 +302,11 @@ function kelp(c: Colors): THREE.BufferGeometry[] {
     const top = i === 0 ? 1 : rr(0.6, 0.92);
     const wave = rr(0, 6.28);
     const at = (t: number) => v(foot.x + Math.sin(t * 5 + wave) * 0.22 * t, top * t, foot.z + Math.cos(t * 4 + wave) * 0.22 * t);
-    const blades: THREE.Vector3[][] = [];
     for (let k = 0; k < joints; k++) {
       const t0 = k / joints;
       const t1 = (k + 1) / joints;
       parts.push(part(limb(at(t0), at(t1), 0.05 - t0 * 0.02, 0.05 - t1 * 0.02, 3, true), { color: c.trunk, shade: [1, 1], sway: [t0 * t0, t1 * t1] }));
-      // Blades off the joint, lifting with the water
-      for (const flip of [0, 2.6]) {
-        const turn = a + k * 2.4 + flip;
-        const out = v(Math.cos(turn), 0, Math.sin(turn));
-        const root = at(t1);
-        const reach = 0.8 - t1 * 0.25;
-        const edge = v(-out.z, 0, out.x).multiplyScalar(0.2);
-        const belly = root.clone().addScaledVector(out, reach * 0.4).add(v(0, 0.1, 0));
-        blades.push([root.clone().sub(edge.clone().multiplyScalar(0.25)), belly.add(edge), root.clone().addScaledVector(out, reach).add(v(0, 0.04, 0))]);
-      }
     }
-    const sway: [number, number] = [0.15, top];
-    parts.push(part(leaves(blades), { color: i % 2 ? c.foliage : c.foliage2, shade: [0.7, 1.15], sway }));
   }
   return parts;
 }
@@ -365,22 +334,17 @@ function coral(c: Colors): THREE.BufferGeometry[] {
   return parts;
 }
 
-/** A sea fan: a flat lattice of ribs standing across the current */
+/** A sea fan: a fan of ribs standing across the current */
 function seaFan(c: Colors): THREE.BufferGeometry[] {
   const parts = [part(limb(v(0, 0, 0), v(0, 0.2, 0), 0.06, 0.045, 4, true), { color: c.trunk, sway: [0, 0.1] })];
   const ribs = 7;
-  const web: THREE.Vector3[][] = [];
-  let last: THREE.Vector3 | null = null;
   const hub = v(0, 0.2, 0);
   for (let i = 0; i < ribs; i++) {
     const a = ((i + 0.5) / ribs - 0.5) * 2.5;
     const length = rr(0.62, 0.8) * (1 - Math.abs(a) * 0.12);
     const tip = v(Math.sin(a) * length * 0.95, 0.2 + Math.cos(a) * length, 0);
     parts.push(part(limb(hub, tip, 0.028, 0.012, 3, true), { color: c.foliage2, shade: [0.85, 1.15], sway: [0.1, 1] }));
-    if (last) web.push([hub, last, tip]);
-    last = tip;
   }
-  parts.push(part(leaves(web), { color: c.foliage, shade: [0.65, 1.1], sway: [0.1, 1] }));
   return parts;
 }
 

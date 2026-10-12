@@ -12,8 +12,9 @@ import type { Appearance } from "./cosmetics/storage";
 import { buildHat, buildShoe, disposeModel } from "./cosmetics/models";
 
 // The pilot: a small low-poly flyer with chibi proportions (a big
-// head, slim limbs), a flowing cape, a scarf, and a pair of feathered
-// glider wings on the back. Everything is built from primitives at runtime.
+// head, slim limbs), a flowing cape, a scarf, and a pair of chunky glider
+// wings on the back (cosmetics/wings.ts, hung on the animated wing joints).
+// Everything is built from primitives at runtime.
 //
 // The body is modelled standing (up +y, facing -z, right +x) and then laid
 // prone, so the head points along the flight direction (-z) and the back faces
@@ -175,18 +176,6 @@ function applyPaint({ geometry, ranges }: Painted, tones: Tones) {
   }
   color.needsUpdate = true;
   glow.needsUpdate = true;
-}
-
-/** A leaf-shaped feather with a little thickness, lying along +x */
-function feather(length: number, width: number): THREE.BufferGeometry {
-  const shape = new THREE.Shape();
-  shape.moveTo(0, -width * 0.5);
-  shape.quadraticCurveTo(length * 0.55, -width * 0.75, length, 0);
-  shape.quadraticCurveTo(length * 0.55, width * 0.75, 0, width * 0.5);
-  shape.closePath();
-  const geometry = new THREE.ExtrudeGeometry(shape, { depth: 0.014, bevelEnabled: false, curveSegments: 2 });
-  geometry.translate(0, 0, -0.007);
-  return geometry;
 }
 
 const sphere = (r: number, w = 6, h = 4) => new THREE.SphereGeometry(r, w, h);
@@ -357,8 +346,6 @@ export interface AvatarOptions {
 }
 
 interface Side {
-  innerMesh: THREE.Mesh;
-  outerMesh: THREE.Mesh;
   boot: THREE.Mesh;
   shoulder: THREE.Object3D;
   elbow: THREE.Object3D;
@@ -409,6 +396,8 @@ export class Avatar {
   private shoes: THREE.Group[] = [];
   private appearance: Appearance = { cape: "classic", hat: "none", shoes: "classic", wings: "classic", pet: "none" };
   private wingModels: ReturnType<typeof buildWing>[] = [];
+  /** The wings' material on a ghost (faded with the body); solid pilots keep the cosmetics' shared one */
+  private readonly wingMat: THREE.Material;
   get wingStyle(): WingId { return this.appearance.wings; }
   private readonly scarf: Cloth[];
   // Conservative bounds of the animated legs, reused for cloth self-collision.
@@ -485,7 +474,7 @@ export class Avatar {
     const ghost = this.ghost;
     const skinMat = this.material(flatMaterial({ ghost }));
     const clothMat = this.material(flatMaterial({ ghost, side: THREE.DoubleSide }));
-    const wingMat = this.material(flatMaterial({ ghost, side: THREE.DoubleSide }));
+    this.wingMat = this.material(flatMaterial({ ghost, side: THREE.DoubleSide }));
 
     this.group.add(this.rig);
     this.rig.add(this.body);
@@ -621,17 +610,14 @@ export class Avatar {
           .add(new THREE.ConeGeometry(0.045, 0.11, 5), hair, [-0.05, 0.12, 0.15], [-2.4, 0, 0.2]);
       }
       part(look, hairBuilder);
-      // Eyes: a dark almond, a lit iris in its lower half, two highlights, a lash line and a brow
+      // Eyes: a dark almond, a lit iris in its lower half and a highlight (lash lines and brows to be redone chunky)
       const eyes = new PartBuilder();
       for (const s of [1, -1]) {
         const x = 0.058 * s, y = one ? 0.13 : 0.128, turn = 0.38 * s;
         eyes
           .add(sphere(one ? 0.027 : 0.025, 6, 4), "eye", [x, y, -0.149], [0, turn, 0], one ? [0.85, 1.25, 0.5] : [0.92, 1.02, 0.5])
           .add(sphere(0.018, 6, 4), iris, [x, y - 0.012, -0.158], [0, turn, 0], [0.85, 0.85, 0.35])
-          .add(sphere(0.008, 6, 4), "white", [x + 0.007 * s, y + 0.013, -0.166])
-          .add(sphere(0.004, 5, 4), "white", [x - 0.008 * s, y - 0.016, -0.166])
-          .add(capsule(0.0045, one ? 0.05 : 0.044), "eye", [x, y + (one ? 0.031 : 0.025), -0.156], [0, turn, Math.PI / 2 - 0.14 * s])
-          .add(capsule(one ? 0.0035 : 0.006, one ? 0.034 : 0.04), "hair", [x + 0.004 * s, y + (one ? 0.06 : 0.05), -0.155], [0, turn, Math.PI / 2 + (one ? 0.2 : 0.05) * s]);
+          .add(sphere(0.008, 6, 4), "white", [x + 0.007 * s, y + 0.013, -0.166]);
         // Style 1's lashes flick up at the outer corner
         if (one) eyes.add(new THREE.ConeGeometry(0.006, 0.022, 5), "eye", [x + 0.026 * s, y + 0.03, -0.148], [0, turn, -1.1 * s]);
       }
@@ -695,58 +681,31 @@ export class Avatar {
           .add(capsule(0.034, 0.08), "dark", [0, -0.3, -0.012], [0.25, 0, 0]),
       ));
 
-      // Wings: an inner arm-wing and an outer hand-wing, each a fan of feathers
+      // Wing joints: an inner arm-wing and an outer hand-wing. The geometry hangs off them
+      // (`mountWings`); the tip and trail markers sit where the longest and shortest primaries end
       const wing = new THREE.Object3D();
       wing.position.set(0.05 * s, 0.17, 0.12);
       wing.rotation.order = "YZX";
       this.chest.add(wing);
-      const featherPaint: Paint = (p, t, out) => {
-        const d = p.length();
-        out.copy(t.cloth).lerp(t.clothLight, smoothstep(0.05, 0.6, d)).lerp(t.white, smoothstep(0.5, 0.9, d) * 0.6);
-      };
-      const inner = new PartBuilder().add(capsule(0.022, 0.5), "trim", [0.27 * s, 0.03, 0], [0, 0, Math.PI / 2 - 0.12 * s]);
-      for (let i = 0; i < 4; i++) {
-        const angle = -0.9 - i * 0.22; // fanning back towards the feet
-        inner.add(feather(0.5 + i * 0.05, 0.13), featherPaint, [(0.08 + i * 0.13) * s, 0.02 + i * 0.012, 0.004 * i], [
-          0,
-          0,
-          s > 0 ? angle : Math.PI - angle,
-        ]);
-      }
-      const innerMesh = part(wing, inner, wingMat);
       const wingOuter = new THREE.Object3D();
       wingOuter.position.set(0.54 * s, 0.07, 0);
       wingOuter.rotation.order = "YZX";
       wing.add(wingOuter);
-      const tipPaint: Paint = (p, t, out) => {
-        const d = p.length();
-        out.copy(t.clothLight).lerp(t.white, smoothstep(0.05, 0.4, d) * 0.5).lerp(t.tip, smoothstep(0.45, 0.95, d));
-      };
-      const outer = new PartBuilder().add(capsule(0.018, 0.3), "trim", [0.15 * s, -0.02, 0], [0, 0, Math.PI / 2 + 0.25 * s]);
-      const primaries = 5;
-      for (let i = 0; i < primaries; i++) {
-        const angle = 0.12 - i * 0.3;
-        const length = 0.98 - i * 0.1;
-        outer.add(feather(length, 0.15), tipPaint, [(0.05 + i * 0.045) * s, -0.02 * i, 0.004 * i], [
-          0,
-          0,
-          s > 0 ? angle : Math.PI - angle,
-        ]);
-      }
-      const outerMesh = part(wingOuter, outer, wingMat);
       const tip = new THREE.Object3D();
       tip.position.set((0.05 + 0.98 * Math.cos(0.12)) * s, 0.98 * Math.sin(0.12), 0);
       wingOuter.add(tip);
+      const primaries = 5;
       const last = 0.12 - (primaries - 1) * 0.3;
       const lastLength = 0.98 - (primaries - 1) * 0.1;
       const trail = new THREE.Object3D();
       trail.position.set((0.05 + (primaries - 1) * 0.045 + lastLength * Math.cos(last)) * s, -0.02 * (primaries - 1) + lastLength * Math.sin(last), 0);
       wingOuter.add(trail);
 
-      return { shoulder, elbow, hip, knee, wing, wingOuter, tip, trail, boot, innerMesh, outerMesh };
+      return { shoulder, elbow, hip, knee, wing, wingOuter, tip, trail, boot };
     };
     this.right = makeSide(1);
     this.left = makeSide(-1);
+    this.mountWings(this.appearance.wings);
 
     // Item slots: between the shoulder blades over the cape, the middle of the head, the right palm
     const back = new THREE.Object3D();
@@ -857,18 +816,20 @@ export class Avatar {
     this.styles.forEach((look, i) => (look.visible = i + 1 === style));
   }
 
+  /** Hangs a wing style's chunky paddles on both sides' wing joints, replacing the last pair */
+  private mountWings(id: WingId) {
+    this.wingModels.forEach(model => model.dispose()); this.wingModels = [];
+    for (const [side, sign] of [[this.left, -1], [this.right, 1]] as const) {
+      const model = buildWing(id, sign);
+      // Ghosts fade as a whole: their wings take the avatar's translucent material
+      if (this.ghost) for (const piece of [model.inner, model.outer]) piece.traverse(o => { if (o instanceof THREE.Mesh) o.material = this.wingMat; });
+      side.wing.add(model.inner); side.wingOuter.add(model.outer); this.wingModels.push(model);
+    }
+  }
+
   setAppearance(appearance: Appearance) {
     if (this.ghost) return;
-    if (appearance.wings !== this.appearance.wings) {
-      this.wingModels.forEach(model => model.dispose()); this.wingModels = [];
-      for (const [side, sign] of [[this.left, -1], [this.right, 1]] as const) {
-        side.innerMesh.visible = side.outerMesh.visible = appearance.wings === "classic";
-        if (appearance.wings !== "classic") {
-          const model = buildWing(appearance.wings, sign);
-          side.wing.add(model.inner); side.wingOuter.add(model.outer); this.wingModels.push(model);
-        }
-      }
-    }
+    if (appearance.wings !== this.appearance.wings) this.mountWings(appearance.wings);
     if (appearance.hat !== this.appearance.hat) {
       if (this.hat) disposeModel(this.hat);
       this.hat = appearance.hat === "none" ? null : buildHat(appearance.hat);
