@@ -132,13 +132,41 @@ function likeness(a: THREE.Color, b: THREE.Color): number {
   return 1 - smoothstep(0.03, 0.22, d);
 }
 
-/** Writes vertex colors, and a glow for the gold trims and the wingtips (they light up at night) */
+/**
+ * Writes vertex colors, and a glow for the gold trims and the wingtips (they light up at night).
+ *
+ * Non-indexed geometry (the body parts, three vertices per triangle) is painted once per
+ * face at the triangle's centroid, and all three corners get that color, so the parts
+ * read as flat facets like the terrain instead of smooth gradients. Indexed geometry
+ * (the cloth grids share vertices between faces) keeps per-vertex paint.
+ */
 function applyPaint({ geometry, ranges }: Painted, tones: Tones) {
   const position = geometry.getAttribute("position");
   const color = geometry.getAttribute("color") as THREE.BufferAttribute;
   const glow = geometry.getAttribute("glow") as THREE.BufferAttribute;
+  const perFace = !geometry.index;
   for (const { start, count, paint } of ranges) {
-    for (let i = start; i < start + count; i++) {
+    const end = start + count;
+    const facesEnd = perFace ? start + count - (count % 3) : start;
+    // Whole triangles: one paint call at the centroid, written to all three corners
+    for (let i = start; i < facesEnd; i += 3) {
+      if (typeof paint === "string") paintColor.copy(tones[paint]);
+      else {
+        paintPoint.set(
+          (position.getX(i) + position.getX(i + 1) + position.getX(i + 2)) / 3,
+          (position.getY(i) + position.getY(i + 1) + position.getY(i + 2)) / 3,
+          (position.getZ(i) + position.getZ(i + 1) + position.getZ(i + 2)) / 3,
+        );
+        paint(paintPoint, tones, paintColor, i - start);
+      }
+      const g = Math.max(likeness(paintColor, tones.trim), likeness(paintColor, tones.tip) * 0.8);
+      for (let k = 0; k < 3; k++) {
+        color.setXYZ(i + k, paintColor.r, paintColor.g, paintColor.b);
+        glow.setX(i + k, g);
+      }
+    }
+    // Leftover vertices (indexed geometry, or a count that is not a multiple of 3): per vertex
+    for (let i = facesEnd; i < end; i++) {
       if (typeof paint === "string") paintColor.copy(tones[paint]);
       else paint(paintPoint.fromBufferAttribute(position, i), tones, paintColor, i - start);
       color.setXYZ(i, paintColor.r, paintColor.g, paintColor.b);

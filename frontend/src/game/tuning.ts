@@ -60,6 +60,7 @@ export const RINGS = {
   spin: 0.08, // how fast the cohort turns around the gate (rad/s)
   selfSpin: 0.6, // how fast each crystal turns on its own axis
   glow: 1, // inner glow of the next gate
+  ringTube: 0.1, // thickness of the faceted gate ring, as a share of the gate's radius; applies to the next map
   shatter: 1, // particles when you pass through
   passTime: 1.4, // seconds of the pass animation
 };

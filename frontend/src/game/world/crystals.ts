@@ -5,10 +5,10 @@ import { RINGS } from "../tuning";
 import type { Ring } from "./course";
 
 // The gates: a cohort of floating crystals around every ring, each bobbing and
-// turning on its own, with a faint halo and a portal veil. Passing a gate makes
-// its crystals flare white, burst outward and dissolve, and sends a shockwave
-// across the veil. All gates share three instanced draw calls; the motion runs
-// in the vertex shader from a few numbers per gate.
+// turning on its own, orbiting a faceted ring of glowing glass. Passing a gate
+// makes its crystals flare white, burst outward and dissolve, and the ring
+// flashes and kicks outward. All gates share three instanced draw calls; the
+// motion runs in the vertex shader from a few numbers per gate.
 
 export type RingMode = "race" | "free" | "hidden";
 
@@ -113,13 +113,16 @@ const crystalFragment = /* glsl */ `
   }
 `;
 
-// A thin ring of light, and a disc for the portal veil and the pass shockwave
-const haloVertex = /* glsl */ `
+// The gate ring: a faceted torus of glowing glass, radius 1 in its own space and
+// scaled to the gate by its instance matrix. Lit flat per face like the crystals.
+const ringVertex = /* glsl */ `
   attribute float gate;
   uniform vec4 gates[GATE_COUNT];
   uniform float time;
   uniform float passDuration;
-  varying vec2 vLocal;
+  varying vec3 vViewPosition;
+  varying vec3 vLocal;
+  varying float vAngle;
   varying vec4 vGate;
   varying float vK;
   #include <fog_pars_vertex>
@@ -127,41 +130,59 @@ const haloVertex = /* glsl */ `
     vGate = gates[int(gate + 0.5)];
     float since = time - vGate.z;
     vK = since >= 0.0 && since < passDuration ? since / passDuration : -1.0;
-    vLocal = position.xy;
-    vec4 mvPosition = modelViewMatrix * instanceMatrix * vec4(position, 1.0);
+    float passing = vK >= 0.0 ? 1.0 : 0.0;
+    // The pass kicks the ring outward a touch, then it settles back
+    float kick = 1.0 + passing * 0.12 * sin(3.14159 * min(max(vK, 0.0) * 2.0, 1.0));
+    // A quiet breath on the next gate
+    float breath = 1.0 + vGate.y * 0.015 * sin(time * 2.0);
+    vec3 p = position * kick * breath;
+    vLocal = p;
+    vAngle = atan(p.y, p.x);
+    vec4 mvPosition = modelViewMatrix * instanceMatrix * vec4(p, 1.0);
     gl_Position = projectionMatrix * mvPosition;
+    vViewPosition = mvPosition.xyz;
     #include <fog_vertex>
   }
 `;
 
-const veilFragment = /* glsl */ `
+const ringFragment = /* glsl */ `
   uniform vec3 ice;
   uniform vec3 accent;
   uniform vec3 gold;
+  uniform vec3 sunDirection; // view space
   uniform float glow;
   uniform float time;
-  varying vec2 vLocal;
+  varying vec3 vViewPosition;
+  varying vec3 vLocal;
+  varying float vAngle;
   varying vec4 vGate;
   varying float vK;
   #include <fog_pars_fragment>
   void main() {
-    float r = length(vLocal); // 1 = the gate's radius
+    // Flat facets from screen-space derivatives; the object-space normal gives each face a steady tint
+    vec3 n = normalize(cross(dFdx(vViewPosition), dFdy(vViewPosition)));
+    vec3 ln = normalize(cross(dFdx(vLocal), dFdy(vLocal)));
+    vec3 v = normalize(-vViewPosition);
+    float facing = abs(dot(n, v));
+    float fresnel = pow(clamp(1.0 - facing, 0.0, 1.0), 2.0);
+    float diffuse = abs(dot(n, sunDirection)) * 0.5 + 0.5;
+    float spec = pow(max(dot(reflect(-sunDirection, n), v), 0.0), 24.0);
+    float facet = fract(sin(dot(floor(ln * 2.5 + 0.5), vec3(12.9898, 78.233, 37.719))) * 43758.5453);
+
     vec3 base = mix(mix(ice, accent, vGate.y), gold, vGate.w);
-    float a = 0.0;
-    if (r < 1.0) {
-      // A faint membrane, brighter at the rim, with ripples flowing inwards
-      float ripple = 0.5 + 0.5 * sin(r * 18.0 - time * 2.5);
-      a = (smoothstep(0.7, 1.0, r) * 0.35 + ripple * 0.05 * r * r) * (0.04 + vGate.y * 0.22 * glow) * vGate.x;
-      a += smoothstep(0.93, 1.0, r) * smoothstep(1.0, 0.985, r) * (0.3 + vGate.y * 1.2 * glow) * vGate.x;
-    }
+    // Quiet when idle, lit up for the next gate and the finish
+    float lit = 0.22 + vGate.y * 0.9 * glow + vGate.w * 0.35;
+    // A soft glint travelling around the ring
+    float shimmer = 0.85 + 0.15 * sin(vAngle * 3.0 - time * 1.6);
+    vec3 color = base * (0.3 + 0.4 * diffuse + 0.3 * facet) * shimmer * lit;
+    color += fresnel * mix(vec3(1.0), base, 0.4) * (0.45 + vGate.y * 0.9 * glow);
+    color += spec * (0.6 + vGate.y * 0.6);
+    color *= vGate.x;
     if (vK >= 0.0) {
-      // The pass: a flash filling the gate, then a shockwave racing outwards
-      float wave = 1.0 + vK * 2.0;
-      a += exp(-abs(r - wave) * 22.0) * (1.0 - vK) * 2.2;
-      a += (r < 1.0 ? 1.0 : 0.0) * exp(-vK * 9.0) * 0.9;
+      // The pass: the whole ring flashes white and fades
+      color += exp(-vK * 9.0) * 2.4 * mix(vec3(1.0), base, 0.2);
     }
-    if (a < 0.002) discard;
-    vec3 color = mix(base, vec3(1.0), 0.35) * a;
+    if (max(color.r, max(color.g, color.b)) < 0.002) discard;
     #ifdef USE_FOG
       color *= 1.0 - smoothstep(fogNear, fogFar, vFogDepth) * (1.0 - vGate.y);
     #endif
@@ -333,15 +354,22 @@ export class CrystalGates {
     });
     crystals.frustumCulled = false;
 
-    // Halo and veil: one disc per gate, three times the radius so the shockwave fits
-    const disc = this.geometry(new THREE.CircleGeometry(3, 96));
-    disc.setAttribute("gate", new THREE.InstancedBufferAttribute(new Float32Array(rings.map((_, i) => i)), 1));
+    // The ring: one faceted torus per gate, radius 1, scaled to the gate by its instance matrix.
+    // Few segments on purpose: the facets are the look.
+    const torus = this.geometry(new THREE.TorusGeometry(1, RINGS.ringTube, 5, 12));
+    torus.deleteAttribute("uv");
+    torus.deleteAttribute("normal");
+    torus.setAttribute("gate", new THREE.InstancedBufferAttribute(new Float32Array(rings.map((_, i) => i)), 1));
     const veilMaterial = this.material(
       new THREE.ShaderMaterial({
         defines,
-        uniforms: { ...THREE.UniformsUtils.clone(THREE.UniformsLib.fog), ...shared },
-        vertexShader: haloVertex,
-        fragmentShader: veilFragment,
+        uniforms: {
+          ...THREE.UniformsUtils.clone(THREE.UniformsLib.fog),
+          ...shared,
+          sunDirection: { value: this.sunView },
+        },
+        vertexShader: ringVertex,
+        fragmentShader: ringFragment,
         transparent: true,
         depthWrite: false,
         side: THREE.DoubleSide,
@@ -349,7 +377,7 @@ export class CrystalGates {
         fog: true,
       }),
     );
-    const veils = new THREE.InstancedMesh(disc, veilMaterial, Math.max(1, rings.length));
+    const veils = new THREE.InstancedMesh(torus, veilMaterial, Math.max(1, rings.length));
     veils.count = rings.length;
     rings.forEach((ring, i) => veils.setMatrixAt(i, this.placement(ring, ring.radius)));
     veils.frustumCulled = false;
@@ -389,7 +417,7 @@ export class CrystalGates {
     this.veils = veils;
   }
 
-  /** Turns gate `index` (its crystals and veil) to face along `normal` (Resonance; looks only) */
+  /** Turns gate `index` (its crystals and ring) to face along `normal` (Resonance; looks only) */
   orient(index: number, normal: THREE.Vector3) {
     const ring = this.rings[index];
     if (!ring) return;

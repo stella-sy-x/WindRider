@@ -1,9 +1,9 @@
 import * as THREE from "three";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 
-// Building items from painted primitives: each primitive is painted per vertex
-// (a color and a `glow` intensity) before it is placed, and everything is
-// merged into one geometry.
+// Building items from painted primitives: each primitive is painted per face
+// (a color and a `glow` intensity, constant across each triangle) before it is
+// placed, and everything is merged into one geometry.
 
 export type Vec = [number, number, number];
 export type Paint = string | ((p: THREE.Vector3, out: THREE.Color) => void);
@@ -28,7 +28,23 @@ export class Builder {
     const position = flat.getAttribute("position");
     const colors = new Float32Array(position.count * 3);
     const glows = new Float32Array(position.count).fill(glow);
-    for (let i = 0; i < position.count; i++) {
+    // One paint call per triangle at its centroid, written to all three corners, so
+    // items read as flat facets like the terrain instead of smooth gradients
+    const facesEnd = position.count - (position.count % 3);
+    for (let i = 0; i < facesEnd; i += 3) {
+      if (typeof paint === "string") paintColor.set(paint);
+      else {
+        point.set(
+          (position.getX(i) + position.getX(i + 1) + position.getX(i + 2)) / 3,
+          (position.getY(i) + position.getY(i + 1) + position.getY(i + 2)) / 3,
+          (position.getZ(i) + position.getZ(i + 1) + position.getZ(i + 2)) / 3,
+        );
+        paint(point, paintColor);
+      }
+      for (let k = 0; k < 3; k++) paintColor.toArray(colors, (i + k) * 3);
+    }
+    // Guard: any leftover vertices (never expected on non-indexed geometry) are painted per vertex
+    for (let i = facesEnd; i < position.count; i++) {
       if (typeof paint === "string") paintColor.set(paint);
       else paint(point.fromBufferAttribute(position, i), paintColor);
       paintColor.toArray(colors, i * 3);
