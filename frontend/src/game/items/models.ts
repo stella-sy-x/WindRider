@@ -1,12 +1,12 @@
 import * as THREE from "three";
 import { Builder, GOLD, GOLD_DEEP, blend, cyl, lathe, leaf, sphere, star } from "./builder";
-import { outlineMaterial, toonMaterial } from "../toon";
+import { flatMaterial } from "../toon";
 
 // Items the pilot can carry: a giant firework worn on the back like a
 // jetpack, candies, a golden feather, helmets and fruits. Models only (what
 // they do comes later). Each is built from primitives at runtime, painted per
-// vertex and drawn with the pilot's toon material and ink outline, so it sits
-// in the same toon look. Units match the avatar's body (about 1.1
+// vertex and drawn with the pilot's flat material, so it sits
+// in the same low-poly look. Units match the avatar's body (about 1.1
 // tall before the avatar's own scale); `y` is up, `-z` the front.
 
 export type ItemId =
@@ -249,27 +249,18 @@ const BUILDERS: Record<ItemId, () => THREE.BufferGeometry> = {
   starfruit,
 };
 
-let toon: THREE.MeshToonMaterial | null = null;
-let ink: THREE.MeshBasicMaterial | null = null;
+let flat: THREE.MeshLambertMaterial | null = null;
 
-/** Materials shared by every item (never disposed: items come and go, the look stays) */
-function materials() {
-  if (!toon) {
-    toon = toonMaterial({ side: THREE.DoubleSide, rim: 0.4 });
-    ink = outlineMaterial(0.008);
-  }
-  return { toon: toon!, ink: ink! };
+function material() {
+  if (!flat) flat = flatMaterial({ side: THREE.DoubleSide });
+  return flat;
 }
 
-/** One item, ready to place: a toon mesh with its ink outline. Dispose with `disposeItem` */
 export function buildItem(id: ItemId): THREE.Group {
-  const { toon, ink } = materials();
   const geometry = BUILDERS[id]();
   const group = new THREE.Group();
   group.name = id;
-  const mesh = new THREE.Mesh(geometry, toon);
-  mesh.add(new THREE.Mesh(geometry, ink));
-  group.add(mesh);
+  group.add(new THREE.Mesh(geometry, material()));
   return group;
 }
 

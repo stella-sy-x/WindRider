@@ -4,7 +4,7 @@ This file is Claude's memory for Wind Rider. Read it before touching code.
 
 ## Art direction
 
-Cel-shaded toon material, chibi proportions, soft silhouettes, warm colors,
+Low-poly flat shading, chibi proportions, soft silhouettes, warm colors,
 gold trims, capes and feathers. Painted skies, bloom, particles, glass UI.
 No realistic assets or photo textures.
 
@@ -51,7 +51,7 @@ cd frontend && npm install && npm run dev  # http://localhost:5173
 | `game/particles.ts` | GPU particle system |
 | `game/pilotfx.ts` | Wingtip ribbons, motes, roll arcs, boost dust |
 | `game/trail.ts` | Glowing ribbon trail |
-| `game/toon.ts` | Toon material and ink outline |
+| `game/toon.ts` | Flat material and shared light parameters |
 | `game/world/` | Terrain generation, biomes, courses, trees, water, atmosphere |
 | `game/world/crystals.ts` | Crystal gates |
 | `game/world/landCollider.ts` | Collision with drawn land meshes |

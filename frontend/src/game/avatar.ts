@@ -1,6 +1,6 @@
 import * as THREE from "three";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
-import { outlineMaterial, toonMaterial } from "./toon";
+import { flatMaterial } from "./toon";
 import { ATMOSPHERE } from "./world/atmosphere";
 import { ANIM, FX, COSMETIC_FX } from "./tuning";
 import { clamp, smoothstep } from "./math";
@@ -11,7 +11,7 @@ import { buildWing } from "./cosmetics/wings";
 import type { Appearance } from "./cosmetics/storage";
 import { buildHat, buildShoe, disposeModel } from "./cosmetics/models";
 
-// The pilot: a small cel-shaded flyer with chibi proportions (a big
+// The pilot: a small low-poly flyer with chibi proportions (a big
 // head, slim limbs), a flowing cape, a scarf, and a pair of feathered
 // glider wings on the back. Everything is built from primitives at runtime.
 //
@@ -388,7 +388,6 @@ export class Avatar {
   private readonly clothInverse = new THREE.Matrix4();
   private readonly clothMatrix = new THREE.Matrix4();
   private readonly painted: Painted[] = [];
-  private readonly outlines: THREE.Mesh[] = [];
   private readonly materials: THREE.Material[] = [];
   private readonly aura: THREE.Sprite;
   private tones: Tones;
@@ -452,10 +451,9 @@ export class Avatar {
     this.ghost = !!options.ghost;
     this.tones = tonesFor(color);
     const ghost = this.ghost;
-    const skinMat = this.material(toonMaterial({ ghost }));
-    const clothMat = this.material(toonMaterial({ ghost, side: THREE.DoubleSide, rim: 0.3 }));
-    const wingMat = this.material(toonMaterial({ ghost, side: THREE.DoubleSide, rim: 0.3, rimColor: "#ffffff" }));
-    const ink = ghost ? null : this.material(outlineMaterial(0.012));
+    const skinMat = this.material(flatMaterial({ ghost }));
+    const clothMat = this.material(flatMaterial({ ghost, side: THREE.DoubleSide }));
+    const wingMat = this.material(flatMaterial({ ghost, side: THREE.DoubleSide }));
 
     this.group.add(this.rig);
     this.rig.add(this.body);
@@ -466,16 +464,11 @@ export class Avatar {
     skeleton.position.y = -0.74;
     this.body.add(skeleton);
 
-    const part = (joint: THREE.Object3D, builder: PartBuilder, material = skinMat, outline = true) => {
+    const part = (joint: THREE.Object3D, builder: PartBuilder, material = skinMat) => {
       const painted = builder.build();
       this.painted.push(painted);
       const mesh = new THREE.Mesh(painted.geometry, material);
       joint.add(mesh);
-      if (ink && outline) {
-        const outline = new THREE.Mesh(painted.geometry, ink);
-        mesh.add(outline);
-        this.outlines.push(outline);
-      }
       return mesh;
     };
     const clothObstacle = (mesh: THREE.Mesh) => {
@@ -610,7 +603,7 @@ export class Avatar {
         // Style 1's lashes flick up at the outer corner
         if (one) eyes.add(new THREE.ConeGeometry(0.006, 0.022, 5), "eye", [x + 0.026 * s, y + 0.03, -0.148], [0, turn, -1.1 * s]);
       }
-      part(look, eyes, skinMat, false);
+      part(look, eyes, skinMat);
     }
 
     // A ponytail in two links that swing (style 1)
@@ -968,7 +961,6 @@ export class Avatar {
     const far = distance > 110;
     if (far !== !this.detailed) {
       this.detailed = !far;
-      this.outlines.forEach((o) => (o.visible = this.detailed));
     }
     this.applyPose(dt, proximity);
   }
@@ -1109,7 +1101,7 @@ export class Avatar {
   private clearCloth(out: THREE.Vector3) {
     for (const { bounds } of this.clothObstacles) {
       // Cover half a cloth grid cell beyond the bounds so triangles between
-      // samples also clear the boots. The z gap includes their ink outlines.
+      // samples also clear the boots.
       const dx = Math.max(bounds.min.x - out.x, out.x - bounds.max.x, 0);
       const dy = Math.max(bounds.min.y - out.y, out.y - bounds.max.y, 0);
       const drape = 1 - smoothstep(0.06, 0.12, Math.max(dx, dy));

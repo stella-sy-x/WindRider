@@ -1,17 +1,14 @@
 import * as THREE from "three";
 import { Builder, buildItem, cyl, leaf, sphere, star } from "../items/models";
-import { outlineMaterial, toonMaterial } from "../toon";
+import { flatMaterial } from "../toon";
 import type { HatId, ShoeId } from "./catalog";
 
 const GOLD = "#f3c869", IVORY = "#fff4df";
 // Each accessory owns its geometry; materials live for the lifetime of this module.
-const toon = toonMaterial({ side: THREE.DoubleSide, rim: 0.35 });
-const ink = outlineMaterial(0.006);
+const flat = flatMaterial({ side: THREE.DoubleSide });
 export function paintedModel(builder: Builder): THREE.Group {
   const group = new THREE.Group(), geometry = builder.build();
-  const mesh = new THREE.Mesh(geometry, toon);
-  mesh.add(new THREE.Mesh(geometry, ink));
-  group.add(mesh);
+  group.add(new THREE.Mesh(geometry, flat));
   return group;
 }
 export function disposeModel(group: THREE.Group) {

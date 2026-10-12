@@ -2,8 +2,8 @@ import * as THREE from "three";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 
 // Building items from painted primitives: each primitive is painted per vertex
-// (a color and a `glow` the toon material reads) before it is placed, and
-// everything is merged into one geometry.
+// (a color and a `glow` intensity) before it is placed, and everything is
+// merged into one geometry.
 
 export type Vec = [number, number, number];
 export type Paint = string | ((p: THREE.Vector3, out: THREE.Color) => void);
@@ -16,7 +16,7 @@ const s3 = new THREE.Vector3();
 const point = new THREE.Vector3();
 const paintColor = new THREE.Color();
 
-/** Collects painted primitives into one geometry with `color` and `glow` (what toonMaterial reads) */
+/** Collects painted primitives into one geometry with `color` and `glow` vertex attributes */
 export class Builder {
   private readonly parts: THREE.BufferGeometry[] = [];
 
