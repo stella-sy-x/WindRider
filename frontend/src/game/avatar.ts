@@ -156,15 +156,15 @@ function feather(length: number, width: number): THREE.BufferGeometry {
   shape.quadraticCurveTo(length * 0.55, -width * 0.75, length, 0);
   shape.quadraticCurveTo(length * 0.55, width * 0.75, 0, width * 0.5);
   shape.closePath();
-  const geometry = new THREE.ExtrudeGeometry(shape, { depth: 0.014, bevelEnabled: false, curveSegments: 3 });
+  const geometry = new THREE.ExtrudeGeometry(shape, { depth: 0.014, bevelEnabled: false, curveSegments: 2 });
   geometry.translate(0, 0, -0.007);
   return geometry;
 }
 
-const sphere = (r: number, w = 8, h = 8) => new THREE.SphereGeometry(r, w, h);
-const capsule = (r: number, length: number) => new THREE.CapsuleGeometry(r, length, 4, 8, 1);
-const cyl = (top: number, bottom: number, h: number, n = 8) => new THREE.CylinderGeometry(top, bottom, h, n, 1);
-const lathe = (profile: [number, number][], n = 10) =>
+const sphere = (r: number, w = 6, h = 4) => new THREE.SphereGeometry(r, w, h);
+const capsule = (r: number, length: number) => new THREE.CapsuleGeometry(r, length, 3, 5, 1);
+const cyl = (top: number, bottom: number, h: number, n = 6) => new THREE.CylinderGeometry(top, bottom, h, n, 1);
+const lathe = (profile: [number, number][], n = 8) =>
   new THREE.LatheGeometry(
     profile.map(([r, y]) => new THREE.Vector2(r, y)),
     n,
@@ -497,7 +497,7 @@ export class Avatar {
           [0, 0, 0],
           [1, 1, 0.8],
         )
-        .add(cyl(0.1, 0.1, 0.035, 8), "dark", [0, 0.06, 0], [0, 0, 0], [1, 1, 0.8])
+        .add(cyl(0.1, 0.1, 0.035, 6), "dark", [0, 0.06, 0], [0, 0, 0], [1, 1, 0.8])
         .add(new THREE.OctahedronGeometry(0.026, 0), "trim", [0, 0.06, -0.082]),
     );
 
@@ -526,10 +526,10 @@ export class Avatar {
           [0, 0, 0],
           [1, 1, 0.78],
         )
-        .add(new THREE.TorusGeometry(0.05, 0.02, 6, 12), "trim", [0, 0.27, 0], [Math.PI / 2, 0, 0], [1, 1, 0.9])
-        .add(cyl(0.034, 0.038, 0.07, 8), "skin", [0, 0.3, 0])
-        .add(sphere(0.055, 10, 8), "clothLight", [0.1, 0.22, 0], [0, 0, 0], [1, 0.85, 0.85])
-        .add(sphere(0.055, 10, 8), "clothLight", [-0.1, 0.22, 0], [0, 0, 0], [1, 0.85, 0.85]),
+        .add(new THREE.TorusGeometry(0.05, 0.02, 5, 6), "trim", [0, 0.27, 0], [Math.PI / 2, 0, 0], [1, 1, 0.9])
+        .add(cyl(0.034, 0.038, 0.07, 6), "skin", [0, 0.3, 0])
+        .add(sphere(0.055, 6, 4), "clothLight", [0.1, 0.22, 0], [0, 0, 0], [1, 0.85, 0.85])
+        .add(sphere(0.055, 6, 4), "clothLight", [-0.1, 0.22, 0], [0, 0, 0], [1, 0.85, 0.85]),
     );
 
     // Head: big and round, a soft jaw and cheeks under it, and the face drawn on in layers
@@ -540,17 +540,17 @@ export class Avatar {
     const lip: Paint = (_p, t, out) => out.copy(t.blush).lerp(t.eye, 0.35);
     const nose: Paint = (_p, t, out) => out.copy(t.skin).lerp(t.blush, 0.3);
     part(this.head, new PartBuilder()
-      .add(sphere(0.165, 10, 8), "skin", [0, 0.15, 0], [0, 0, 0], [1, 0.97, 0.98])
+      .add(sphere(0.165, 8, 6), "skin", [0, 0.15, 0], [0, 0, 0], [1, 0.97, 0.98])
       // Cheeks and a small rounded chin give the face its front, so it takes light like a sculpted shape
-      .add(sphere(0.13, 10, 8), "skin", [0, 0.09, -0.04], [0, 0, 0], [1.04, 0.84, 0.95])
-      .add(sphere(0.045, 10, 8), "skin", [0.075, 0.085, -0.115], [0, 0, 0], [1, 0.85, 0.7])
-      .add(sphere(0.045, 10, 8), "skin", [-0.075, 0.085, -0.115], [0, 0, 0], [1, 0.85, 0.7]));
+      .add(sphere(0.13, 8, 6), "skin", [0, 0.09, -0.04], [0, 0, 0], [1.04, 0.84, 0.95])
+      .add(sphere(0.045, 6, 4), "skin", [0.075, 0.085, -0.115], [0, 0, 0], [1, 0.85, 0.7])
+      .add(sphere(0.045, 6, 4), "skin", [-0.075, 0.085, -0.115], [0, 0, 0], [1, 0.85, 0.7]));
     // Small features without ink, which would swallow them
     part(this.head, new PartBuilder()
-      .add(sphere(0.013, 8, 6), nose, [0, 0.102, -0.166], [0, 0, 0], [0.85, 0.8, 1.25])
-      .add(new THREE.TorusGeometry(0.017, 0.004, 4, 10, Math.PI * 0.75), lip, [0, 0.066, -0.158], [0.35, 0, Math.PI * 1.125])
-      .add(sphere(0.02, 8, 6), "blush", [0.08, 0.09, -0.143], [0, 0.5, 0], [1.2, 0.6, 0.3])
-      .add(sphere(0.02, 8, 6), "blush", [-0.08, 0.09, -0.143], [0, -0.5, 0], [1.2, 0.6, 0.3]), skinMat);
+      .add(sphere(0.013, 6, 4), nose, [0, 0.102, -0.166], [0, 0, 0], [0.85, 0.8, 1.25])
+      .add(new THREE.TorusGeometry(0.017, 0.004, 4, 6, Math.PI * 0.75), lip, [0, 0.066, -0.158], [0.35, 0, Math.PI * 1.125])
+      .add(sphere(0.02, 6, 4), "blush", [0.08, 0.09, -0.143], [0, 0.5, 0], [1.2, 0.6, 0.3])
+      .add(sphere(0.02, 6, 4), "blush", [-0.08, 0.09, -0.143], [0, -0.5, 0], [1.2, 0.6, 0.3]), skinMat);
 
     // Two styles, swapped by `setStyle`: 1 has the ponytail, bangs and big lashed eyes; 2 short tousled hair and straighter brows
     for (const style of [1, 2] as const) {
@@ -560,33 +560,33 @@ export class Avatar {
       this.styles.push(look);
       const one = style === 1;
       const hairBuilder = new PartBuilder()
-        .add(new THREE.SphereGeometry(0.178, 10, 8, 0, TAU, 0, Math.PI * 0.58), hair, [0, 0.165, 0.008], [0.35, 0, 0]);
+        .add(new THREE.SphereGeometry(0.178, 6, 4, 0, TAU, 0, Math.PI * 0.58), hair, [0, 0.165, 0.008], [0.35, 0, 0]);
       if (one) {
         hairBuilder
-          .add(sphere(0.12, 8, 8), hair, [0, 0.17, 0.07], [0, 0, 0], [1.3, 1.25, 1.1])
+          .add(sphere(0.12, 6, 4), hair, [0, 0.17, 0.07], [0, 0, 0], [1.3, 1.25, 1.1])
           // Side locks and bangs hang down (cones point up, so flip them)
-          .add(new THREE.ConeGeometry(0.045, 0.17, 6), hair, [0.14, 0.06, -0.035], [Math.PI + 0.1, 0, -0.12])
-          .add(new THREE.ConeGeometry(0.045, 0.17, 6), hair, [-0.14, 0.06, -0.035], [Math.PI + 0.1, 0, 0.12])
-          .add(new THREE.ConeGeometry(0.038, 0.12, 6), hair, [0.065, 0.205, -0.125], [Math.PI + 0.45, 0, 0.3])
-          .add(new THREE.ConeGeometry(0.04, 0.13, 6), hair, [-0.01, 0.21, -0.135], [Math.PI + 0.4, 0, -0.05])
-          .add(new THREE.ConeGeometry(0.034, 0.11, 6), hair, [-0.085, 0.2, -0.12], [Math.PI + 0.45, 0, -0.35])
-          .add(new THREE.ConeGeometry(0.018, 0.14, 6), hair, [0.02, 0.36, -0.01], [-0.7, 0, 0.2])
+          .add(new THREE.ConeGeometry(0.045, 0.17, 5), hair, [0.14, 0.06, -0.035], [Math.PI + 0.1, 0, -0.12])
+          .add(new THREE.ConeGeometry(0.045, 0.17, 5), hair, [-0.14, 0.06, -0.035], [Math.PI + 0.1, 0, 0.12])
+          .add(new THREE.ConeGeometry(0.038, 0.12, 5), hair, [0.065, 0.205, -0.125], [Math.PI + 0.45, 0, 0.3])
+          .add(new THREE.ConeGeometry(0.04, 0.13, 5), hair, [-0.01, 0.21, -0.135], [Math.PI + 0.4, 0, -0.05])
+          .add(new THREE.ConeGeometry(0.034, 0.11, 5), hair, [-0.085, 0.2, -0.12], [Math.PI + 0.45, 0, -0.35])
+          .add(new THREE.ConeGeometry(0.018, 0.14, 5), hair, [0.02, 0.36, -0.01], [-0.7, 0, 0.2])
           // A tiny hair clip
           .add(new THREE.OctahedronGeometry(0.03, 0), "trim", [0.15, 0.22, -0.04], [0, 0, 0.6], [1, 1.4, 0.6]);
       } else {
         hairBuilder
-          .add(sphere(0.115, 8, 8), hair, [0, 0.16, 0.06], [0, 0, 0], [1.32, 1.18, 1.08])
+          .add(sphere(0.115, 6, 4), hair, [0, 0.16, 0.06], [0, 0, 0], [1.32, 1.18, 1.08])
           // Short side burns and a tousled fringe swept to one side
-          .add(new THREE.ConeGeometry(0.038, 0.1, 6), hair, [0.145, 0.1, -0.03], [Math.PI + 0.1, 0, -0.1])
-          .add(new THREE.ConeGeometry(0.038, 0.1, 6), hair, [-0.145, 0.1, -0.03], [Math.PI + 0.1, 0, 0.1])
-          .add(new THREE.ConeGeometry(0.042, 0.11, 6), hair, [0.075, 0.225, -0.12], [Math.PI + 0.75, 0, 0.55])
-          .add(new THREE.ConeGeometry(0.044, 0.12, 6), hair, [0.005, 0.235, -0.13], [Math.PI + 0.7, 0, 0.35])
-          .add(new THREE.ConeGeometry(0.04, 0.1, 6), hair, [-0.075, 0.225, -0.12], [Math.PI + 0.75, 0, 0.1])
+          .add(new THREE.ConeGeometry(0.038, 0.1, 5), hair, [0.145, 0.1, -0.03], [Math.PI + 0.1, 0, -0.1])
+          .add(new THREE.ConeGeometry(0.038, 0.1, 5), hair, [-0.145, 0.1, -0.03], [Math.PI + 0.1, 0, 0.1])
+          .add(new THREE.ConeGeometry(0.042, 0.11, 5), hair, [0.075, 0.225, -0.12], [Math.PI + 0.75, 0, 0.55])
+          .add(new THREE.ConeGeometry(0.044, 0.12, 5), hair, [0.005, 0.235, -0.13], [Math.PI + 0.7, 0, 0.35])
+          .add(new THREE.ConeGeometry(0.04, 0.1, 5), hair, [-0.075, 0.225, -0.12], [Math.PI + 0.75, 0, 0.1])
           // Spikes on the crown and the nape, swept back by the wind
-          .add(new THREE.ConeGeometry(0.04, 0.12, 6), hair, [0.03, 0.33, 0.02], [-0.9, 0, -0.25])
-          .add(new THREE.ConeGeometry(0.04, 0.12, 6), hair, [-0.05, 0.31, 0.06], [-1.2, 0, 0.3])
-          .add(new THREE.ConeGeometry(0.045, 0.11, 6), hair, [0.05, 0.12, 0.15], [-2.4, 0, -0.2])
-          .add(new THREE.ConeGeometry(0.045, 0.11, 6), hair, [-0.05, 0.12, 0.15], [-2.4, 0, 0.2]);
+          .add(new THREE.ConeGeometry(0.04, 0.12, 5), hair, [0.03, 0.33, 0.02], [-0.9, 0, -0.25])
+          .add(new THREE.ConeGeometry(0.04, 0.12, 5), hair, [-0.05, 0.31, 0.06], [-1.2, 0, 0.3])
+          .add(new THREE.ConeGeometry(0.045, 0.11, 5), hair, [0.05, 0.12, 0.15], [-2.4, 0, -0.2])
+          .add(new THREE.ConeGeometry(0.045, 0.11, 5), hair, [-0.05, 0.12, 0.15], [-2.4, 0, 0.2]);
       }
       part(look, hairBuilder);
       // Eyes: a dark almond, a lit iris in its lower half, two highlights, a lash line and a brow
@@ -594,9 +594,9 @@ export class Avatar {
       for (const s of [1, -1]) {
         const x = 0.058 * s, y = one ? 0.13 : 0.128, turn = 0.38 * s;
         eyes
-          .add(sphere(one ? 0.027 : 0.025, 8, 8), "eye", [x, y, -0.149], [0, turn, 0], one ? [0.85, 1.25, 0.5] : [0.92, 1.02, 0.5])
-          .add(sphere(0.018, 10, 8), iris, [x, y - 0.012, -0.158], [0, turn, 0], [0.85, 0.85, 0.35])
-          .add(sphere(0.008, 6, 5), "white", [x + 0.007 * s, y + 0.013, -0.166])
+          .add(sphere(one ? 0.027 : 0.025, 6, 4), "eye", [x, y, -0.149], [0, turn, 0], one ? [0.85, 1.25, 0.5] : [0.92, 1.02, 0.5])
+          .add(sphere(0.018, 6, 4), iris, [x, y - 0.012, -0.158], [0, turn, 0], [0.85, 0.85, 0.35])
+          .add(sphere(0.008, 6, 4), "white", [x + 0.007 * s, y + 0.013, -0.166])
           .add(sphere(0.004, 5, 4), "white", [x - 0.008 * s, y - 0.016, -0.166])
           .add(capsule(0.0045, one ? 0.05 : 0.044), "eye", [x, y + (one ? 0.031 : 0.025), -0.156], [0, turn, Math.PI / 2 - 0.14 * s])
           .add(capsule(one ? 0.0035 : 0.006, one ? 0.034 : 0.04), "hair", [x + 0.004 * s, y + (one ? 0.06 : 0.05), -0.155], [0, turn, Math.PI / 2 + (one ? 0.2 : 0.05) * s]);
@@ -617,8 +617,8 @@ export class Avatar {
       joint.position.set(...ponyAt[i]);
       parent.add(joint);
       const builder = new PartBuilder();
-      if (i === 0) builder.add(new THREE.TorusGeometry(0.03, 0.012, 6, 12), "trim", [0, 0, 0], [Math.PI / 2, 0, 0]);
-      builder.add(sphere(0.06 - i * 0.012, 10, 8), "hair", [0, -0.07, 0], [0, 0, 0], [1, 1.6, 0.9]);
+      if (i === 0) builder.add(new THREE.TorusGeometry(0.03, 0.012, 5, 6), "trim", [0, 0, 0], [Math.PI / 2, 0, 0]);
+      builder.add(sphere(0.06 - i * 0.012, 6, 4), "hair", [0, -0.07, 0], [0, 0, 0], [1, 1.6, 0.9]);
       part(joint, builder);
       this.pony.push(joint);
       parent = joint;
@@ -632,9 +632,9 @@ export class Avatar {
       part(
         shoulder,
         new PartBuilder()
-          .add(sphere(0.05, 10, 8), "clothLight", [0, -0.02, 0])
+          .add(sphere(0.05, 6, 4), "clothLight", [0, -0.02, 0])
           .add(capsule(0.036, 0.13), "clothLight", [0, -0.1, 0])
-          .add(new THREE.TorusGeometry(0.037, 0.01, 5, 12), "trim", [0, -0.17, 0], [Math.PI / 2, 0, 0]),
+          .add(new THREE.TorusGeometry(0.037, 0.01, 5, 6), "trim", [0, -0.17, 0], [Math.PI / 2, 0, 0]),
       );
       const elbow = new THREE.Object3D();
       elbow.position.set(0, -0.19, 0);
@@ -643,8 +643,8 @@ export class Avatar {
         elbow,
         new PartBuilder()
           .add(capsule(0.03, 0.13), "skin", [0, -0.08, 0])
-          .add(cyl(0.036, 0.033, 0.05, 8), "white", [0, -0.12, 0])
-          .add(sphere(0.036, 10, 8), "skin", [0, -0.19, 0], [0, 0, 0], [0.75, 1.15, 0.45]),
+          .add(cyl(0.036, 0.033, 0.05, 6), "white", [0, -0.12, 0])
+          .add(sphere(0.036, 6, 4), "skin", [0, -0.19, 0], [0, 0, 0], [0.75, 1.15, 0.45]),
       );
 
       const hip = new THREE.Object3D();
@@ -658,7 +658,7 @@ export class Avatar {
         knee,
         new PartBuilder()
           .add(capsule(0.042, 0.18), "dark", [0, -0.13, 0])
-          .add(new THREE.TorusGeometry(0.046, 0.013, 6, 12), "trim", [0, -0.03, 0], [Math.PI / 2, 0, 0])
+          .add(new THREE.TorusGeometry(0.046, 0.013, 5, 6), "trim", [0, -0.03, 0], [Math.PI / 2, 0, 0])
           // Pointed toes, like a dancer's
           .add(capsule(0.034, 0.08), "dark", [0, -0.3, -0.012], [0.25, 0, 0]),
       ));
