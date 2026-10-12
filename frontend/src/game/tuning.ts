@@ -47,7 +47,7 @@ export const FX = {
   bloomRadius: 0.12,
   bloomHalo: 0.12, // contribution from the widest blur layers
   bloomThreshold: 1.3,
-  bloomResolution: 1, // with bloom, the frame renders at most at this pixel ratio (its cost grows fast with it)
+  bloomResolution: 1.5, // with bloom, the frame renders at most at this pixel ratio (its cost grows fast with it)
   bloomSamples: 0, // multisampling of the bloom's float target (very dear on integrated GPUs); 0 smooths edges with FXAA instead
   autoQuality: true, // drop effects if the frame rate can't keep up
 };
@@ -60,7 +60,9 @@ export const RINGS = {
   spin: 0.08, // how fast the cohort turns around the gate (rad/s)
   selfSpin: 0.6, // how fast each crystal turns on its own axis
   glow: 1, // inner glow of the next gate
-  ringTube: 0.1, // thickness of the faceted gate ring, as a share of the gate's radius; applies to the next map
+  motes: 28, // glowing motes that trace each gate's ring; applies to the next map
+  moteSize: 0.7, // metres across, for a 13 m ring (smaller gates get smaller motes)
+  moteDrift: 0.25, // metres each mote wanders from its place on the ring
   shatter: 1, // particles when you pass through
   passTime: 1.4, // seconds of the pass animation
 };
@@ -121,6 +123,7 @@ export const TERRAIN = {
   texture: 1, // strength of the painted noise on cliffs
   textureScale: 1,
   glow: 1, // glowing cracks and spots
+  tintStrength: 0.35, // how far rock, cover and plants shift toward the mood palette (0 = baked colors, 1 = the palette alone)
 };
 
 /** Plants and grass. Looks only: colliders don't move with the wind */

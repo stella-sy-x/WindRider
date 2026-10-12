@@ -49,6 +49,8 @@ export const sceneryTime = { value: 0 };
 
 /** How bright glowing effects are in this biome's light (bright skies wash additive light out) */
 export const FX_LIGHT = { boost: { value: 1 } };
+/** Metres to pixels at 1 m from the camera, for everything drawn as points; set from the viewport each frame */
+export const pixelScale = { value: 800 };
 
 const vertexShader = /* glsl */ `
   attribute vec3 velocity;
@@ -189,7 +191,7 @@ export class Particles {
     geometry.setAttribute("color", attribute(this.color, 3));
 
     const material = new THREE.ShaderMaterial({
-      uniforms: THREE.UniformsUtils.merge([THREE.UniformsLib.fog, { pixelScale: { value: 800 } }]),
+      uniforms: { ...THREE.UniformsUtils.clone(THREE.UniformsLib.fog), pixelScale },
       vertexShader,
       fragmentShader,
       transparent: true,
@@ -207,7 +209,7 @@ export class Particles {
 
   /** Converts metres to pixels: call when the viewport or field of view changes */
   setViewport(height: number, fov: number) {
-    this.points.material.uniforms.pixelScale.value = height / (2 * Math.tan(THREE.MathUtils.degToRad(fov) / 2));
+    pixelScale.value = height / (2 * Math.tan(THREE.MathUtils.degToRad(fov) / 2));
   }
 
   /** `age`: seconds since a subframe birth, so moving emitters do not spawn in batches. */

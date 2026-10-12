@@ -1,14 +1,14 @@
 import * as THREE from "three";
-import { sceneryTime as fxTime } from "../particles";
+import { FX_LIGHT, sceneryTime as fxTime, pixelScale } from "../particles";
 import { makeRng, range } from "../rng";
 import { RINGS } from "../tuning";
 import type { Ring } from "./course";
 
 // The gates: a cohort of floating crystals around every ring, each bobbing and
-// turning on its own, orbiting a faceted ring of glowing glass. Passing a gate
-// makes its crystals flare white, burst outward and dissolve, and the ring
-// flashes and kicks outward. All gates share three instanced draw calls; the
-// motion runs in the vertex shader from a few numbers per gate.
+// turning on its own, orbiting a ring of glowing motes that trace the gate.
+// Passing a gate makes its crystals flare white, burst outward and dissolve,
+// and the motes flash and scatter. All gates share three draw calls (crystals,
+// motes, beams); the motion runs in the vertex shader from a few numbers per gate.
 
 export type RingMode = "race" | "free" | "hidden";
 
@@ -113,79 +113,94 @@ const crystalFragment = /* glsl */ `
   }
 `;
 
-// The gate ring: a faceted torus of glowing glass, radius 1 in its own space and
-// scaled to the gate by its instance matrix. Lit flat per face like the crystals.
-const ringVertex = /* glsl */ `
+// The gate ring: a circle of glowing motes, one point each, drawn as a single
+// THREE.Points for every gate. Each mote sits at its place on the ring in world
+// space and wanders a little in the vertex shader: in and out along the ring
+// (`radial`) and through it (`axis`). The next gate's motes breathe together and
+// glow; a pass flashes them white and scatters them outward as they fade.
+const moteVertex = /* glsl */ `
   attribute float gate;
-  uniform vec4 gates[GATE_COUNT];
+  attribute vec3 radial; // unit, from the ring's center out to this mote
+  attribute vec3 axis; // unit, the way you fly through the gate
+  attribute vec4 mote; // angle on the ring, ring radius, phase, twinkle rate
+  uniform vec4 gates[GATE_COUNT]; // visible, highlight, passedAt, finish
   uniform float time;
   uniform float passDuration;
-  varying vec3 vViewPosition;
-  varying vec3 vLocal;
-  varying float vAngle;
+  uniform float pixelScale;
+  uniform vec2 moteLook; // size (m, for a 13 m ring), drift (m)
   varying vec4 vGate;
   varying float vK;
+  varying float vFade;
   #include <fog_pars_vertex>
+
   void main() {
     vGate = gates[int(gate + 0.5)];
     float since = time - vGate.z;
     vK = since >= 0.0 && since < passDuration ? since / passDuration : -1.0;
     float passing = vK >= 0.0 ? 1.0 : 0.0;
-    // The pass kicks the ring outward a touch, then it settles back
-    float kick = 1.0 + passing * 0.12 * sin(3.14159 * min(max(vK, 0.0) * 2.0, 1.0));
-    // A quiet breath on the next gate
-    float breath = 1.0 + vGate.y * 0.015 * sin(time * 2.0);
-    vec3 p = position * kick * breath;
-    vLocal = p;
-    vAngle = atan(p.y, p.x);
-    vec4 mvPosition = modelViewMatrix * instanceMatrix * vec4(p, 1.0);
+    float k = max(vK, 0.0);
+    float angle = mote.x;
+    float phase = mote.z;
+    // Smaller gates get smaller motes, and shorter wanders
+    float fit = min(1.0, mote.y / 13.0);
+
+    // Each mote drifts on its own; the next gate's motes also breathe as one
+    float wander = moteLook.y * fit;
+    float outward = sin(time * 1.1 + phase) * wander + vGate.y * 0.18 * fit * sin(time * 2.0 + angle);
+    float through = sin(time * 0.8 + phase * 1.7) * wander * 1.6;
+    // The pass: motes scatter outward and thin out as the crystals dissolve
+    outward += passing * pow(k, 0.6) * mote.y * 0.25;
+    through += passing * k * 2.0 * fit;
+    vec3 p = position + radial * outward + axis * through;
+
+    vec4 mvPosition = modelViewMatrix * vec4(p, 1.0);
     gl_Position = projectionMatrix * mvPosition;
-    vViewPosition = mvPosition.xyz;
+
+    // A slow twinkle, and a soft glint travelling around the ring
+    float twinkle = 0.75 + 0.25 * sin(time * mote.w + phase);
+    float shimmer = 0.85 + 0.15 * sin(angle * 3.0 - time * 1.6);
+    float scale = vGate.x * (1.0 - passing * smoothstep(0.4, 1.0, k));
+    float size = moteLook.x * fit * twinkle * (1.0 + vGate.y * 0.45) * (1.0 + passing * 0.9 * sin(3.14159 * min(k * 2.0, 1.0)));
+    float px = size * scale * pixelScale / max(0.1, -mvPosition.z);
+    // Far off a mote would shrink below a pixel and flicker: hold it at a few pixels and dim it instead
+    float least = 2.5 * step(0.001, scale);
+    vFade = scale * shimmer * twinkle * min(1.0, px / max(least, 0.001));
+    gl_PointSize = min(max(px, least), 96.0);
     #include <fog_vertex>
   }
 `;
 
-const ringFragment = /* glsl */ `
+const moteFragment = /* glsl */ `
   uniform vec3 ice;
   uniform vec3 accent;
   uniform vec3 gold;
-  uniform vec3 sunDirection; // view space
   uniform float glow;
-  uniform float time;
-  varying vec3 vViewPosition;
-  varying vec3 vLocal;
-  varying float vAngle;
+  uniform float boost;
   varying vec4 vGate;
   varying float vK;
+  varying float vFade;
   #include <fog_pars_fragment>
+
   void main() {
-    // Flat facets from screen-space derivatives; the object-space normal gives each face a steady tint
-    vec3 n = normalize(cross(dFdx(vViewPosition), dFdy(vViewPosition)));
-    vec3 ln = normalize(cross(dFdx(vLocal), dFdy(vLocal)));
-    vec3 v = normalize(-vViewPosition);
-    float facing = abs(dot(n, v));
-    float fresnel = pow(clamp(1.0 - facing, 0.0, 1.0), 2.0);
-    float diffuse = abs(dot(n, sunDirection)) * 0.5 + 0.5;
-    float spec = pow(max(dot(reflect(-sunDirection, n), v), 0.0), 24.0);
-    float facet = fract(sin(dot(floor(ln * 2.5 + 0.5), vec3(12.9898, 78.233, 37.719))) * 43758.5453);
+    vec2 uv = gl_PointCoord * 2.0 - 1.0;
+    float r2 = dot(uv, uv);
+    if (r2 > 1.0) discard;
+    // A soft glowing dot: a wide halo with a brighter heart
+    float a = exp(-r2 * 4.0) * 0.7 + exp(-r2 * 16.0) * 0.5;
 
     vec3 base = mix(mix(ice, accent, vGate.y), gold, vGate.w);
     // Quiet when idle, lit up for the next gate and the finish
-    float lit = 0.22 + vGate.y * 0.9 * glow + vGate.w * 0.35;
-    // A soft glint travelling around the ring
-    float shimmer = 0.85 + 0.15 * sin(vAngle * 3.0 - time * 1.6);
-    vec3 color = base * (0.3 + 0.4 * diffuse + 0.3 * facet) * shimmer * lit;
-    color += fresnel * mix(vec3(1.0), base, 0.4) * (0.45 + vGate.y * 0.9 * glow);
-    color += spec * (0.6 + vGate.y * 0.6);
-    color *= vGate.x;
+    float lit = 0.4 + vGate.y * 1.1 * glow + vGate.w * 0.4;
+    vec3 color = mix(base, vec3(1.0), 0.2 + vGate.y * 0.2) * lit;
     if (vK >= 0.0) {
       // The pass: the whole ring flashes white and fades
-      color += exp(-vK * 9.0) * 2.4 * mix(vec3(1.0), base, 0.2);
+      color += exp(-vK * 7.0) * 2.6 * mix(vec3(1.0), base, 0.2);
     }
-    if (max(color.r, max(color.g, color.b)) < 0.002) discard;
+    color *= a * vFade * boost;
     #ifdef USE_FOG
       color *= 1.0 - smoothstep(fogNear, fogFar, vFogDepth) * (1.0 - vGate.y);
     #endif
+    if (max(color.r, max(color.g, color.b)) < 0.002) discard;
     gl_FragColor = vec4(color, 1.0);
   }
 `;
@@ -279,7 +294,9 @@ export class CrystalGates {
   private mode: RingMode = "free";
   private next = 0;
   private readonly crystals: THREE.InstancedMesh;
-  private readonly veils: THREE.InstancedMesh;
+  /** The ring motes of every gate, `motesPerGate` each in gate order */
+  private readonly motes: THREE.Points;
+  private readonly motesPerGate: number;
   /** Per gate: its first crystal's instance */
   private readonly firstCrystal: number[] = [];
   /** Per gate: the direction it faces now (Resonance can turn it; looks only, the run keeps its own) */
@@ -354,34 +371,51 @@ export class CrystalGates {
     });
     crystals.frustumCulled = false;
 
-    // The ring: one faceted torus per gate, radius 1, scaled to the gate by its instance matrix.
-    // Few segments on purpose: the facets are the look.
-    const torus = this.geometry(new THREE.TorusGeometry(1, RINGS.ringTube, 5, 12));
-    torus.deleteAttribute("uv");
-    torus.deleteAttribute("normal");
-    torus.setAttribute("gate", new THREE.InstancedBufferAttribute(new Float32Array(rings.map((_, i) => i)), 1));
-    const veilMaterial = this.material(
+    // The ring: a circle of glowing motes per gate, all in one THREE.Points. Their places on
+    // the ring are world positions, written here and again whenever a gate turns (orient)
+    this.motesPerGate = Math.max(3, Math.round(RINGS.motes));
+    const moteCount = rings.length * this.motesPerGate;
+    const moteGeometry = this.geometry(new THREE.BufferGeometry());
+    const moteGate = new Float32Array(moteCount);
+    const moteSpec = new Float32Array(moteCount * 4);
+    for (let g = 0; g < rings.length; g++) {
+      for (let i = 0; i < this.motesPerGate; i++) {
+        const m = g * this.motesPerGate + i;
+        moteGate[m] = g;
+        moteSpec[m * 4] = (i / this.motesPerGate) * Math.PI * 2;
+        moteSpec[m * 4 + 1] = rings[g].radius;
+        moteSpec[m * 4 + 2] = range(rng, 0, Math.PI * 2);
+        moteSpec[m * 4 + 3] = range(rng, 1.5, 3.5);
+      }
+    }
+    moteGeometry.setAttribute("position", new THREE.BufferAttribute(new Float32Array(moteCount * 3), 3));
+    moteGeometry.setAttribute("radial", new THREE.BufferAttribute(new Float32Array(moteCount * 3), 3));
+    moteGeometry.setAttribute("axis", new THREE.BufferAttribute(new Float32Array(moteCount * 3), 3));
+    moteGeometry.setAttribute("gate", new THREE.BufferAttribute(moteGate, 1));
+    moteGeometry.setAttribute("mote", new THREE.BufferAttribute(moteSpec, 4));
+    const moteMaterial = this.material(
       new THREE.ShaderMaterial({
         defines,
         uniforms: {
           ...THREE.UniformsUtils.clone(THREE.UniformsLib.fog),
           ...shared,
-          sunDirection: { value: this.sunView },
+          pixelScale,
+          boost: FX_LIGHT.boost,
+          moteLook: { value: new THREE.Vector2(RINGS.moteSize, RINGS.moteDrift) },
         },
-        vertexShader: ringVertex,
-        fragmentShader: ringFragment,
+        vertexShader: moteVertex,
+        fragmentShader: moteFragment,
         transparent: true,
         depthWrite: false,
-        side: THREE.DoubleSide,
         blending: THREE.AdditiveBlending,
         fog: true,
       }),
     );
-    const veils = new THREE.InstancedMesh(torus, veilMaterial, Math.max(1, rings.length));
-    veils.count = rings.length;
-    rings.forEach((ring, i) => veils.setMatrixAt(i, this.placement(ring, ring.radius)));
-    veils.frustumCulled = false;
-    veils.renderOrder = 3;
+    const motes = new THREE.Points(moteGeometry, moteMaterial);
+    motes.frustumCulled = false;
+    motes.renderOrder = 3;
+    this.motes = motes;
+    rings.forEach((_, g) => this.placeMotes(g));
 
     // Light pillars: an open cylinder per gate, 700 m tall
     const tube = this.geometry(new THREE.CylinderGeometry(1, 1, 1, 20, 1, true));
@@ -412,9 +446,8 @@ export class CrystalGates {
     beams.frustumCulled = false;
     beams.renderOrder = 2;
 
-    this.group.add(crystals, veils, beams);
+    this.group.add(crystals, motes, beams);
     this.crystals = crystals;
-    this.veils = veils;
   }
 
   /** Turns gate `index` (its crystals and ring) to face along `normal` (Resonance; looks only) */
@@ -429,9 +462,31 @@ export class CrystalGates {
     for (let i = 0; i < count; i++) this.crystals.setMatrixAt(first + i, placement);
     this.crystals.instanceMatrix.addUpdateRange(first * 16, count * 16);
     this.crystals.instanceMatrix.needsUpdate = true;
-    this.veils.setMatrixAt(index, tmpMatrix.compose(ring.position, tmpQuaternion, tmpScale.setScalar(ring.radius)));
-    this.veils.instanceMatrix.addUpdateRange(index * 16, 16);
-    this.veils.instanceMatrix.needsUpdate = true;
+    this.placeMotes(index);
+  }
+
+  /** Writes gate `index`'s motes around its ring, in world space, facing the way the gate faces now */
+  private placeMotes(index: number) {
+    const ring = this.rings[index];
+    const geometry = this.motes.geometry;
+    const position = geometry.getAttribute("position") as THREE.BufferAttribute;
+    const radial = geometry.getAttribute("radial") as THREE.BufferAttribute;
+    const axis = geometry.getAttribute("axis") as THREE.BufferAttribute;
+    const facing = this.facing[index];
+    tmpQuaternion.setFromUnitVectors(Z, facing);
+    const first = index * this.motesPerGate;
+    for (let i = 0; i < this.motesPerGate; i++) {
+      const angle = (i / this.motesPerGate) * Math.PI * 2;
+      tmpScale.set(Math.cos(angle), Math.sin(angle), 0).applyQuaternion(tmpQuaternion);
+      radial.setXYZ(first + i, tmpScale.x, tmpScale.y, tmpScale.z);
+      axis.setXYZ(first + i, facing.x, facing.y, facing.z);
+      tmpScale.multiplyScalar(ring.radius).add(ring.position);
+      position.setXYZ(first + i, tmpScale.x, tmpScale.y, tmpScale.z);
+    }
+    for (const attribute of [position, radial, axis]) {
+      attribute.addUpdateRange(first * 3, this.motesPerGate * 3);
+      attribute.needsUpdate = true;
+    }
   }
 
   private material(material: THREE.ShaderMaterial) {
@@ -519,6 +574,7 @@ export class CrystalGates {
     }
     const material = this.materials[0];
     material.uniforms.motion.value.set(RINGS.drift, RINGS.driftRate, RINGS.spin, RINGS.selfSpin);
+    (this.motes.material as THREE.ShaderMaterial).uniforms.moteLook.value.set(RINGS.moteSize, RINGS.moteDrift);
     for (const m of this.materials) {
       m.uniforms.passDuration.value = RINGS.passTime;
       m.uniforms.glow.value = RINGS.glow;

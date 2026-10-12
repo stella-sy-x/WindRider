@@ -102,6 +102,7 @@ export class WorldView {
     this.material(material);
     this.terrainUniforms = uniforms;
     if (world.biome.vegetation.kind === "flora") this.flora = new FloraView(world, this.group);
+    this.tint();
     if (world.steps || world.hasSea || world.islandFalls.length) {
       this.water = new WaterView(world);
       this.group.add(this.water.group);
@@ -135,6 +136,21 @@ export class WorldView {
     scene.background = new THREE.Color(palette.horizon);
     const [fogNear, fogFar] = world.biome.sky.fog ?? [FOG_NEAR, FOG_FAR];
     scene.fog = new THREE.Fog(palette.horizon, fogNear, fogFar);
+    // The constructor lights the scene before the land and plants exist; they take the tint once built
+    if (this.terrainUniforms) this.tint();
+  }
+
+  /**
+   * The mood's colors on the land and its plants: the baked rock and cover shift toward the palette's
+   * rock and grass, trees toward its forest, by TERRAIN.tintStrength (the same repaint the legacy Sky
+   * Isles made per mood, here as uniforms: no remeshing). Looks only; the colliders don't change
+   */
+  private tint() {
+    const palette = this.world.palette;
+    this.terrainUniforms.rockTint.value.set(palette.rock);
+    this.terrainUniforms.coverTint.value.set(palette.grass);
+    this.terrainUniforms.tintStrength.value = TERRAIN.tintStrength;
+    this.flora?.setTint(palette);
   }
 
   /**
