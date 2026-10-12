@@ -10,7 +10,7 @@ import { capeSpec, type CapeId, type WingId } from "./cosmetics/catalog";
 import { buildWing } from "./cosmetics/wings";
 import type { Appearance } from "./cosmetics/storage";
 import { buildHat, buildShoe, disposeModel } from "./cosmetics/models";
-import { FX_LIGHT, fxTime, pixelScale } from "./particles";
+import { FX_LIGHT, fxTime } from "./particles";
 
 // The pilot: a small low-poly flyer with chibi proportions (a big
 // head, slim limbs), a flowing cape, a scarf, and a pair of feathered
@@ -418,10 +418,10 @@ export class Avatar {
   private readonly clothMatrix = new THREE.Matrix4();
   private readonly painted: Painted[] = [];
   private readonly materials: THREE.Material[] = [];
-  /** Glowing motes orbiting the body; looks only (see `buildMotes`) */
-  private readonly motes: THREE.Points;
-  private readonly moteMaterial: THREE.ShaderMaterial;
-  /** A ghost's current fade (see `fade`); dims its motes along with the body */
+  /** A glowing shell around the body, bright at its silhouette; looks only (see `buildAura`) */
+  private readonly aura: THREE.Mesh;
+  private readonly auraMaterial: THREE.ShaderMaterial;
+  /** A ghost's current fade (see `fade`); dims its aura along with the body */
   private ghostFade = 1;
   private tones: Tones;
   private readonly ghost: boolean;
@@ -805,10 +805,10 @@ export class Avatar {
       return tail;
     });
 
-    // Glowing motes drifting around the body, in the outfit's light tone
-    this.motes = buildMotes();
-    this.moteMaterial = this.motes.material as THREE.ShaderMaterial;
-    this.group.add(this.motes);
+    // A faceted glowing shell around the body, in the outfit's light tone
+    this.aura = buildAura(ghost ? AURA_OPACITY * 0.3 : AURA_OPACITY);
+    this.auraMaterial = this.aura.material as THREE.ShaderMaterial;
+    this.group.add(this.aura);
 
     this.repaint();
     this.applyPose(0);
@@ -827,14 +827,14 @@ export class Avatar {
         applyPaint(painted, capeTones);
       } else applyPaint(painted, this.tones);
     }
-    (this.moteMaterial.uniforms.color.value as THREE.Color).copy(this.tones.clothLight);
+    (this.auraMaterial.uniforms.auraColor.value as THREE.Color).copy(this.tones.clothLight);
   }
 
-  /** Brightness of the orbiting motes this frame; 0 hides them. Ghosts shimmer at half strength. */
-  private setMoteIntensity(intensity: number) {
+  /** Brightness of the aura shell this frame; 0 hides it. Ghosts glow at half strength and fade with the body. */
+  private setAuraIntensity(intensity: number) {
     const value = intensity * FX.aura * (1 + ATMOSPHERE.night.value * 1.5) * (this.ghost ? 0.5 * this.ghostFade : 1);
-    this.moteMaterial.uniforms.intensity.value = value;
-    this.motes.visible = value > 0.01;
+    this.auraMaterial.uniforms.intensity.value = value;
+    this.aura.visible = value > 0.05;
   }
 
   setColor(color: string) {
@@ -1069,9 +1069,11 @@ export class Avatar {
     this.pony[0].rotation.set(-1.25 + this.pitchRate * 0.1 + sway * 0.5, 0, -turn * 0.4 + sway);
     this.pony[1].rotation.set(0.25 + sway * 0.4, 0, sway * 1.2);
 
-    // Motes: a gentle shimmer when cruising, brighter with speed, the flaps and skimming the ground
-    this.setMoteIntensity(0.45 + speedK * 0.75 + 0.25 * Math.max(0, stroke) * this.effort + proximity * 0.8);
-    this.moteMaterial.uniforms.speed.value = speedK;
+    // Aura: a soft glow when cruising, brighter with speed and skimming the ground, with a slow living pulse
+    this.setAuraIntensity((0.3 + speedK * 0.5 + proximity * 0.4) * (1 + 0.1 * Math.sin(t * 2)));
+    // ...and the shell breathes a little
+    const breathe = 1 + 0.03 * Math.sin(t * 1.7 + 0.8);
+    this.aura.scale.set(AURA_SIZE.x * breathe, AURA_SIZE.y * breathe, AURA_SIZE.z * breathe);
 
     if (!this.detailed && dt > 0) return;
     this.clothTime += dt * (4.5 + this.speed * 0.11) * A.clothSpeed;
@@ -1225,8 +1227,9 @@ export class Avatar {
     this.pony[0].rotation.set(-1.25 + flop * 0.6, 0, wave(9, 1) * 0.6);
     this.pony[1].rotation.set(0.25 + flop * 0.4, 0, wave(11, 2) * 0.8);
 
-    this.setMoteIntensity(0.4 * vanish);
-    this.moteMaterial.uniforms.speed.value = 0;
+    // The aura fades out with the dissolve
+    this.setAuraIntensity(0.4 * vanish);
+    this.aura.scale.set(AURA_SIZE.x, AURA_SIZE.y, AURA_SIZE.z);
 
     if (!this.detailed) return;
     // Cloth whips around hard
@@ -1250,6 +1253,8 @@ export class Avatar {
     if (!this.ghost) return;
     for (const material of this.materials) material.opacity = opacity;
     this.ghostFade = opacity;
+    // Ghosts wear a dimmer shell, and it thins out with them
+    this.auraMaterial.uniforms.opacity.value = AURA_OPACITY * 0.3 * opacity;
   }
 
   /** Hides the pilot (e.g. after a crash) */
@@ -1267,114 +1272,86 @@ export class Avatar {
     this.shoes.forEach(disposeModel);
     this.painted.forEach((p) => p.geometry.dispose());
     this.materials.forEach((m) => m.dispose());
-    this.motes.geometry.dispose();
-    this.moteMaterial.dispose();
+    this.aura.geometry.dispose();
+    this.auraMaterial.dispose();
   }
 }
 
-// --- orbiting motes -----------------------------------------------------------------
+// --- aura shell -----------------------------------------------------------------------
 
-const MOTE_COUNT = 7;
+/** Base alpha of the shell at its brightest edge; ghosts wear a third of it */
+const AURA_OPACITY = 0.35;
+/** Half-extents of the shell (m, in `group` space): a little wider than the body, longer along the flight axis (z) */
+const AURA_SIZE = new THREE.Vector3(1.05, 0.9, 1.35);
 
-const moteVertex = /* glsl */ `
-  attribute vec3 offset; // rest position around the body (m), rotated around the flight axis
-  attribute float phase; // per-mote seed
-  uniform float time;
-  uniform float pixelScale;
-  uniform float speed; // 0..1 flight speed
-  varying float vFade;
+const auraVertex = /* glsl */ `
+  varying vec3 vNormal;
+  varying vec3 vView;
   #include <fog_pars_vertex>
 
   void main() {
-    // A slow orbit around the body (the flight axis is z), each mote on its own beat
-    float a = time * 0.35 + phase;
-    float c = cos(a), s = sin(a);
-    vec3 o = vec3(offset.x * c - offset.y * s, offset.x * s + offset.y * c, offset.z);
-    // ...and a gentle drift along the body and in and out
-    o.z += sin(time * 0.7 + phase * 1.3) * 0.22;
-    o *= 1.0 + 0.1 * sin(time * 1.3 + phase * 2.1);
-    vec3 p = position + o;
-
-    vec4 mvPosition = modelViewMatrix * vec4(p, 1.0);
+    vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
+    vNormal = normalize(normalMatrix * normal);
+    vView = normalize(-mvPosition.xyz);
     gl_Position = projectionMatrix * mvPosition;
-
-    float twinkle = 0.7 + 0.3 * sin(time * (1.6 + fract(phase * 0.37)) + phase);
-    float size = 0.075 * (1.0 + speed * 0.5) * twinkle;
-    float px = size * pixelScale / max(0.1, -mvPosition.z);
-    // Far off a mote would shrink below a pixel and flicker: hold it at a couple of pixels and dim it instead
-    float least = 2.0;
-    vFade = twinkle * min(1.0, px / least);
-    gl_PointSize = min(max(px, least), 24.0);
     #include <fog_vertex>
   }
 `;
 
-const moteFragment = /* glsl */ `
-  uniform vec3 color;
+const auraFragment = /* glsl */ `
+  uniform vec3 auraColor;
   uniform float intensity;
+  uniform float opacity;
   uniform float boost;
-  varying float vFade;
+  varying vec3 vNormal;
+  varying vec3 vView;
   #include <fog_pars_fragment>
 
   void main() {
-    vec2 uv = gl_PointCoord * 2.0 - 1.0;
-    float r2 = dot(uv, uv);
-    if (r2 > 1.0) discard;
-    // A soft glowing dot: a wide halo with a brighter heart
-    float a = exp(-r2 * 4.0) * 0.7 + exp(-r2 * 16.0) * 0.5;
-    vec3 c = mix(color, vec3(1.0), 0.3) * a * vFade * intensity * boost;
+    // Bright where the shell turns away from the eye (its silhouette), clear where it faces us.
+    // The base is clamped to 0..1 so pow() never sees a negative.
+    float facing = clamp(1.0 - abs(dot(normalize(vNormal), normalize(vView))), 0.0, 1.0);
+    float fresnel = pow(facing, 2.5);
+    vec3 c = mix(auraColor, vec3(1.0), 0.2) * fresnel * intensity * boost;
+    float a = fresnel * opacity;
     #ifdef USE_FOG
-      c *= 1.0 - smoothstep(fogNear, fogFar, vFogDepth);
+      float fogK = 1.0 - smoothstep(fogNear, fogFar, vFogDepth);
+      c *= fogK;
+      a *= fogK;
     #endif
-    if (max(c.r, max(c.g, c.b)) < 0.002) discard;
-    gl_FragColor = vec4(c, 1.0);
+    if (a < 0.002) discard;
+    gl_FragColor = vec4(c, a);
   }
 `;
 
 /**
- * A handful of glowing motes that orbit the pilot, so the character stands out from
- * the scenery the way the old sprite aura did. Looks only: nothing reads them.
+ * A low-poly glowing shell around the pilot: a faceted icosahedron whose edges glow
+ * (Fresnel) and whose centre stays clear, so the character stands out from the
+ * scenery from every angle and reads as a real volume. Looks only: nothing reads it.
  */
-function buildMotes(): THREE.Points {
-  const positions = new Float32Array(MOTE_COUNT * 3);
-  const offsets = new Float32Array(MOTE_COUNT * 3);
-  const phases = new Float32Array(MOTE_COUNT);
-  const golden = 2.399963;
-  for (let i = 0; i < MOTE_COUNT; i++) {
-    // Spread evenly around the body and along it, with a little wobble in the radius
-    const angle = i * golden;
-    const radius = 0.8 + 0.18 * Math.sin(i * 1.7);
-    offsets[i * 3] = Math.cos(angle) * radius;
-    offsets[i * 3 + 1] = Math.sin(angle) * radius * 0.8;
-    offsets[i * 3 + 2] = (i / (MOTE_COUNT - 1) - 0.5) * 1.4;
-    phases[i] = angle + i * 0.61;
-  }
-  const geometry = new THREE.BufferGeometry();
-  geometry.setAttribute("position", new THREE.BufferAttribute(positions, 3));
-  geometry.setAttribute("offset", new THREE.BufferAttribute(offsets, 3));
-  geometry.setAttribute("phase", new THREE.BufferAttribute(phases, 1));
+function buildAura(opacity: number): THREE.Mesh {
+  const geometry = new THREE.IcosahedronGeometry(1, 1);
   const material = new THREE.ShaderMaterial({
     uniforms: {
       ...THREE.UniformsUtils.clone(THREE.UniformsLib.fog),
       time: fxTime,
-      pixelScale,
       boost: FX_LIGHT.boost,
-      color: { value: new THREE.Color("#ffffff") },
+      auraColor: { value: new THREE.Color("#ffffff") },
       intensity: { value: 1 },
-      speed: { value: 0 },
+      opacity: { value: opacity },
     },
-    vertexShader: moteVertex,
-    fragmentShader: moteFragment,
+    vertexShader: auraVertex,
+    fragmentShader: auraFragment,
     transparent: true,
     depthWrite: false,
+    side: THREE.FrontSide,
     blending: THREE.AdditiveBlending,
     fog: true,
   });
-  const points = new THREE.Points(geometry, material);
-  // The motes move in the shader, so the geometry's bounds say nothing about where they are
-  points.frustumCulled = false;
-  points.renderOrder = 3;
-  return points;
+  const mesh = new THREE.Mesh(geometry, material);
+  mesh.scale.copy(AURA_SIZE);
+  mesh.renderOrder = 3;
+  return mesh;
 }
 
 function slow01(speed: number) {
