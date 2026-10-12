@@ -8,7 +8,7 @@ Pure browser wingsuit racer: solo time trials, multiplayer race rooms, 9 biomes 
 
 - **Real playtesting needed**: almost all tuning was done via automated tests in hidden tabs, never with a human on mouse/gamepad in a focused window
 - **Gamepad gaps**: can't press Enter (start race) or pause; no haptics
-- **Mobile unverified**: Boost/Brake touch fix never confirmed on a real device; fullscreen/orientation/wake lock untested on Android/iOS
+- **Mobile**: tested on real devices, touch controls work. Known issue: iOS Chrome does not auto-fullscreen. Tilt (gyroscope/accelerometer) not yet supported
 - **Mouse sensitivity**: default 2x, never tested across different devices/DPIs
 - **Dead zone tuning**: gamepad stick dead zone needs real-controller validation
 
