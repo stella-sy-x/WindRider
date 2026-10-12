@@ -2,7 +2,7 @@ import * as THREE from "three";
 import { sceneryTime as fxTime } from "../../particles";
 import { TOON_LIGHT } from "../../toon";
 import { FLORA, STRUCTURES, TERRAIN } from "../../tuning";
-import { ATMOSPHERE, BORN_GLSL, DITHER_GLSL, MIST, atmospheric } from "../atmosphere";
+import { ATMOSPHERE, BORN_GLSL, MIST, atmospheric } from "../atmosphere";
 import type { VegetationSpec } from "../biomes/types";
 import { type Palette, sunDirection } from "../palette";
 import { STRUCTURE_INFO, structuresOf } from "../structures/kinds";
@@ -145,7 +145,7 @@ function plantMaterial(
           transformed.z += w * cos(floraTime * 1.3 + phase) * 0.5;
           #ifdef USE_INSTANCING
             // Plants of land that has just arrived grow out of the ground; a change of detail
-            // dissolves instead, at full size (born: BORN_FRESH, atmosphere.ts)
+            // stays at full size and fades by color instead, as the land does (born: BORN_FRESH)
             float grown = mix(1.0, atmoAge(born), atmoFresh(born));
             transformed *= grown * (2.0 - grown);
           #endif
@@ -216,18 +216,16 @@ const impostorVertex = /* glsl */ `
   varying vec2 vUv;
   varying vec3 vTint;
   varying vec3 vWorld;
-  varying float vCover;
-  varying float vLeaving;
+  varying float vReveal;
   #include <fog_pars_vertex>
   void main() {
     // instanceMatrix carries the plant's foot (column 3), width and height (scales of x and y) and atlas cell (z scale)
     vec3 foot = vec3(instanceMatrix[3][0], instanceMatrix[3][1], instanceMatrix[3][2]);
     // Plants of land that has just arrived grow out of the ground, like the full meshes; a change
-    // of detail dissolves instead, at full size (born: BORN_FRESH, atmosphere.ts)
+    // of detail stays at full size and fades by color, as the land does (born: BORN_FRESH, atmosphere.ts)
     float grown = mix(1.0, atmoAge(born), atmoFresh(born));
     grown *= 2.0 - grown;
-    vCover = atmoCover(born);
-    vLeaving = atmoLeaving(born);
+    vReveal = atmoReveal(born);
     vec3 toCamera = cameraPosition - foot;
     float dist = length(toCamera);
     // The same small shrink the full trees have where they give way to impostors, and towards
@@ -262,16 +260,12 @@ const impostorFragment = /* glsl */ `
   uniform float atmoMistHeight;
   uniform float atmoMistThickness;
   ${MIST}
-  ${DITHER_GLSL}
   varying vec2 vUv;
   varying vec3 vTint;
   varying vec3 vWorld;
-  varying float vCover;
-  varying float vLeaving;
+  varying float vReveal;
   #include <fog_pars_fragment>
   void main() {
-    // Arriving or leaving plants show only their share of the pixels (see DITHER_GLSL)
-    if (atmoDithered(vCover, vLeaving)) discard;
     vec4 texel = texture2D(atlas, vUv);
     if (texel.a < 0.5) discard;
     vec3 color = texel.rgb * vTint;
@@ -284,6 +278,10 @@ const impostorFragment = /* glsl */ `
       float fogFactor = smoothstep(fogNear, fogFar, vFogDepth);
       color = mix(color, atmoMistColor, clamp(atmoMist(vWorld, dist), 0.0, 0.85) * (1.0 - fogFactor));
       color = mix(color, fogColor + glow, fogFactor);
+      // Just arrived: out of the haze; on its way out: back into it. The same plain blend as
+      // the land (atmosphere.ts), so plants fade with the ground they stand on
+      float reveal = vReveal * vReveal * (3.0 - 2.0 * vReveal);
+      color = mix(fogColor + glow, color, reveal);
     #endif
     gl_FragColor = vec4(color, 1.0);
     #include <colorspace_fragment>
@@ -496,7 +494,7 @@ export class FloraView {
   /**
    * A node came on screen: its plants appear, as full meshes or impostors by its level of detail.
    * `born` says how (BORN_FRESH, atmosphere.ts): growing out of the ground where nothing stood,
-   * or dissolving in for a change of detail. Plants of the node still on their way out go first
+   * or at full size and color for a change of detail. Plants of the node still on their way out go first
    */
   show(key: number, lod: number, plants: Float32Array, tufts: Float32Array, box: THREE.Box3, born = 0) {
     if (this.nodes.has(key)) this.hide(key);
@@ -507,7 +505,7 @@ export class FloraView {
     this.lastGrassCheck.set(Infinity, 0, 0);
   }
 
-  /** Rewrites `born` for a node's plants, e.g. to have them dissolve out while their replacements dissolve in */
+  /** Rewrites `born` for a node's plants, e.g. to have them fade into the haze while their replacements show */
   setBorn(key: number, born: number) {
     const node = this.nodes.get(key);
     if (!node) return;

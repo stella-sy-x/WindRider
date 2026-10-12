@@ -14,11 +14,11 @@ import { NODE_SIZE, type TerrainMesh, VOXEL, nodeKey } from "./mesh";
 // node has 16 cells a side, so the triangle count per node stays the same and
 // far land is coarse. A coarse node stays on screen until all of its finer
 // replacements have arrived (and the other way round when merging), so the land
-// never shows holes. The change of level then dissolves over TERRAIN.fadeIn: the
-// old level goes on being drawn, dying, showing exactly the pixels the new level
-// does not show yet (the `born` attribute, BORN_FRESH in atmosphere.ts), while
-// collisions switch to the new level at once. Land that comes on screen where
-// none was shown before fades in out of the haze instead.
+// never shows holes. The change of level then fades over TERRAIN.fadeIn: the new
+// level is drawn in its full color at once and the old level goes on being drawn,
+// dying, its color fading back into the haze's (the `born` attribute, BORN_FRESH
+// in atmosphere.ts), while collisions switch to the new level at once. Land that
+// comes on screen where none was shown before fades in out of the haze instead.
 
 export const LOD_LEVELS = 4;
 const ROOT_LOD = LOD_LEVELS - 1;
@@ -48,7 +48,7 @@ interface Node {
   plants: Float32Array | null;
   tufts: Float32Array | null;
   shown: boolean;
-  dying: number; // replaced by another level but still drawn, dissolving out: the wall time that began (0: not)
+  dying: number; // replaced by another level but still drawn, fading into the haze: the wall time that began (0: not)
   split: boolean; // hysteresis: keep fine detail until beyond the outer threshold
   desired: number; // the update stamp it was last wanted in
 }
@@ -359,7 +359,7 @@ export class LandStreamer {
   }
 
   /**
-   * Taken over by another level of detail: stays drawn for TERRAIN.fadeIn, dissolving out
+   * Taken over by another level of detail: stays drawn for TERRAIN.fadeIn, fading into the haze
    * (`finishDying` takes it off), while you already hit the new level. Nothing drawn: off at once
    */
   private fade(node: Node) {
