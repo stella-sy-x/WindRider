@@ -1,0 +1,546 @@
+import { IconArrowLeft, IconChevronDown, IconChevronUp, IconSettings } from "@tabler/icons-react";
+import { type ReactNode, useEffect, useEffectEvent, useRef, useState, useSyncExternalStore } from "react";
+import type { Screen } from "../App";
+import { holdGame } from "../game/hold";
+import { formatTime, ordinal, untilTomorrow } from "../format";
+import { controlsBlocked } from "../game/input";
+import { dailySeed } from "../game/rng";
+import { keyboardBinding } from "../game/bindings";
+import { webglAvailable } from "../game/webgl";
+import { BIOMES, type BiomeId } from "../game/world/biomes";
+import { ExploreSession } from "../session/ExploreSession";
+import { ITEMS } from "../game/items/models";
+import type { ItemGallery } from "../game/items/gallery";
+import { RoomSession } from "../session/RoomSession";
+import { SoloSession } from "../session/SoloSession";
+import { useMediaToggle } from "../media";
+import { type Settings, clientId } from "../storage";
+import { usePaletteTheme, useUiTheme } from "../theme";
+import Coach from "./Coach";
+import { HelpButton } from "./Help";
+import SettingsPanel from "./SettingsPanel";
+import Hud from "./Hud";
+import { RaceResults } from "./RaceResults";
+import { GhostNotice } from "./GhostNotice";
+import Leaderboard from "./Leaderboard";
+import MapSelect from "./MapSelect";
+import "./GameScreen.css";
+import "./Touch.css";
+import "./HudLayout.css";
+
+interface Mountable {
+  mount(container: HTMLElement): void;
+  unmount(): void;
+  setSettings(settings: Settings): void;
+}
+
+/** Attaches a session's game to a div for as long as the component lives */
+function useMountedSession(session: Mountable, settings: Settings) {
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    session.mount(ref.current!);
+    return () => session.unmount();
+  }, [session]);
+  useEffect(() => session.setSettings(settings), [session, settings]);
+  return ref;
+}
+
+/** The glass shows for this long after the mouse last moved (or a tap) */
+const IDLE_AFTER_MS = 2500;
+/** A touch this short and still is a tap (it shows the glass), not a steer */
+const TAP_MS = 300;
+const TAP_MOVE = 12;
+/** The glass that hides (GameScreen.css): the cursor resting on any of it keeps it all shown */
+const CHROME = ".glass";
+
+/**
+ * In game every glass panel (anything `.glass`, plus the item bag and upgrade icons) is hidden until the
+ * mouse moves (or, on a touch screen, a tap), and hides again once it rests: true while hidden. A mouse
+ * locked to the game steers, and so does a finger dragging the stick: neither counts. What stays
+ * (GameScreen.css, the `:not()` list): the lives, the objectives, the compass and gate marker, the
+ * level's title, the touch controls, and what waits on you (upgrade picker, finish screen, results,
+ * tutorial); everything shows while paused or with an overlay open. To bring a panel back for good,
+ * add it to that list.
+ */
+function useIdleUi(): boolean {
+  const [idle, setIdle] = useState(true);
+  useEffect(() => {
+    let timer = 0;
+    const wake = (stay = false) => {
+      setIdle(false);
+      window.clearTimeout(timer);
+      if (!stay) timer = window.setTimeout(() => setIdle(true), IDLE_AFTER_MS);
+    };
+    const onMove = (event: MouseEvent) => {
+      if (document.pointerLockElement) return;
+      // Resting on the glass (about to click Menu or the gear): it stays
+      wake(!!(event.target as Element | null)?.closest?.(CHROME));
+    };
+    const touches = new Map<number, { x: number; y: number; t: number }>();
+    const onDown = (event: PointerEvent) => {
+      if (event.pointerType === "touch") touches.set(event.pointerId, { x: event.clientX, y: event.clientY, t: event.timeStamp });
+    };
+    const onUp = (event: PointerEvent) => {
+      const down = touches.get(event.pointerId);
+      touches.delete(event.pointerId);
+      if (down && event.timeStamp - down.t < TAP_MS && Math.hypot(event.clientX - down.x, event.clientY - down.y) < TAP_MOVE) wake();
+    };
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("pointerdown", onDown, true);
+    window.addEventListener("pointerup", onUp, true);
+    return () => {
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("pointerdown", onDown, true);
+      window.removeEventListener("pointerup", onUp, true);
+      window.clearTimeout(timer);
+    };
+  }, []);
+  return idle;
+}
+
+/** Keyboard shortcuts for the panels, since the mouse is often locked to the game */
+function useHotkeys(keys: Record<string, () => void>) {
+  const onKeyDown = useEffectEvent((event: KeyboardEvent) => {
+    const target = event.target as HTMLElement | null;
+    if (event.defaultPrevented || controlsBlocked() || target?.isContentEditable || (target && ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName))) return;
+    const action = keys[keyboardBinding(event)];
+    if (!action || event.repeat) return;
+    // Otherwise Enter would also click whichever button still has focus
+    event.preventDefault();
+    action();
+  });
+  useEffect(() => {
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, []);
+}
+
+interface ScreenProps {
+  settings: Settings;
+  onSettings: (settings: Settings) => void;
+  onExit: () => void;
+  /** The newcomer said yes to the tutorial: coach them through the controls before the first level */
+  tutorial?: boolean;
+  onTutorialEnd?: () => void;
+}
+
+interface TopBarControls {
+  settings: Settings;
+  onSettings: (settings: Settings) => void;
+  /** The game's own mute (M), shown and changed in the settings */
+  muted: boolean;
+}
+
+/** The gear: the settings, as on the landing page, over the game held paused */
+const SettingsButton = ({ settings, onSettings, muted }: TopBarControls) => {
+  const [open, setOpen] = useState(false);
+  useEffect(() => (open ? holdGame() : undefined), [open]);
+  return (
+    <>
+      <button className="help-button glass" aria-label="Settings" onClick={() => setOpen(true)}>
+        <IconSettings size={20} />
+      </button>
+      {open && <SettingsPanel settings={{ ...settings, muted }} onSettings={onSettings} onClose={() => setOpen(false)} />}
+    </>
+  );
+};
+
+const TopBar = ({ title, onExit, controls, children }: { title: string; onExit: () => void; controls?: TopBarControls; children?: ReactNode }) => (
+  <div className="topbar">
+    <button className="glass" onClick={onExit}>
+      <IconArrowLeft size={18} /> Menu
+    </button>
+    <span className="topbar-title glass">{title}</span>
+    <div className="topbar-end">
+      {children}
+      <HelpButton />
+      {controls && <SettingsButton {...controls} />}
+    </div>
+  </div>
+);
+
+const noop = () => {};
+
+// Roomy screens show panels in full; narrow ones only the heading and the main buttons until opened
+const ROOMY = "(min-width: 700px)";
+
+interface PanelProps {
+  head: ReactNode;
+  /** Above the main buttons, while open */
+  intro?: ReactNode;
+  /** The main buttons: shown even when the panel is folded */
+  actions?: ReactNode;
+  className?: string;
+  /** Below the main buttons, while open */
+  children?: ReactNode;
+}
+
+const Panel = ({ head, intro, actions, className = "", children }: PanelProps) => {
+  const [open, setOpen] = useMediaToggle(ROOMY);
+  return (
+    <aside className={`panel glass ${className}`}>
+      <header className="panel-head">
+        <div>{head}</div>
+        <button
+          className="panel-toggle"
+          aria-label={open ? "Show less" : "Show more"}
+          aria-expanded={open}
+          onClick={() => setOpen(!open)}
+        >
+          {open ? <IconChevronUp size={18} /> : <IconChevronDown size={18} />}
+        </button>
+      </header>
+      {open && intro}
+      {actions}
+      {open && children}
+    </aside>
+  );
+};
+
+/** Before a race, where the race timer will be: just the button that starts it (`start-cta` draws the eye) */
+const ReadyCard = ({ children }: { children: ReactNode }) => <div className="ready-card glass">{children}</div>;
+
+// --- Time trial ------------------------------------------------------------------
+
+const SoloScreen = ({ seed, settings, onSettings, onExit, tutorial, onTutorialEnd = noop }: ScreenProps & { seed: number }) => {
+  const idle = useIdleUi();
+  const [session] = useState(() => new SoloSession(seed, clientId(), settings));
+  const ref = useMountedSession(session, settings);
+  const { hud, stage, result, leaderboard, ghosts, error } = useSyncExternalStore(
+    session.store.subscribe,
+    session.store.get,
+  );
+  useUiTheme(seed);
+  // The tutorial runs in the warm-up, before the clock: the start button waits for it
+  const coaching = !!tutorial && stage === "ready" && !error;
+  // So does the land: some maps take a few seconds to build, and the clock shouldn't start before them
+  const building = stage === "ready" && !!hud?.loading;
+
+  useHotkeys({
+    Enter: () => stage !== "racing" && !coaching && !building && session.start(),
+    Backspace: () => stage === "racing" && session.abort(),
+  });
+
+  return (
+    <div className={`game race-layout${idle ? " ui-idle" : ""}${hud?.paused ? " is-paused" : ""}${settings.leftHandedTouch ? " left-handed" : ""}`}>
+      <div ref={ref} className="game-view" />
+      {hud && <Hud hud={hud} settings={settings} />}
+      <TopBar title={`Time trial · #${seed}${hud ? ` · ${hud.biomeName} · ${hud.paletteName}` : ""}`} onExit={onExit} controls={{ settings, onSettings, muted: !!hud?.muted }} />
+      {error && <div className="banner glass">{error}</div>}
+
+      {coaching && <Coach onEnd={onTutorialEnd} observeInput={session.observeInput} />}
+      {stage === "ready" && !error && !coaching && (
+        <ReadyCard>
+          <button className="primary start-cta" disabled={building} onClick={() => session.start()}>
+            {building ? "Loading the map…" : <>Start the run <kbd>Enter</kbd></>}
+          </button>
+        </ReadyCard>
+      )}
+
+      {stage === "racing" && ghosts.length > 0 && hud?.raceState !== "finished" && (
+        <GhostNotice key={ghosts.join("\n")} names={ghosts} />
+      )}
+
+      {stage === "results" && result && (
+        <RaceResults paused={!!hud?.paused} timeMs={result.timeMs} context={`Time trial · #${seed}`}
+          onResume={() => session.resume()} onRetry={() => session.start()}>
+          {result.saving && <p>Saving your time…</p>}
+          {result.error && <p className="error">{result.error}</p>}
+          {result.rank !== undefined && <p><strong>{ordinal(result.rank)}</strong> on this course
+            {result.personalBestMs !== undefined && result.personalBestMs < result.timeMs && <> · your best is {formatTime(result.personalBestMs)}</>}
+            {result.personalBestMs === result.timeMs && <> · new personal best!</>}
+          </p>}
+          <h3>Best times</h3>
+          <Leaderboard entries={leaderboard} empty="No times yet on this course." />
+        </RaceResults>
+      )}
+    </div>
+  );
+};
+
+// --- Race room -------------------------------------------------------------------
+
+const ROOM_RESTART = { hint: "Waiting for the others · Enter restarts the race", touch: "Restart race", button: "Restart race" };
+
+/** The landing page's map select over the room's game (held paused): the room flies the map picked next */
+const RoomMapSelect = ({ onPick, onBack }: { onPick: (seed: number) => void; onBack: () => void }) => {
+  const [countdown, setCountdown] = useState(untilTomorrow);
+  useEffect(() => holdGame(), []);
+  useEffect(() => {
+    const timer = setInterval(() => setCountdown(untilTomorrow()), 1000);
+    return () => clearInterval(timer);
+  }, []);
+  return (
+    <div className="map-overlay">
+      <MapSelect mode="room" daily={dailySeed()} countdown={countdown} onPick={onPick} action="Race this map" onBack={onBack} />
+    </div>
+  );
+};
+
+const RoomScreen = ({ code, seed, settings, onSettings, onExit, tutorial, onTutorialEnd = noop }: ScreenProps & { code: string; seed?: number }) => {
+  const idle = useIdleUi();
+  const [session] = useState(
+    () => new RoomSession(code, { clientId: clientId(), nickname: settings.nickname, seed }, settings),
+  );
+  const ref = useMountedSession(session, settings);
+  const { hud, connection, message, room, selfId, lastPlace } = useSyncExternalStore(
+    session.store.subscribe,
+    session.store.get,
+  );
+  useUiTheme(hud?.seed);
+  const me = room?.players.find((p) => p.id === selfId);
+  const lobby = room?.phase === "lobby";
+  // The host (the first pilot in) can call a running race off and restart it for everyone
+  const host = !!room && room.host === selfId;
+  const finished = !lobby && me?.finish_ms != null;
+  // The tutorial runs in the lobby; if someone starts the race first, it's over
+  const coaching = !!tutorial && !!room && lobby;
+  // Your own land first (others can still start: the countdown gives it a few more seconds)
+  const building = lobby && !!hud?.loading;
+  useEffect(() => {
+    if (tutorial && room && !lobby) onTutorialEnd();
+  }, [tutorial, room, lobby, onTutorialEnd]);
+  // The map select, for the next race; it closes if someone starts this one meanwhile
+  const [choosing, setChoosing] = useState(false);
+  const [wasLobby, setWasLobby] = useState(lobby);
+  if (lobby !== wasLobby) {
+    setWasLobby(lobby);
+    if (!lobby) setChoosing(false);
+  }
+
+  useHotkeys({
+    Enter: () => {
+      if (lobby) {
+        if (!coaching && !building && !choosing) session.start();
+      } else if (host && finished) session.restart();
+    },
+    KeyN: () => lobby && !coaching && setChoosing(true),
+  });
+
+  return (
+    <div className={`game race-layout${idle ? " ui-idle" : ""}${hud?.paused ? " is-paused" : ""}${settings.leftHandedTouch ? " left-handed" : ""}`}>
+      <div ref={ref} className="game-view" />
+      {hud && <Hud hud={hud} settings={settings} />}
+      <TopBar title={`Room ${code}${hud ? ` · course #${hud.seed} · ${hud.biomeName} · ${hud.paletteName}` : ""}`} onExit={onExit} controls={{ settings, onSettings, muted: !!hud?.muted }}>
+        {host && room && !lobby && <button className="glass" onClick={() => session.restart()}>Restart race</button>}
+        <span className={`connection glass ${connection}`}>
+          <span className="dot" />
+          {connection === "connected" ? "online" : connection}
+        </span>
+      </TopBar>
+
+      {(connection !== "connected" || message) && (
+        <div className="banner glass">{message ?? "Connecting to the room…"}</div>
+      )}
+
+      {coaching && <Coach onEnd={onTutorialEnd} observeInput={session.observeInput} />}
+      {room && lobby && !coaching && (
+        <ReadyCard>
+          <div className="row">
+            <button className="primary start-cta" disabled={building} onClick={() => session.start()}>
+              {building ? "Loading the map…" : <>Start race <kbd>Enter</kbd></>}
+            </button>
+            <button onClick={() => setChoosing(true)}>
+              Change map <kbd>N</kbd>
+            </button>
+          </div>
+        </ReadyCard>
+      )}
+      {room && lobby && !coaching && !choosing && (
+        <aside className="room-roster glass" aria-label="Pilots in the room">
+          <strong>{room.players.length === 1 ? "1 pilot" : `${room.players.length} pilots`} in the room</strong>
+          <ul>
+            {room.players.map((p) => (
+              <li key={p.id}>
+                <span className="dot" style={{ background: p.color }} />
+                {p.name}{p.id === selfId && " (you)"}{p.id === room.host && " · host"}
+              </li>
+            ))}
+          </ul>
+          {room.results.length > 0 && (
+            <>
+              <strong>Last race</strong>
+              <ol>
+                {room.results.map((r) => <li key={r.id}>{r.name} · {formatTime(r.time_ms)}</li>)}
+              </ol>
+            </>
+          )}
+        </aside>
+      )}
+      {choosing && lobby && (
+        <RoomMapSelect
+          onPick={(seed) => {
+            session.newMap(seed);
+            setChoosing(false);
+          }}
+          onBack={() => setChoosing(false)}
+        />
+      )}
+
+      {room && !lobby && me && !me.racing && (
+        <div className="banner glass">Race in progress: you're in the next one. Fly around meanwhile.</div>
+      )}
+
+      {room && !lobby && me?.finish_ms != null && (
+        <RaceResults paused={!!hud?.paused} timeMs={me.finish_ms} context={`Room ${code}`}
+          onResume={() => session.resume()} onRetry={host ? () => session.restart() : undefined} retry={ROOM_RESTART}>
+          {lastPlace !== null && <p>You finished <strong>{ordinal(lastPlace)}</strong>. Waiting for the others…</p>}
+          <p>{host ? "You're the host: restart whenever you like." : "The race is called a minute after the first finish, or when the host restarts."}</p>
+          <h3>Race standings</h3>
+          <ol className="race-results-standings">{hud?.standings.map(s => <li key={s.id} className={s.me ? "me" : undefined}>{s.name} · {s.finishMs !== null ? formatTime(s.finishMs) : `${s.checkpoints}/${hud.totalCheckpoints} gates`}</li>)}</ol>
+        </RaceResults>
+      )}
+    </div>
+  );
+};
+
+// --- Explore ---------------------------------------------------------------------
+
+const TestScreen = ({ biome, seed, settings, onSettings, onExit }: ScreenProps & { biome: BiomeId; seed: number }) => {
+  const idle = useIdleUi();
+  const [session] = useState(() => new ExploreSession(biome, seed, settings, true));
+  const ref = useMountedSession(session, settings);
+  const { hud, error, biome: current, mood, speed } = useSyncExternalStore(session.store.subscribe, session.store.get);
+  usePaletteTheme(hud?.palette);
+
+  const moods = BIOMES[current].moods;
+
+  // The mouse is often locked to the game, so everything has a key
+  useHotkeys({
+    KeyN: () => session.step(1),
+    KeyB: () => session.step(-1),
+    KeyV: () => session.stepMood(1),
+  });
+
+  return (
+    <div className={`game${idle ? " ui-idle" : ""}`}>
+      <div ref={ref} className="game-view" />
+      {hud && <Hud hud={hud} settings={settings} />}
+      <TopBar title={`Test · #${seed} · ${hud ? `${hud.biomeName} · ${hud.paletteName}` : ""} · ${speed}× speed`} onExit={onExit} controls={{ settings, onSettings, muted: !!hud?.muted }} />
+      {error && <div className="banner">{error}</div>}
+      <aside className="debug-panel glass test">
+        <h3>Test mode · free flight</h3>
+        <h3>Worlds</h3>
+        <div className="debug-row">
+          {(Object.keys(BIOMES) as BiomeId[]).map((id) => (
+            <button key={id} className={id === current ? "on" : ""} onClick={() => session.show(id)}>
+              {BIOMES[id].name}
+            </button>
+          ))}
+        </div>
+        <h3>Light</h3>
+        <div className="debug-row">
+          {moods.map((m, i) => (
+            <button key={m.name} className={i === mood ? "on" : ""} onClick={() => session.show(current, i)}>
+              {m.name}
+            </button>
+          ))}
+        </div>
+        <div className="debug-row touch-only">
+          <button onClick={() => session.testAction("speed")}>{speed === 1 ? "Half speed" : "Normal speed"}</button>
+        </div>
+        <ul className="debug-keys no-touch">
+          <li><kbd>N</kbd> next world · <kbd>B</kbd> previous · <kbd>V</kbd> next light</li>
+          <li><kbd>Shift+P</kbd> portal ahead</li>
+          <li><kbd>Shift+O</kbd> victory</li>
+          <li><kbd>Shift+S</kbd> {speed === 1 ? "half speed" : "normal speed"}</li>
+        </ul>
+      </aside>
+    </div>
+  );
+};
+
+// --- Item gallery ------------------------------------------------------------------
+
+/** Every item model, and the pilot showing how they're taken out, worn and used */
+const GalleryScreen = ({ onExit }: { onExit: () => void }) => {
+  const ref = useRef<HTMLDivElement>(null);
+  const gallery = useRef<ItemGallery | null>(null);
+  const [demo, setDemo] = useState(true);
+  useEffect(() => {
+    let disposed = false;
+    void import("../game/items/gallery").then(({ ItemGallery }) => {
+      if (disposed || !ref.current) return;
+      gallery.current = new ItemGallery(ref.current);
+      if (import.meta.env.DEV) Object.assign(window, { __gallery: gallery.current });
+    });
+    return () => {
+      disposed = true;
+      gallery.current?.dispose();
+      gallery.current = null;
+    };
+  }, []);
+  const act = (f: (g: ItemGallery) => void) => {
+    if (!gallery.current) return;
+    f(gallery.current);
+    setDemo(false);
+  };
+  return (
+    <div className="game">
+      <div ref={ref} className="game-view" />
+      <TopBar title="Item gallery" onExit={onExit} />
+      <Panel className="gallery-panel" head={<><small>Models and animations{demo ? " · demo playing" : ""}</small><h2>Items</h2></>}>
+
+        <p className="hint">Preview the models here.</p>
+        <div className="gallery-items">
+          {ITEMS.map((item) => (
+            <button key={item.id} onClick={() => act((g) => g.equip(item.id))}>
+              {item.name}
+              <small>{item.slot === "back" ? "on the back" : item.slot === "head" ? "on the head" : item.slot === "feet" ? "on the feet" : "in hand"}</small>
+            </button>
+          ))}
+        </div>
+        <div className="row">
+          <button onClick={() => act((g) => g.use())}>Eat / use</button>
+          <button onClick={() => act((g) => g.thrust(true))}>Firework on</button>
+          <button onClick={() => act((g) => g.thrust(false))}>Off</button>
+          <button onClick={() => act((g) => g.clear())}>Put away</button>
+        </div>
+      </Panel>
+    </div>
+  );
+};
+
+/** Shown instead of the game when the browser can't create a WebGL context */
+const NoWebGL = ({ onExit }: { onExit: () => void }) => (
+  <div className="game">
+    <TopBar title="Wind Rider" onExit={onExit} />
+    <aside className="panel glass no-webgl">
+      <h2>Your browser has 3D graphics turned off</h2>
+      <p>
+        Wind Rider needs WebGL 2, and this browser won't create a WebGL context. That's a browser setting, not a
+        problem with the server. Usually one of these fixes it:
+      </p>
+      <ol>
+        <li>
+          Turn on hardware acceleration. In Chrome or Edge it's under Settings → System → "Use graphics
+          acceleration when available". Then relaunch the browser.
+        </li>
+        <li>
+          Restart the browser completely. After its GPU process crashes a few times, Chrome turns WebGL off until
+          the next restart.
+        </li>
+        <li>
+          Open <code>chrome://gpu</code> and check that WebGL says "Hardware accelerated". If your GPU is
+          blocklisted, try enabling <code>chrome://flags/#ignore-gpu-blocklist</code>, or use another browser.
+        </li>
+      </ol>
+      <button className="primary" onClick={() => location.reload()}>
+        Try again
+      </button>
+    </aside>
+  </div>
+);
+
+const GameScreen = ({ screen, ...props }: ScreenProps & { screen: Exclude<Screen, { kind: "menu" }> }) => {
+  if (!webglAvailable()) return <NoWebGL onExit={props.onExit} />;
+  if (screen.kind === "test") return <TestScreen biome={screen.biome} seed={screen.seed} {...props} />;
+  if (screen.kind === "gallery") return <GalleryScreen onExit={props.onExit} />;
+  return screen.kind === "solo" ? (
+    <SoloScreen seed={screen.seed} {...props} />
+  ) : (
+    <RoomScreen code={screen.code} seed={screen.seed} {...props} />
+  );
+};
+
+export default GameScreen;

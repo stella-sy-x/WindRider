@@ -1,0 +1,449 @@
+/* Registered so a map change fades the UI to its new colors (see theme.ts) */
+@property --ink {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: #2e1b3a;
+}
+
+@property --tint {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: #fff4ec;
+}
+
+:root {
+  --bg: #2b1d3a;
+  --ink: #2e1b3a;
+  --tint: #fff4ec;
+  --ink-70: color-mix(in srgb, var(--ink) 72%, transparent);
+  --ink-45: color-mix(in srgb, var(--ink) 48%, transparent);
+  --ink-12: color-mix(in srgb, var(--ink) 12%, transparent);
+  --ink-06: color-mix(in srgb, var(--ink) 6%, transparent);
+  --glass: color-mix(in srgb, color-mix(in srgb, #fff 78%, var(--tint)) 56%, transparent);
+  --glass-strong: color-mix(in srgb, color-mix(in srgb, #fff 82%, var(--tint)) 86%, transparent);
+  --glass-border: rgba(255, 255, 255, 0.7);
+  --warm: #e9a04f; /* proximity and combo: warm, never neon */
+  --warm-deep: #c96f32;
+  --gold: #e6b740;
+  --good: #2c8a5c;
+  --bad: #c8463d;
+  --radius: 18px;
+  --font-body: "Philosopher", Georgia, serif;
+  /* Numbers that change as you watch (clocks, speed, countdowns, times): Philosopher's digits differ in
+     width, so they'd jitter; this one has even-width digits */
+  --font-numbers: "Plus Jakarta Sans Variable", system-ui, sans-serif;
+  /* Titles: carved capitals. No real lowercase and no even-width digits, so never for numbers */
+  --font-display: "Cinzel Variable", Georgia, serif;
+
+  font-family: var(--font-body);
+  line-height: 1.45;
+  color: var(--ink);
+  background: var(--bg);
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  transition:
+    --ink 0.8s,
+    --tint 0.8s;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background: var(--bg);
+}
+
+h1,
+h2,
+h3 {
+  margin: 0;
+  line-height: 1.15;
+}
+
+h1,
+h2 {
+  font-family: var(--font-display);
+  letter-spacing: 0.01em;
+}
+
+.glass {
+  background: var(--glass);
+  backdrop-filter: blur(20px) saturate(1.2);
+  border: 1px solid var(--glass-border);
+  box-shadow:
+    0 18px 50px color-mix(in srgb, var(--ink) 18%, transparent),
+    inset 0 1px 0 rgba(255, 255, 255, 0.6);
+}
+
+button {
+  font: inherit;
+  font-weight: 600;
+  color: var(--ink);
+  background: rgba(255, 255, 255, 0.6);
+  border: 1px solid var(--glass-border);
+  border-radius: 14px;
+  padding: 0.55em 1.1em;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5em;
+  transition:
+    background 0.15s,
+    transform 0.1s;
+}
+
+button:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.85);
+}
+
+button:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+button.primary {
+  min-height: 3.25rem;
+  background: var(--ink);
+  color: #fff;
+  font-weight: 700;
+  border: none;
+  border-radius: 16px;
+  box-shadow: 0 10px 24px color-mix(in srgb, var(--ink) 28%, transparent);
+}
+
+button.primary:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--ink) 86%, #fff);
+}
+
+button.primary kbd {
+  border: none;
+  background: rgba(255, 255, 255, 0.18);
+  opacity: 1;
+}
+
+input {
+  font: inherit;
+  color: var(--ink);
+  background: rgba(255, 255, 255, 0.65);
+  border: 1px solid var(--ink-12);
+  border-radius: 12px;
+  padding: 0.5em 0.75em;
+  min-width: 0;
+}
+
+input::placeholder {
+  color: var(--ink-45);
+}
+
+input:focus {
+  outline: 2px solid var(--ink);
+  outline-offset: 1px;
+}
+
+input[type="range"] {
+  accent-color: var(--ink);
+  padding: 0;
+  border: none;
+  background: none;
+}
+
+input[type="checkbox"] {
+  accent-color: var(--ink);
+}
+
+kbd {
+  font: inherit;
+  font-size: 0.72em;
+  font-weight: 700;
+  padding: 0.12em 0.45em;
+  border-radius: 6px;
+  border: 1px solid currentColor;
+  opacity: 0.8;
+}
+
+.hint {
+  color: var(--ink-70);
+  font-size: 0.9em;
+  margin: 0.2em 0 0.6em;
+}
+
+.error {
+  color: var(--bad);
+}
+
+.row {
+  display: flex;
+  gap: 0.5em;
+  align-items: center;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3em;
+  margin: 0.6em 0;
+}
+
+.field > span {
+  color: var(--ink-70);
+  font-size: 0.85em;
+}
+
+.check {
+  display: flex;
+  gap: 0.5em;
+  align-items: center;
+  margin: 0.6em 0;
+}
+
+.dot {
+  display: inline-block;
+  width: 0.7em;
+  height: 0.7em;
+  border-radius: 50%;
+  flex: none;
+}
+
+.leaderboard {
+  list-style: none;
+  padding: 0;
+  margin: 0.2em 0;
+}
+
+.leaderboard li {
+  display: grid;
+  grid-template-columns: 1.6em 1fr auto;
+  gap: 0.6em;
+  align-items: center;
+  padding: 0.4em 0.5em;
+  border-radius: 10px;
+  font-weight: 600;
+}
+
+.leaderboard li:nth-child(even) {
+  background: var(--ink-06);
+}
+
+.leaderboard li.me {
+  background: var(--ink-12);
+}
+
+.leaderboard .rank {
+  width: 1.6em;
+  height: 1.6em;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-size: 0.75em;
+  font-weight: 800;
+  color: var(--ink-70);
+  background: var(--ink-06);
+}
+
+.leaderboard li:nth-child(1) .rank {
+  color: #fff;
+  background: var(--gold);
+}
+
+.leaderboard li:nth-child(2) .rank {
+  color: #fff;
+  background: #a9b2c0;
+}
+
+.leaderboard li:nth-child(3) .rank {
+  color: #fff;
+  background: #c08457;
+}
+
+.leaderboard .name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.leaderboard .time {
+  font-family: var(--font-numbers);
+  font-weight: 500;
+  color: var(--ink-70);
+  font-variant-numeric: tabular-nums;
+}
+
+.controls .keys {
+  padding-left: 1.1em;
+  margin: 0.4em 0;
+  color: var(--ink-70);
+  font-size: 0.9em;
+}
+
+/* --- Sheets: the big dialogs (settings, the journal) --------------------------------------------
+   The How to fly card's glass, a header with a round badge, an eyebrow and the title, a round close,
+   and the content in light inner panels. Small pieces shared with the menu: chips, a segmented
+   control, a soft meter. */
+.sheet {
+  position: fixed;
+  inset: 0;
+  margin: auto;
+  width: min(40rem, calc(100vw - 2rem));
+  max-height: calc(100dvh - 2rem);
+  box-sizing: border-box;
+  padding: 1.3rem 1.4rem 1.4rem;
+  overflow: auto;
+  border-radius: 32px;
+  border: 1px solid rgba(255, 255, 255, 0.9);
+  color: var(--ink);
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, color-mix(in srgb, #fff 90%, var(--tint)) 96%, transparent),
+    color-mix(in srgb, color-mix(in srgb, #fff 76%, var(--tint)) 94%, transparent)
+  );
+  box-shadow:
+    0 30px 80px color-mix(in srgb, var(--ink) 40%, transparent),
+    inset 0 1px 0 #fff;
+  text-align: left;
+}
+
+.sheet[open] {
+  animation: sheet-in 0.4s cubic-bezier(0.2, 0.9, 0.3, 1.15) both;
+}
+
+.sheet::backdrop {
+  background: radial-gradient(
+    ellipse at center,
+    color-mix(in srgb, var(--ink, #2e1b3a) 30%, transparent),
+    color-mix(in srgb, var(--ink, #2e1b3a) 68%, transparent)
+  );
+  backdrop-filter: blur(8px) saturate(1.1);
+}
+
+@keyframes sheet-in {
+  from {
+    opacity: 0;
+    transform: translateY(12px) scale(0.97);
+  }
+}
+
+.sheet-head {
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+  margin-bottom: 1rem;
+}
+
+.sheet-head .overlay-badge {
+  flex: none;
+}
+
+.sheet-head small {
+  display: block;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--ink-45);
+}
+
+.sheet-head h2 {
+  margin: 0.1rem 0 0;
+  font-size: 1.7rem;
+  line-height: 1.1;
+}
+
+.sheet-close {
+  flex: none;
+  margin-left: auto;
+  width: 2.6rem;
+  height: 2.6rem;
+  padding: 0;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+}
+
+.sheet-panel {
+  padding: 1rem 1.1rem;
+  border-radius: 22px;
+  border: 1px solid rgba(255, 255, 255, 0.95);
+  background: rgba(255, 255, 255, 0.6);
+}
+
+.sheet-panel + .sheet-panel {
+  margin-top: 0.75rem;
+}
+
+.sheet-panel h3 {
+  margin: 0 0 0.6rem;
+  font-size: 1.05rem;
+}
+
+.sheet input[type=checkbox],
+.sheet input[type=range] {
+  accent-color: var(--ink);
+}
+
+.sheet :focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.2rem 0.6rem;
+  border-radius: 8px;
+  background: var(--ink-06);
+  font-family: var(--font-numbers);
+  font-size: 0.8rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+/* The landing page's tabs, anywhere: one pill, the chosen one lifted out in white */
+.segmented {
+  display: inline-grid;
+  grid-auto-flow: column;
+  grid-auto-columns: auto;
+  padding: 4px;
+  border-radius: 16px;
+  background: var(--ink-06);
+}
+
+.segmented button {
+  padding: 0.45rem 0.9rem;
+  border: none;
+  border-radius: 12px;
+  background: none;
+  color: var(--ink-70);
+  white-space: nowrap;
+}
+
+.segmented button[aria-selected="true"] {
+  background: #fff;
+  color: var(--ink);
+  box-shadow: 0 2px 8px var(--ink-12);
+}
+
+/* A soft progress bar (experience), warm like the skim meter */
+.meter {
+  height: 0.55rem;
+  border-radius: 999px;
+  background: var(--ink-06);
+  overflow: hidden;
+}
+
+.meter > span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, color-mix(in srgb, var(--warm) 70%, #fff), var(--warm-deep));
+}

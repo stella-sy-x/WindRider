@@ -1,0 +1,23 @@
+services:
+  backend:
+    build: ./backend
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      DATA_DIR: /app/data # leaderboards and ghosts, kept in the volume below
+      TRUST_USER_HEADERS: "1" # logins come from the VIScon portal's headers; never expose port 8080 without it
+    volumes:
+      - game-data:/app/data
+    restart: unless-stopped
+
+  frontend:
+    build: ./frontend
+    ports:
+      - 8080:8080 # The VIScon portal forwards your team's address to this port
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+volumes:
+  game-data:

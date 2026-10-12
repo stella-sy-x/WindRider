@@ -1,0 +1,240 @@
+import type { FlightInput } from "./flight";
+import { clamp } from "./math";
+import { DEFAULT_BINDINGS, keyboardBinding, type Bindings, type BindingAction } from "./bindings";
+export { keyLabel } from "./bindings";
+
+export interface ControlSettings {
+  invertPitch: boolean;
+  mouseSensitivity: number; // 0.3..6, 2 = default
+  invertMouse?: boolean;
+  invertGamepad?: boolean;
+  /** The touch stick: up climbs instead of diving */
+  invertTouch?: boolean;
+  bindings?: Bindings;
+  deadZone?: number;
+  reducedMotion?: boolean;
+  quality?: "auto" | "high" | "medium" | "low";
+  musicVolume?: number;
+  effectsVolume?: number;
+  muted?: boolean;
+  /** The pilot's look: 1 (ponytail) or 2 (short hair); looks only */
+  pilotStyle?: 1 | 2;
+}
+
+/** URL test mode only: Shift+S */
+export type TestAction = "speed";
+
+/** One-off presses dispatched by keyboard, gamepad or touch */
+export type InputAction = "pause" | "respawn" | "mute" | "barrelLeft" | "barrelRight";
+
+export interface InputObserver {
+  sample?: (input: FlightInput) => void;
+  action?: (action: InputAction) => void;
+}
+
+export function controlsBlocked(): boolean {
+  return !!document.querySelector?.("dialog[open]");
+}
+const ACTIONS: InputAction[] = ["pause", "respawn", "mute", "barrelLeft", "barrelRight"];
+
+function deadZone(value: number, threshold = 0.12): number {
+  if (Math.abs(value) < threshold) return 0;
+  return (value - Math.sign(value) * threshold) / (1 - threshold);
+}
+
+function isTyping(event: KeyboardEvent): boolean {
+  const target = event.target as HTMLElement | null;
+  return !!target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.tagName === "SELECT" || target.isContentEditable);
+}
+
+/**
+ * Keyboard, mouse (pointer lock), gamepad and the touch stick and buttons
+ * (`TouchControls`), merged into pitch and roll.
+ * Flight-stick convention by default: forward / W / mouse up dives.
+ */
+export class Input {
+  settings: ControlSettings;
+  onAction?: (action: InputAction) => void;
+  /** Installed only by the URL test mode. */
+  onTestAction?: (action: TestAction) => void;
+  locked = false;
+  private readonly element: HTMLElement;
+  // Release by physical identity: the character can change while held (Shift, Caps Lock, layout).
+  private readonly keys = new Map<string, string>();
+  private readonly observers = new Set<InputObserver>();
+  // The mouse moves a virtual stick that drifts back to center
+  private stickX = 0;
+  private stickY = 0;
+  private padButtons: boolean[] = [];
+  // The on-screen stick (-1..1, down and right positive) and held buttons, set by TouchControls
+  touchX = 0;
+  touchY = 0;
+  touchBoost = false;
+  touchBrake = false;
+
+  constructor(element: HTMLElement, settings: ControlSettings) {
+    this.element = element;
+    this.settings = settings;
+    window.addEventListener("keydown", this.onKeyDown);
+    window.addEventListener("keyup", this.onKeyUp);
+    window.addEventListener("blur", this.onBlur);
+    document.addEventListener("mousemove", this.onMouseMove);
+    document.addEventListener("pointerlockchange", this.onLockChange);
+    document.addEventListener("contextmenu", this.onContextMenu);
+  }
+
+  dispose() {
+    this.observers.clear();
+    window.removeEventListener("keydown", this.onKeyDown);
+    window.removeEventListener("keyup", this.onKeyUp);
+    window.removeEventListener("blur", this.onBlur);
+    document.removeEventListener("mousemove", this.onMouseMove);
+    document.removeEventListener("pointerlockchange", this.onLockChange);
+    document.removeEventListener("contextmenu", this.onContextMenu);
+    if (document.pointerLockElement === this.element) document.exitPointerLock();
+  }
+
+  /** Watch what the pilot actually receives (used by the tutorial). */
+  observe(observer: InputObserver): () => void {
+    this.observers.add(observer);
+    return () => { this.observers.delete(observer); };
+  }
+
+  /** `touched`: from a finger on the page, which needs no focus check (some phone browsers report none) */
+  dispatchAction(action: InputAction, touched = false) {
+    if (controlsBlocked() || (!touched && !document.hasFocus())) return;
+    for (const observer of this.observers) observer.action?.(action);
+    this.onAction?.(action);
+  }
+
+  /** Call from a click handler: browsers only lock the pointer on a user gesture */
+  lockPointer() {
+    // Phones have no pointer to lock (and Safari there has no such method)
+    if (document.pointerLockElement !== this.element) {
+      this.element.requestPointerLock?.()?.catch?.(() => {});
+    }
+  }
+
+  releasePointer() {
+    if (document.pointerLockElement === this.element) document.exitPointerLock();
+  }
+
+  private onKeyDown = (event: KeyboardEvent) => {
+    if (event.defaultPrevented || controlsBlocked() || isTyping(event)) return;
+    const binding = keyboardBinding(event);
+    if (!binding) return;
+    if (this.onTestAction && event.shiftKey && !event.ctrlKey && !event.altKey && !event.metaKey) {
+      const action = binding === "KeyS" ? "speed" : null;
+      if (action) {
+        event.preventDefault();
+        // Consume the chord before P pauses or S pitches, including held Shift boost.
+        this.reset();
+        if (!event.repeat) this.onTestAction(action);
+        return;
+      }
+    }
+    if (event.repeat && !this.keys.has(event.code)) return;
+    // Arrow keys would scroll the page; leave them alone on buttons and panels
+    const target = event.target as HTMLElement | null;
+    const atGame = !target || target === document.body || target === this.element;
+    if (atGame && (binding.startsWith("Arrow") || binding === "Space")) event.preventDefault();
+    if (event.repeat) return;
+    this.keys.set(event.code, binding);
+    for (const action of ACTIONS) {
+      if (this.binding(action).includes(binding)) {
+        if (atGame || action === "pause") event.preventDefault();
+        this.dispatchAction(action);
+        break;
+      }
+    }
+  };
+
+  private onKeyUp = (event: KeyboardEvent) => {
+    this.keys.delete(event.code);
+  };
+
+  private onBlur = () => {
+    this.reset();
+  };
+
+  reset() {
+    this.keys.clear();
+    this.stickX = this.stickY = 0;
+    this.padButtons = [];
+    this.touchX = this.touchY = 0;
+    this.touchBoost = this.touchBrake = false;
+  }
+
+  private onContextMenu = (event: Event) => {
+    if (this.locked && event.target === this.element) event.preventDefault();
+  };
+
+  private onMouseMove = (event: MouseEvent) => {
+    if (!this.locked || controlsBlocked()) return;
+    const sensitivity = 0.0045 * this.settings.mouseSensitivity;
+    this.stickX = clamp(this.stickX + event.movementX * sensitivity, -1, 1);
+    this.stickY = clamp(this.stickY + event.movementY * sensitivity, -1, 1);
+  };
+
+  private onLockChange = () => {
+    this.locked = document.pointerLockElement === this.element;
+    if (!this.locked) {
+      this.stickX = 0;
+      this.stickY = 0;
+    }
+  };
+
+  private binding(action: BindingAction): string[] {
+    return (this.settings.bindings ?? DEFAULT_BINDINGS)[action];
+  }
+
+  private key(action: BindingAction): number {
+    const bindings = this.binding(action);
+    for (const binding of this.keys.values()) {
+      if (bindings.includes(binding)) return 1;
+    }
+    return 0;
+  }
+
+  sample(dt: number): FlightInput {
+    // A finger on the stick or a button is on this page, whatever the browser says about focus
+    const touched = this.touchBoost || this.touchBrake || this.touchX !== 0 || this.touchY !== 0;
+    if (controlsBlocked() || (!touched && !document.hasFocus())) { this.reset(); return { pitch: 0, roll: 0, boost: 0, brake: 0 }; }
+    const recenter = Math.exp(-dt * 3.5);
+    this.stickX *= recenter;
+    this.stickY *= recenter;
+
+    // Positive pitch = nose up. Forward on keys, mouse and stick dives.
+    // (Moving the mouse up gives a negative movementY, like pushing a stick forward.)
+    let pitch = (this.key("pitchUp") - this.key("pitchDown")) * (this.settings.invertPitch ? -1 : 1)
+      + this.stickY * ((this.settings.invertMouse ?? this.settings.invertPitch) ? -1 : 1);
+    let roll = this.key("turnRight") - this.key("turnLeft") + this.stickX;
+
+    const touchSign = this.settings.invertTouch ? -1 : 1;
+    pitch += this.touchY * touchSign;
+    roll += this.touchX;
+
+    let boost = this.touchBoost ? 1 : this.key("boost");
+    let brake = this.touchBrake ? 1 : this.key("brake");
+    const pad = navigator.getGamepads?.().find((p) => p?.connected);
+    if (pad) {
+      roll += deadZone(pad.axes[0] ?? 0, this.settings.deadZone);
+      pitch += deadZone(pad.axes[1] ?? 0, this.settings.deadZone) * ((this.settings.invertGamepad ?? this.settings.invertPitch) ? -1 : 1);
+      // Y / triangle respawns, the shoulder buttons barrel roll
+      const pressed = pad.buttons.map((b) => b.pressed);
+      if (pressed[3] && !this.padButtons[3]) this.dispatchAction("respawn");
+      if (pressed[4] && !this.padButtons[4]) this.dispatchAction("barrelLeft");
+      if (pressed[5] && !this.padButtons[5]) this.dispatchAction("barrelRight");
+      // Triggers control speed
+      boost = Math.max(boost, deadZone(pad.buttons[7]?.value ?? 0));
+      brake = Math.max(brake, deadZone(pad.buttons[6]?.value ?? 0));
+      this.padButtons = pressed;
+    } else {
+      this.padButtons = [];
+    }
+
+    const sample = { pitch: clamp(pitch, -1, 1), roll: clamp(roll, -1, 1), boost, brake };
+    for (const observer of this.observers) observer.sample?.(sample);
+    return sample;
+  }
+}
