@@ -2,6 +2,7 @@ import * as THREE from "three";
 import { Builder } from "../items/models";
 import type { Paint } from "../items/builder";
 import { paintedModel, disposeModel } from "./models";
+import { WHITE } from "../toon";
 import { wingSpec, type WingId, type WingShape } from "./catalog";
 
 // Chunky low-poly wings: each half of a wing is a thick spar along the arm bone
@@ -9,7 +10,6 @@ import { wingSpec, type WingId, type WingShape } from "./catalog";
 // slates. Solid slabs, not feathers: they read as volume from any angle and
 // match the voxel-cut terrain. ~360 vertices per side, 720 for the pair.
 
-const WHITE = new THREE.Color("#ffffff");
 const RAINBOW = ["#d98cc2", "#8d9fdf", "#73cbd5", "#8bd0b0", "#efc681", "#ef9a7a"];
 
 /** How a style's paddles are cut: widths as a share of paddle length, thickness in metres, sweep curls the tip back */

@@ -3,6 +3,7 @@ import type { Avatar } from "../avatar";
 import { glowTexture } from "../avatar";
 import { clamp, smoothstep } from "../math";
 import { Kind, type Particles, fx, fxTime } from "../particles";
+import { WHITE } from "../toon";
 import { type ItemId, type ItemSlot, buildItem, disposeItem, fireworkFlame, itemInfo } from "./models";
 
 // Item animations, looks only (what items do comes later):
@@ -61,7 +62,6 @@ const at = new THREE.Vector3();
 const vel = new THREE.Vector3();
 const tmp = new THREE.Vector3();
 const GOLD = new THREE.Color("#ffe6a0");
-const WHITE = new THREE.Color("#ffffff");
 const rand = (min: number, max: number) => min + Math.random() * (max - min);
 
 interface Worn {

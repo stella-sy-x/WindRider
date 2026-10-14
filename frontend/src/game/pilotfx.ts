@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import type { Avatar } from "./avatar";
 import { Kind, type Particles, fx } from "./particles";
+import { WHITE } from "./toon";
 import { Trail } from "./trail";
 import { FX, COSMETIC_FX } from "./tuning";
 import { wingSpec } from "./cosmetics/catalog";
@@ -74,7 +75,7 @@ export class PilotFx {
 
   setColor(value: string) {
     this.body.set(value);
-    this.head.set(value).lerp(new THREE.Color("#ffffff"), 0.6);
+    this.head.set(value).lerp(WHITE, 0.6);
     const ribbon = this.ghost ? "#ffffff" : value;
     this.trails[0].setColor(ribbon);
     this.trails[1].setColor(ribbon);

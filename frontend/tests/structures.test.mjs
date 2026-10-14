@@ -76,7 +76,6 @@ test("bridges span the river with an arch to fly through, well under the racing 
     }
   }
   assert.ok(total >= 4, `only ${total} bridges over three levels`);
-  console.log("bridges over three levels:", total);
 });
 
 test("a shrine gate collides with its posts and lintel, and is open in between", () => {

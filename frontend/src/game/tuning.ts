@@ -157,7 +157,7 @@ export const DEEP = {
   life: 1, // how brightly fish and jellyfish glow
 };
 
-/** The autopilot (the menu's chase view, the victory lap): flies the racing line on rails */
+/** The autopilot (the menu's chase view): flies the racing line on rails */
 export const AUTOPILOT = {
   railMinSpeed: 28, // m/s: the slowest it glides…
   railMaxSpeed: 48, // …and the fastest it dives

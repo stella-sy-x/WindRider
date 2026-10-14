@@ -22,7 +22,7 @@ function deriveInk(palette: Palette): string {
 }
 
 /** Recolors the whole UI for a map: the CSS derives every shade from these two */
-export function applyUiTheme(palette: Palette) {
+function applyUiTheme(palette: Palette) {
   const root = document.documentElement.style;
   root.setProperty("--ink", INKS[palette.name] ?? deriveInk(palette));
   root.setProperty("--tint", palette.horizon);
@@ -35,7 +35,7 @@ export function useUiTheme(seed: number | undefined) {
   }, [seed]);
 }
 
-/** Keeps the UI in the colors of the level being flown (runs and explore: any biome, any mood) */
+/** Keeps the UI in the colors of the level being flown (test mode: any biome, any mood) */
 export function usePaletteTheme(palette: Palette | undefined) {
   useEffect(() => {
     if (palette) applyUiTheme(palette);

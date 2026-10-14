@@ -5,6 +5,12 @@ import { ServerClock } from "./clock";
 
 export type ConnectionStatus = "connecting" | "connected" | "reconnecting" | "failed";
 
+// Joining again after the server couldn't be reached: 2 s, 4 s, 8 s, then every 16 s, and after
+// this many failed attempts in a row we give up
+const REJOIN_BASE_MS = 2_000;
+const REJOIN_MAX_MS = 16_000;
+const MAX_REJOIN_ATTEMPTS = 10;
+
 export interface RoomHandlers {
   joined(id: string): void;
   room(info: RoomInfo): void;
@@ -34,6 +40,8 @@ export class RoomClient {
   private sending = false;
   private closed = false;
   private rejoinTimer = 0;
+  /** Joins that failed in a row because the server couldn't be reached */
+  private rejoinAttempts = 0;
 
   constructor(code: string, identity: Identity, handlers: RoomHandlers) {
     this.code = code;
@@ -65,22 +73,30 @@ export class RoomClient {
         seed: this.identity.seed,
       });
     } catch (e) {
-      if (e instanceof ApiError && e.status === 409) {
-        this.handlers.status("failed", e.message); // room is full
+      if (e instanceof ApiError && e.status >= 400 && e.status < 500) {
+        // The server answered, and said no (room full, bad code, outdated client…): asking again won't help
+        this.handlers.status("failed", e.message);
+      } else if (this.rejoinAttempts >= MAX_REJOIN_ATTEMPTS) {
+        console.error("Giving up joining the room", e);
+        this.handlers.status("failed", "Can't reach the server. Check your connection and try again.");
       } else {
+        // A network error, a timeout or a server error (5xx): try again, waiting longer each time
+        const delay = Math.min(REJOIN_BASE_MS * 2 ** this.rejoinAttempts, REJOIN_MAX_MS);
+        this.rejoinAttempts++;
         this.handlers.status("reconnecting", "Can't reach the server, retrying…");
-        this.scheduleRejoin(2000);
+        this.scheduleRejoin(delay);
       }
       return;
     }
     if (this.closed) return;
+    this.rejoinAttempts = 0;
     this.token = joined.token;
     try {
       this.handlers.joined(joined.id);
       this.handlers.room(joined.room);
     } catch (e) {
       // Not a network problem (e.g. no WebGL): rejoining wouldn't help
-      console.error(e);
+      if (import.meta.env.DEV) console.error(e);
       this.handlers.status("failed", `The game couldn't start: ${(e as Error).message}`);
       this.close();
       return;
@@ -104,7 +120,13 @@ export class RoomClient {
     this.source = source;
     source.onopen = () => this.handlers.status("connected");
     source.onmessage = (event) => {
-      const message = JSON.parse(event.data) as RoomInfo | Snapshot;
+      let message: RoomInfo | Snapshot;
+      try {
+        message = JSON.parse(event.data) as RoomInfo | Snapshot;
+      } catch (e) {
+        console.warn("Ignoring a room event that isn't JSON", e, event.data);
+        return;
+      }
       if (message.type === "room") this.handlers.room(message);
       else if (message.type === "snap") this.handlers.snapshot(message);
     };
@@ -151,7 +173,8 @@ export class RoomClient {
     return request(this.url("map"), "POST", { token: this.token, seed });
   }
 
-  finish(timeMs: number, ghost: GhostData): Promise<{ place: number; personal_best_ms: number }> {
+  /** `personal_best_ms` is null when the time couldn't be saved to the leaderboard (the place still counts) */
+  finish(timeMs: number, ghost: GhostData): Promise<{ place: number; personal_best_ms: number | null; note?: string }> {
     return request(this.url("finish"), "POST", { token: this.token, time_ms: timeMs, ghost });
   }
 

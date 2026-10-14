@@ -6,7 +6,7 @@ import { Ambient } from "./ambient";
 import { Autopilot } from "./autopilot";
 import { GameAudio } from "./audio";
 import { Avatar } from "./avatar";
-import { APPEARANCE_EVENT, loadAppearance, validateAppearance, type Appearance } from "./cosmetics/storage";
+import { APPEARANCE_EVENT, loadAppearance } from "./cosmetics/storage";
 import { Companion } from "./pets/companion";
 import { CosmeticSparkles } from "./cosmetics/sparkles";
 import { CameraRig } from "./camera";
@@ -16,7 +16,7 @@ import { TouchControls } from "./touch";
 import { FLIGHT, Flight, type FlightInput, type HitPart, hitboxWorld, touching } from "./flight";
 import { GlideIn } from "./glidein";
 import { Equipment } from "./items/equip";
-import type { ItemId, ItemSlot } from "./items/models";
+import type { ItemId } from "./items/models";
 import { type GhostData, GhostRecorder, type GhostRun, ghostSamples } from "./ghost";
 import { type ControlSettings, type InputObserver, type TestAction, Input, controlsBlocked } from "./input";
 import { FX_LIGHT, Kind, Particles, fx, fxTime, sceneryTime } from "./particles";
@@ -24,7 +24,8 @@ import { PilotFx } from "./pilotfx";
 import { INTERPOLATION_DELAY_MS, Pilot, type PilotSample } from "./pilots";
 import { clamp } from "./math";
 import { SpeedLines } from "./speedlines";
-import { TOON_LIGHT } from "./toon";
+// The glow light shared by trims, flora and water (particles.ts has its own FX_LIGHT, the particle boost)
+import { FX_LIGHT as GLOW_LIGHT, WHITE } from "./toon";
 import { FX, RANGES, RINGS, TUNING_GROUPS, WATER, loadTuning, resetTuning, saveTuning } from "./tuning";
 import { type Level, levelId, seedLevel } from "./world/biomes";
 import type { WaterKind } from "./world/terrain/river";
@@ -43,7 +44,6 @@ const START_SPEED = 32; // m/s
 const AUTOPILOT_LOOP = 40;
 const HUD_INTERVAL = 100; // ms
 const GOLD = new THREE.Color("#ffd23f");
-const WHITE = new THREE.Color("#ffffff");
 const SPRAY = new THREE.Color("#e8f7ff");
 const LAVA_SPARK = new THREE.Color("#ff9a3c");
 
@@ -178,9 +178,8 @@ export class Game {
   private readonly prevQuaternion = new THREE.Quaternion();
   private readonly avatar: Avatar;
   private readonly companion: Companion;
-  private testLook: Appearance | null = null;
   private readonly appearanceChanged = () => {
-    const appearance = this.testLook ?? loadAppearance();
+    const appearance = loadAppearance();
     this.avatar.setAppearance(appearance);
     this.companion.set(appearance.pet);
     this.sparkles.setAppearance(appearance);
@@ -230,7 +229,6 @@ export class Game {
    */
   private readonly kept = new Map<string, { world: World; view: WorldView }>();
   private home: string | null = null;
-  private frozen = false;
   private paused = false;
   private pausedByHold = false; // paused because an overlay holds the game (hold.ts), not by the player
   private unhold: (() => void) | null = null;
@@ -328,7 +326,7 @@ export class Game {
       const puff = this.avatar.onDownstroke;
       this.avatar.onDownstroke = (strength) => {
         puff?.(strength);
-        if (!this.frozen && this.crashedAt === null) this.audio.wing(strength);
+        if (this.crashedAt === null) this.audio.wing(strength);
       };
     }
     this.equipment = new Equipment(this.avatar, this.particles);
@@ -406,22 +404,6 @@ export class Game {
     this.equipment.equip(id);
   }
 
-  /** ?test only, local to this Game: no inventory writes or unlock checks. */
-  testAppearance(look: Appearance | null) {
-    if (!this.testPlayback) return;
-    this.testLook = look ? validateAppearance(look) : null;
-    this.appearanceChanged();
-  }
-
-  unequip(slot: ItemSlot) {
-    this.equipment.unequip(slot);
-  }
-
-  /** Eats or uses what's in the hand */
-  useItem() {
-    this.equipment.use();
-  }
-
   /** The firework's flame, 0..1 (looks only; the boost itself comes later) */
   thrust(amount: number) {
     this.equipment.setThrust(amount);
@@ -429,20 +411,6 @@ export class Game {
 
   get camera(): THREE.PerspectiveCamera {
     return this.rig.camera;
-  }
-
-  respawnAt(checkpoints: number) {
-    this.respawn(checkpoints);
-  }
-
-  freeze(on: boolean) {
-    this.frozen = on;
-    if (on) { this.flight.releaseControls(); this.input.reset(); }
-    this.accumulator = 0;
-  }
-
-  get pixelHeight(): number {
-    return this.renderer.domElement.height;
   }
 
   /** Keeps the camera out of the rock */
@@ -582,7 +550,7 @@ export class Game {
       }
     }
     this.scene.add(this.view.group);
-    // Compile the level's shaders now (behind the loading wait or the wormhole), not mid-flight
+    // Compile the level's shaders now (behind the loading wait), not mid-flight
     this.compileShaders();
     this.view.group.visible = true;
     this.particles.clear();
@@ -592,8 +560,8 @@ export class Game {
     // How effects react to this biome's light: glows pop at night, and get a push in bright daylight
     const palette = this.world.palette;
     FX_LIGHT.boost.value = palette.glow;
-    TOON_LIGHT.rimColor.value.set(palette.sun).lerp(WHITE, 0.35);
-    TOON_LIGHT.glow.value = 0.15 + palette.night * 1.3;
+    GLOW_LIGHT.rimColor.value.set(palette.sun).lerp(WHITE, 0.35);
+    GLOW_LIGHT.glow.value = 0.15 + palette.night * 1.3;
     this.audio.setBiome(level.biome.id, palette.night);
     this.setGhosts([]);
     this.style = 0;
@@ -700,10 +668,6 @@ export class Game {
   netState(): NetState {
     const { position: p, quaternion: q, speed } = this.flight;
     return { p: [p.x, p.y, p.z], q: [q.x, q.y, q.z, q.w], v: speed, cp: this.checkpoints, boost: this.flight.boost, brake: this.flight.brake, dodge: this.flight.dodgePhase };
-  }
-
-  toggleMute(): boolean {
-    return this.audio.toggleMute();
   }
 
   dispose() {
@@ -986,12 +950,12 @@ export class Game {
   // --- effects -------------------------------------------------------------------
 
   private barrelRoll(dir: 1 | -1) {
-    if (this.crashedAt !== null || this.raceState === "countdown" || this.frozen || !this.view.ready) return;
+    if (this.crashedAt !== null || this.raceState === "countdown" || !this.view.ready) return;
     this.flight.dodge(dir, FLIGHT);
   }
 
   /** A gate was passed: it flares (WorldView), and shards, stars and light burst out of it */
-  gateBurst(index: number) {
+  private gateBurst(index: number) {
     const ring = this.world.course.rings[index];
     this.view.passRing(index);
     this.rig.kick();
@@ -1235,8 +1199,7 @@ export class Game {
     }
     this.elapsed += dt;
     fxTime.value = this.elapsed;
-    const worldDt = dt;
-    this.sceneryClock += worldDt; sceneryTime.value = this.sceneryClock;
+    this.sceneryClock += dt; sceneryTime.value = this.sceneryClock;
     this.adaptQuality(realDt);
 
     const selfFlying = this.attract === "chase";
@@ -1247,12 +1210,10 @@ export class Game {
     // Outside races, the land around you must be on screen before you fly: no flying into
     // invisible rock. Until it is, the pilot glides in on rails, without control (glidein.ts)
     const loading = !this.view.ready && this.raceState === "free" && this.attract !== "drift";
-    // Held still (e.g. by an external freeze)
-    const waiting = this.frozen;
-    if (waiting || loading || this.raceState === "countdown") this.flight.releaseControls();
+    if (loading || this.raceState === "countdown") this.flight.releaseControls();
     if (this.crashedAt !== null) {
       if (this.elapsed - this.crashedAt > RESPAWN_DELAY) this.respawnNow();
-    } else if (selfFlying && !waiting) {
+    } else if (selfFlying) {
       // On rails along the line: it never needs the land to steer clear of it, so no glide-in
       if (this.glide.active) this.glide.stop();
       this.accumulator += dt;
@@ -1263,9 +1224,9 @@ export class Game {
         this.accumulator -= STEP;
       }
       if (this.accumulator >= STEP) this.accumulator %= STEP;
-    } else if (loading && !waiting) {
+    } else if (loading) {
       this.glideIn(dt);
-    } else if (this.raceState !== "countdown" && !waiting && this.attract !== "drift") {
+    } else if (this.raceState !== "countdown" && this.attract !== "drift") {
       if (this.glide.active) this.handOver();
       this.accumulator += dt;
       let steps = 0;
@@ -1297,7 +1258,7 @@ export class Game {
       this.avatar.update(dt, this.flight.speed, this.smoothProximity);
       this.equipment.update(dt);
       // Frozen on the start line: no motes, or they pile up into a glowing ball
-      const moving = this.raceState !== "countdown" && !waiting;
+      const moving = this.raceState !== "countdown";
       this.fx.update(dt, this.flight.speed, this.flight.velocity, this.smoothProximity, moving);
       this.sparkles.update(dt, this.flight.velocity, moving && !this.attract);
       this.skimSpray(dt);
@@ -1326,17 +1287,17 @@ export class Game {
       this.rig.fall(body.position, dt, this.field);
     }
     this.avatar.showCosmeticHat(this.equipment.wearing("head") === null);
-    this.companion.update(dt, body, !crashed && !waiting && this.attract !== "drift", this.world.course, this.flight.speed);
+    this.companion.update(dt, body, !crashed && this.attract !== "drift", this.world.course, this.flight.speed);
     this.debris.update(dt);
 
     const camera = this.rig.camera;
     camera.updateMatrixWorld();
-    this.view.update(camera, worldDt, crashed ? undefined : this.flight.velocity);
+    this.view.update(camera, dt, crashed ? undefined : this.flight.velocity);
     this.gateMotes(dt);
     this.gateGlints(dt);
-    const flying = !crashed && this.raceState !== "countdown" && !waiting && this.attract !== "drift";
+    const flying = !crashed && this.raceState !== "countdown" && this.attract !== "drift";
     this.speedLines.update(dt, body.position, flying ? this.flight.velocity : tmp.set(0, 0, 0), camera, this.particles.budget);
-    this.ambient.update(worldDt, camera.position, flying ? this.flight.velocity : tmp.set(0, 0, 0), this.particles.budget);
+    this.ambient.update(dt, camera.position, flying ? this.flight.velocity : tmp.set(0, 0, 0), this.particles.budget);
 
     const liveTime = t - INTERPOLATION_DELAY_MS;
     this.live.forEach((pilot) => pilot.update(liveTime, dt, camera.position));
@@ -1365,7 +1326,7 @@ export class Game {
         : this.raceState === "finished"
           ? this.finishMs
           : null;
-    this.touch?.sync(this.paused, !this.frozen);
+    this.touch?.sync(this.paused, true);
     return {
       seed: this.world.seed,
       biomeName: this.world.biome.name,
@@ -1561,7 +1522,7 @@ export class Game {
   }
 
   /** Drops the bloom composer so it is rebuilt with the current FX settings */
-  rebuildBloom() {
+  private rebuildBloom() {
     this.composer?.dispose();
     this.bloomPass?.dispose();
     this.composer = null;

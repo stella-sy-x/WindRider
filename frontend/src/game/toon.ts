@@ -9,8 +9,11 @@ export const FX_LIGHT = {
   time: fxTime,
 };
 
-/** @deprecated Use FX_LIGHT instead */
-export const TOON_LIGHT = FX_LIGHT;
+/** Pure white, shared by effects that lerp or emit towards it. Never mutate it */
+export const WHITE = new THREE.Color("#ffffff");
+
+/** The local pilot's color: solo, test, the menu backdrop and the item gallery */
+export const PLAYER_COLOR = "#ff5d73";
 
 export interface MaterialOptions {
   emissive?: THREE.ColorRepresentation;
@@ -30,9 +33,4 @@ export function flatMaterial(options: MaterialOptions = {}): THREE.MeshLambertMa
     depthWrite: !ghost,
     emissive: options.emissive ?? 0x000000,
   });
-}
-
-/** @deprecated Use flatMaterial instead */
-export function toonMaterial(options: { rim?: number; rimColor?: THREE.ColorRepresentation; emissive?: THREE.ColorRepresentation; side?: THREE.Side; ghost?: boolean } = {}): THREE.MeshLambertMaterial {
-  return flatMaterial(options);
 }

@@ -1,9 +1,27 @@
 # Caddy serves the built game and forwards API requests to the backend.
 # In development, the Vite dev server does the same (see vite.config.ts).
 :8080 {
+	# The game loads nothing from other origins: scripts, styles, fonts, audio and the
+	# API all come from this host. Inline styles are allowed for React's style props.
+	header {
+		Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' blob:; worker-src 'self' blob:; connect-src 'self'; frame-ancestors 'none'"
+		X-Content-Type-Options nosniff
+		Referrer-Policy no-referrer
+		-Server
+	}
+
 	handle /api/* {
+		# The largest request is a finished run's ghost recording (well under 1 MB)
+		request_body {
+			max_size 2MB
+		}
 		# No `encode` (compression) here: it can hold back Server-Sent Events.
 		# Caddy flushes text/event-stream responses immediately by itself.
+		#
+		# X-User-Id / X-User-Name are NOT stripped here: the VIScon portal sits in front of
+		# this port and sets them on the request Caddy receives, so stripping them would log
+		# every pilot out. The backend trusts them only with TRUST_USER_HEADERS=1
+		# (docker-compose.yml) and never expose this port without the portal in front.
 		reverse_proxy backend:8000
 	}
 

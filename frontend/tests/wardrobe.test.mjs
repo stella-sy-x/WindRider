@@ -2,7 +2,6 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { WINGS } from "../src/game/cosmetics/catalog.ts";
 import { wingToken, buildWing } from "../src/game/cosmetics/wings.ts";
-import { SANDBOX_COLLECTION } from "../src/game/cosmetics/sandbox.ts";
 import { disposeModel } from "../src/game/cosmetics/models.ts";
 
 test("decorated wings have distinct bounded geometry, mirrored fans and finite toon attributes", () => {
@@ -31,20 +30,3 @@ test("decorated wings have distinct bounded geometry, mirrored fans and finite t
   assert.ok(signatures.size >= 6);
 });
 
-test("the offline sandbox exposes every item, cosmetic and existing pet without a solo-flight entry", async () => {
-  assert.equal(SANDBOX_COLLECTION.length,65);
-  assert.equal(new Set(SANDBOX_COLLECTION.map(e=>e.key)).size,65);
-  assert.equal(SANDBOX_COLLECTION.filter(e=>e.kind==="pet").length,8);
-  assert.ok(!SANDBOX_COLLECTION.some(e=>e.key==="pet:none"));
-  assert.ok(SANDBOX_COLLECTION.every(e=>e.xp===0));
-  const {ExploreSession}=await import("../src/session/ExploreSession.ts");
-  const calls=[];
-  const session=Object.create(ExploreSession.prototype);
-  session.game={testAppearance:look=>calls.push(["look",look]),equip:id=>calls.push(["item",id]),useItem:()=>calls.push(["use"]),setThrust:()=>{}};
-  session.testMode=false;
-  session.previewAppearance({wings:"astral"}); session.previewItem("firework");session.previewUseItem();
-  assert.deepEqual(calls,[]);
-  session.testMode=true;
-  session.previewAppearance({wings:"astral"});session.previewItem("firework");session.previewUseItem();
-  assert.deepEqual(calls,[["look",{wings:"astral"}],["item","firework"],["use"]]);
-});

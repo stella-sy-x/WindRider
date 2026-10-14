@@ -107,7 +107,8 @@ const MapSelect = ({ mode, daily, countdown, art = {}, onPreview, live, onPick, 
     [daily, rolled],
   );
   const [index, setIndex] = useState(0);
-  const [boards, setBoards] = useState<Record<number, LeaderboardEntry[]>>({});
+  // Each course's board once fetched, or "error" when the fetch failed
+  const [boards, setBoards] = useState<Record<number, LeaderboardEntry[] | "error">>({});
   const card = cards[index];
   const step = (by: number) => setIndex((i) => (i + by + cards.length) % cards.length);
   const pick = () => onPick(card.seed ?? randomSeed());
@@ -119,7 +120,10 @@ const MapSelect = ({ mode, daily, countdown, art = {}, onPreview, live, onPick, 
       onPreview?.(seed);
       getLeaderboard(seed, clientId())
         .then((entries) => setBoards((all) => ({ ...all, [seed]: entries })))
-        .catch(() => {});
+        .catch((e: unknown) => {
+          console.warn(`Couldn't load the leaderboard of course #${seed}`, e);
+          setBoards((all) => ({ ...all, [seed]: "error" }));
+        });
     }, PREVIEW_DELAY_MS);
     return () => clearTimeout(timer);
   }, [card.seed, onPreview, mode]);
@@ -287,8 +291,9 @@ const CardHead = ({ card, words }: { card: Card; words: (typeof WORDS)[MapSelect
 };
 
 /** The top three on a course, and your best if you're not among them */
-const Board = ({ entries }: { entries: LeaderboardEntry[] | undefined }) => {
+const Board = ({ entries }: { entries: LeaderboardEntry[] | "error" | undefined }) => {
   if (!entries) return <p className="course-empty">Loading best times…</p>;
+  if (entries === "error") return <p className="course-empty">Couldn't load leaderboard</p>;
   if (entries.length === 0) return <p className="course-empty">No times yet. Be the first!</p>;
   const me = entries.find((entry) => entry.is_me);
   return (

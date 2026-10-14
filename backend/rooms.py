@@ -7,10 +7,13 @@ tick loop relays one snapshot of the whole room back to everyone over SSE.
 
 import asyncio
 import json
+import logging
 import random
 import secrets
 import time
 from dataclasses import dataclass, field
+
+log = logging.getLogger(__name__)
 
 TICK_HZ = 15
 COUNTDOWN_MS = 5_000
@@ -262,8 +265,10 @@ class Room:
         player.moved = True
         player.last_seen = now if now is not None else now_ms()
 
-    def new_map(self, now: int | None = None, seed: int | None = None):
-        """Another map: the one picked in the map select, or a random one"""
+    def new_map(self, player: Player, now: int | None = None, seed: int | None = None):
+        """The host picks another map: the one from the map select, or a random one"""
+        if player.id != self.host_id:
+            raise RoomError("only the host can change the map")
         if self.phase != "lobby":
             raise RoomError("the map can only change in the lobby")
         self.seed = seed if seed is not None else random_seed()
@@ -401,6 +406,6 @@ class RoomManager:
         while True:
             try:
                 self.tick(now_ms())
-            except Exception as e:  # keep relaying even if one tick fails
-                print(f"Room tick failed: {e!r}")
+            except Exception:  # keep relaying even if one tick fails
+                log.exception("Room tick failed")
             await asyncio.sleep(1 / TICK_HZ)

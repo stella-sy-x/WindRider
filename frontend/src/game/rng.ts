@@ -53,10 +53,6 @@ export function pick<T>(rng: Rng, items: readonly T[]): T {
   return items[Math.floor(rng() * items.length)];
 }
 
-export function hashToUnit(text: string): number {
-  return hash128(text)[0] / 4294967296;
-}
-
 // The same course for everyone on the same (UTC) day
 export function dailySeed(date = new Date()): number {
   return 1 + (hash128(`daily/${date.toISOString().slice(0, 10)}`)[0] % 999_999);

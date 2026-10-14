@@ -5,11 +5,11 @@ import { BIOMES, type BiomeId, makeLevel } from "../game/world/biomes";
 import type { Settings } from "../storage";
 import { Store } from "./store";
 import { makeRng } from "../game/rng";
+import { PLAYER_COLOR } from "../game/toon";
 
-const COLOR = "#ff5d73";
 const ORDER = Object.keys(BIOMES) as BiomeId[];
 
-export interface ExploreState {
+export interface TestState {
   hud: HudState | null;
   error: string | null;
   biome: BiomeId;
@@ -21,23 +21,21 @@ export interface ExploreState {
 }
 
 /**
- * Free flight through any biome: no clock, nothing saved. Handy for looking at
- * the land. Worlds and lighting moods can be switched on the spot (the debug
- * panel and keys), without reloading, to check looks and music together.
+ * Test mode (`/?test`): free flight through any biome with debug shortcuts. No
+ * clock, nothing saved. Worlds and lighting moods can be switched on the spot
+ * (the debug panel and keys), without reloading, to check looks and music together.
  */
-export class ExploreSession {
+export class TestSession {
   readonly seed: number;
-  readonly store: Store<ExploreState>;
+  readonly store: Store<TestState>;
   private settings: Settings;
   private game: Game | null = null;
   private timer = 0;
-  readonly testMode: boolean;
 
-  constructor(biome: BiomeId, seed: number, settings: Settings, testMode = false) {
-    this.testMode = testMode;
+  constructor(biome: BiomeId, seed: number, settings: Settings) {
     this.seed = seed;
     this.settings = settings;
-    this.store = new Store<ExploreState>({
+    this.store = new Store<TestState>({
       hud: null,
       error: null,
       biome,
@@ -61,12 +59,12 @@ export class ExploreSession {
         level: this.level(biome, mood),
         clock: () => performance.now(),
         controls: this.settings,
-        color: COLOR,
-        testMode: this.testMode,
+        color: PLAYER_COLOR,
+        testMode: true,
         events: { hud: (hud) => this.store.set({ hud }), testSpeed: (speed) => this.store.set({ speed }) },
       });
     } catch (e) {
-      console.error(e);
+      if (import.meta.env.DEV) console.error(e);
       this.store.set({ error: `The game couldn't start: ${(e as Error).message}` });
     }
     // The music loads and starts a moment after the first click: keep the panel honest
@@ -102,9 +100,7 @@ export class ExploreSession {
 
   private updateUrl(biome: BiomeId) {
     const url = new URL(location.href);
-    // Test mode may have been opened as ?explore=…&test: keep one spelling
-    if (this.testMode) url.searchParams.delete("explore");
-    url.searchParams.set(this.testMode ? "test" : "explore", biome);
+    url.searchParams.set("test", biome);
     url.searchParams.set("seed", String(this.seed));
     history.replaceState(null, "", url.pathname + url.search + url.hash);
   }

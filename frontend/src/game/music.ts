@@ -7,7 +7,8 @@ import { AUDIO } from "./tuning";
 import type { BiomeId } from "./world/biomes/types";
 
 const TRACKS = {
-  sky: "audio/music/sky-isles_soaring-above-the-clouds.mp3",
+  // Written for the retired Sky Isles biome; the Archipelago plays it now (the file keeps its name)
+  archipelago: "audio/music/sky-isles_soaring-above-the-clouds.mp3",
   glacier: "audio/music/glacier_blue-shadows-over-cold-peaks.mp3",
   verdant: "audio/music/verdant_dewdrop-stream.mp3",
   twilight: "audio/music/twilight_blue-hour-fireflies.mp3",
@@ -18,7 +19,7 @@ type TrackId = keyof typeof TRACKS;
 
 /** Which track plays in which biome */
 const TRACK_OF: Record<BiomeId, TrackId> = {
-  archipelago: "sky",
+  archipelago: "archipelago",
   glacier: "glacier",
   aurora: "glacier", // until the finale gets a track of its own
   verdant: "verdant",
