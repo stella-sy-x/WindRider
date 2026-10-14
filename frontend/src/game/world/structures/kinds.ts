@@ -77,7 +77,7 @@ export const STRUCTURE_INFO: Record<StructureId, StructureInfo> = {
   },
   prayerPole: {
     aspect: [1, 1],
-    // (the strings of flags don't collide: only the pole and its cairn)
+    // (only the pole and its cairn collide)
     collider: { trunk: 0.05, top: 1, taper: 0.5, canopy: { y: 0.04, r: 0.14, h: 0.08 }, lean: 0 },
     sway: 0.02,
     glows: false,

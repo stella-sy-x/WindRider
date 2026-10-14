@@ -394,7 +394,7 @@ export class NoiseIsland extends BaseShape {
     this.anchor = { x, y, z, size };
     this.island = new Island(x, y, z, size, yaw, options.style);
     this.noise = noise;
-    this.amp = (options.amp ?? 0.16) * size;
+    this.amp = (options.amp ?? 0.08) * size;
     this.freq = 2.2 / size;
     this.terraces = options.terraces ?? 0;
     this.top = y;

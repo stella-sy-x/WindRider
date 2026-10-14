@@ -1,6 +1,6 @@
 import * as THREE from "three";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
-import { outlineMaterial, toonMaterial } from "./toon";
+import { flatMaterial } from "./toon";
 import { ATMOSPHERE } from "./world/atmosphere";
 import { ANIM, FX, COSMETIC_FX } from "./tuning";
 import { clamp, smoothstep } from "./math";
@@ -11,9 +11,10 @@ import { buildWing } from "./cosmetics/wings";
 import type { Appearance } from "./cosmetics/storage";
 import { buildHat, buildShoe, disposeModel } from "./cosmetics/models";
 
-// The pilot: a small cel-shaded flyer with Genshin / Sky proportions (a big
-// head, slim limbs), a Sky-style cape, a scarf, and a pair of feathered
-// glider wings on the back. Everything is built from primitives at runtime.
+// The pilot: a small low-poly flyer with chibi proportions (a big
+// head, slim limbs), a flowing cape, a scarf, and a pair of chunky glider
+// wings on the back (cosmetics/wings.ts, hung on the animated wing joints).
+// Everything is built from primitives at runtime.
 //
 // The body is modelled standing (up +y, facing -z, right +x) and then laid
 // prone, so the head points along the flight direction (-z) and the back faces
@@ -132,13 +133,41 @@ function likeness(a: THREE.Color, b: THREE.Color): number {
   return 1 - smoothstep(0.03, 0.22, d);
 }
 
-/** Writes vertex colors, and a glow for the gold trims and the wingtips (they light up at night) */
+/**
+ * Writes vertex colors, and a glow for the gold trims and the wingtips (they light up at night).
+ *
+ * Non-indexed geometry (the body parts, three vertices per triangle) is painted once per
+ * face at the triangle's centroid, and all three corners get that color, so the parts
+ * read as flat facets like the terrain instead of smooth gradients. Indexed geometry
+ * (the cloth grids share vertices between faces) keeps per-vertex paint.
+ */
 function applyPaint({ geometry, ranges }: Painted, tones: Tones) {
   const position = geometry.getAttribute("position");
   const color = geometry.getAttribute("color") as THREE.BufferAttribute;
   const glow = geometry.getAttribute("glow") as THREE.BufferAttribute;
+  const perFace = !geometry.index;
   for (const { start, count, paint } of ranges) {
-    for (let i = start; i < start + count; i++) {
+    const end = start + count;
+    const facesEnd = perFace ? start + count - (count % 3) : start;
+    // Whole triangles: one paint call at the centroid, written to all three corners
+    for (let i = start; i < facesEnd; i += 3) {
+      if (typeof paint === "string") paintColor.copy(tones[paint]);
+      else {
+        paintPoint.set(
+          (position.getX(i) + position.getX(i + 1) + position.getX(i + 2)) / 3,
+          (position.getY(i) + position.getY(i + 1) + position.getY(i + 2)) / 3,
+          (position.getZ(i) + position.getZ(i + 1) + position.getZ(i + 2)) / 3,
+        );
+        paint(paintPoint, tones, paintColor, i - start);
+      }
+      const g = Math.max(likeness(paintColor, tones.trim), likeness(paintColor, tones.tip) * 0.8);
+      for (let k = 0; k < 3; k++) {
+        color.setXYZ(i + k, paintColor.r, paintColor.g, paintColor.b);
+        glow.setX(i + k, g);
+      }
+    }
+    // Leftover vertices (indexed geometry, or a count that is not a multiple of 3): per vertex
+    for (let i = facesEnd; i < end; i++) {
       if (typeof paint === "string") paintColor.copy(tones[paint]);
       else paint(paintPoint.fromBufferAttribute(position, i), tones, paintColor, i - start);
       color.setXYZ(i, paintColor.r, paintColor.g, paintColor.b);
@@ -149,22 +178,10 @@ function applyPaint({ geometry, ranges }: Painted, tones: Tones) {
   glow.needsUpdate = true;
 }
 
-/** A leaf-shaped feather with a little thickness, lying along +x */
-function feather(length: number, width: number): THREE.BufferGeometry {
-  const shape = new THREE.Shape();
-  shape.moveTo(0, -width * 0.5);
-  shape.quadraticCurveTo(length * 0.55, -width * 0.75, length, 0);
-  shape.quadraticCurveTo(length * 0.55, width * 0.75, 0, width * 0.5);
-  shape.closePath();
-  const geometry = new THREE.ExtrudeGeometry(shape, { depth: 0.014, bevelEnabled: false, curveSegments: 5 });
-  geometry.translate(0, 0, -0.007);
-  return geometry;
-}
-
-const sphere = (r: number, w = 14, h = 10) => new THREE.SphereGeometry(r, w, h);
-const capsule = (r: number, length: number) => new THREE.CapsuleGeometry(r, length, 4, 10, 1);
-const cyl = (top: number, bottom: number, h: number, n = 10) => new THREE.CylinderGeometry(top, bottom, h, n, 1);
-const lathe = (profile: [number, number][], n = 14) =>
+const sphere = (r: number, w = 6, h = 4) => new THREE.SphereGeometry(r, w, h);
+const capsule = (r: number, length: number) => new THREE.CapsuleGeometry(r, length, 3, 5, 1);
+const cyl = (top: number, bottom: number, h: number, n = 6) => new THREE.CylinderGeometry(top, bottom, h, n, 1);
+const lathe = (profile: [number, number][], n = 8) =>
   new THREE.LatheGeometry(
     profile.map(([r, y]) => new THREE.Vector2(r, y)),
     n,
@@ -329,8 +346,6 @@ export interface AvatarOptions {
 }
 
 interface Side {
-  innerMesh: THREE.Mesh;
-  outerMesh: THREE.Mesh;
   boot: THREE.Mesh;
   shoulder: THREE.Object3D;
   elbow: THREE.Object3D;
@@ -381,6 +396,8 @@ export class Avatar {
   private shoes: THREE.Group[] = [];
   private appearance: Appearance = { cape: "classic", hat: "none", shoes: "classic", wings: "classic", pet: "none" };
   private wingModels: ReturnType<typeof buildWing>[] = [];
+  /** The wings' material on a ghost (faded with the body); solid pilots keep the cosmetics' shared one */
+  private readonly wingMat: THREE.Material;
   get wingStyle(): WingId { return this.appearance.wings; }
   private readonly scarf: Cloth[];
   // Conservative bounds of the animated legs, reused for cloth self-collision.
@@ -388,9 +405,12 @@ export class Avatar {
   private readonly clothInverse = new THREE.Matrix4();
   private readonly clothMatrix = new THREE.Matrix4();
   private readonly painted: Painted[] = [];
-  private readonly outlines: THREE.Mesh[] = [];
   private readonly materials: THREE.Material[] = [];
+  /** A soft round glow behind the body that silhouettes it against the scenery; looks only */
   private readonly aura: THREE.Sprite;
+  private readonly auraMaterial: THREE.SpriteMaterial;
+  /** A ghost's current fade (see `fade`); dims its aura along with the body */
+  private ghostFade = 1;
   private tones: Tones;
   private readonly ghost: boolean;
 
@@ -452,10 +472,9 @@ export class Avatar {
     this.ghost = !!options.ghost;
     this.tones = tonesFor(color);
     const ghost = this.ghost;
-    const skinMat = this.material(toonMaterial({ ghost }));
-    const clothMat = this.material(toonMaterial({ ghost, side: THREE.DoubleSide, rim: 0.3 }));
-    const wingMat = this.material(toonMaterial({ ghost, side: THREE.DoubleSide, rim: 0.3, rimColor: "#ffffff" }));
-    const ink = ghost ? null : this.material(outlineMaterial(0.012));
+    const skinMat = this.material(flatMaterial({ ghost }));
+    const clothMat = this.material(flatMaterial({ ghost, side: THREE.DoubleSide }));
+    this.wingMat = this.material(flatMaterial({ ghost, side: THREE.DoubleSide }));
 
     this.group.add(this.rig);
     this.rig.add(this.body);
@@ -466,16 +485,11 @@ export class Avatar {
     skeleton.position.y = -0.74;
     this.body.add(skeleton);
 
-    const part = (joint: THREE.Object3D, builder: PartBuilder, material = skinMat, outline = true) => {
+    const part = (joint: THREE.Object3D, builder: PartBuilder, material = skinMat) => {
       const painted = builder.build();
       this.painted.push(painted);
       const mesh = new THREE.Mesh(painted.geometry, material);
       joint.add(mesh);
-      if (ink && outline) {
-        const outline = new THREE.Mesh(painted.geometry, ink);
-        mesh.add(outline);
-        this.outlines.push(outline);
-      }
       return mesh;
     };
     const clothObstacle = (mesh: THREE.Mesh) => {
@@ -504,7 +518,7 @@ export class Avatar {
           [0, 0, 0],
           [1, 1, 0.8],
         )
-        .add(cyl(0.1, 0.1, 0.035, 14), "dark", [0, 0.06, 0], [0, 0, 0], [1, 1, 0.8])
+        .add(cyl(0.1, 0.1, 0.035, 6), "dark", [0, 0.06, 0], [0, 0, 0], [1, 1, 0.8])
         .add(new THREE.OctahedronGeometry(0.026, 0), "trim", [0, 0.06, -0.082]),
     );
 
@@ -533,10 +547,10 @@ export class Avatar {
           [0, 0, 0],
           [1, 1, 0.78],
         )
-        .add(new THREE.TorusGeometry(0.05, 0.02, 6, 16), "trim", [0, 0.27, 0], [Math.PI / 2, 0, 0], [1, 1, 0.9])
-        .add(cyl(0.034, 0.038, 0.07, 10), "skin", [0, 0.3, 0])
-        .add(sphere(0.055, 10, 8), "clothLight", [0.1, 0.22, 0], [0, 0, 0], [1, 0.85, 0.85])
-        .add(sphere(0.055, 10, 8), "clothLight", [-0.1, 0.22, 0], [0, 0, 0], [1, 0.85, 0.85]),
+        .add(new THREE.TorusGeometry(0.05, 0.02, 5, 6), "trim", [0, 0.27, 0], [Math.PI / 2, 0, 0], [1, 1, 0.9])
+        .add(cyl(0.034, 0.038, 0.07, 6), "skin", [0, 0.3, 0])
+        .add(sphere(0.055, 6, 4), "clothLight", [0.1, 0.22, 0], [0, 0, 0], [1, 0.85, 0.85])
+        .add(sphere(0.055, 6, 4), "clothLight", [-0.1, 0.22, 0], [0, 0, 0], [1, 0.85, 0.85]),
     );
 
     // Head: big and round, a soft jaw and cheeks under it, and the face drawn on in layers
@@ -547,17 +561,17 @@ export class Avatar {
     const lip: Paint = (_p, t, out) => out.copy(t.blush).lerp(t.eye, 0.35);
     const nose: Paint = (_p, t, out) => out.copy(t.skin).lerp(t.blush, 0.3);
     part(this.head, new PartBuilder()
-      .add(sphere(0.165, 20, 14), "skin", [0, 0.15, 0], [0, 0, 0], [1, 0.97, 0.98])
+      .add(sphere(0.165, 8, 6), "skin", [0, 0.15, 0], [0, 0, 0], [1, 0.97, 0.98])
       // Cheeks and a small rounded chin give the face its front, so it takes light like a sculpted shape
-      .add(sphere(0.13, 18, 12), "skin", [0, 0.09, -0.04], [0, 0, 0], [1.04, 0.84, 0.95])
-      .add(sphere(0.045, 10, 8), "skin", [0.075, 0.085, -0.115], [0, 0, 0], [1, 0.85, 0.7])
-      .add(sphere(0.045, 10, 8), "skin", [-0.075, 0.085, -0.115], [0, 0, 0], [1, 0.85, 0.7]));
+      .add(sphere(0.13, 8, 6), "skin", [0, 0.09, -0.04], [0, 0, 0], [1.04, 0.84, 0.95])
+      .add(sphere(0.045, 6, 4), "skin", [0.075, 0.085, -0.115], [0, 0, 0], [1, 0.85, 0.7])
+      .add(sphere(0.045, 6, 4), "skin", [-0.075, 0.085, -0.115], [0, 0, 0], [1, 0.85, 0.7]));
     // Small features without ink, which would swallow them
     part(this.head, new PartBuilder()
-      .add(sphere(0.013, 8, 6), nose, [0, 0.102, -0.166], [0, 0, 0], [0.85, 0.8, 1.25])
-      .add(new THREE.TorusGeometry(0.017, 0.004, 4, 10, Math.PI * 0.75), lip, [0, 0.066, -0.158], [0.35, 0, Math.PI * 1.125])
-      .add(sphere(0.02, 8, 6), "blush", [0.08, 0.09, -0.143], [0, 0.5, 0], [1.2, 0.6, 0.3])
-      .add(sphere(0.02, 8, 6), "blush", [-0.08, 0.09, -0.143], [0, -0.5, 0], [1.2, 0.6, 0.3]), skinMat, false);
+      .add(sphere(0.013, 6, 4), nose, [0, 0.102, -0.166], [0, 0, 0], [0.85, 0.8, 1.25])
+      .add(new THREE.TorusGeometry(0.017, 0.004, 4, 6, Math.PI * 0.75), lip, [0, 0.066, -0.158], [0.35, 0, Math.PI * 1.125])
+      .add(sphere(0.02, 6, 4), "blush", [0.08, 0.09, -0.143], [0, 0.5, 0], [1.2, 0.6, 0.3])
+      .add(sphere(0.02, 6, 4), "blush", [-0.08, 0.09, -0.143], [0, -0.5, 0], [1.2, 0.6, 0.3]), skinMat);
 
     // Two styles, swapped by `setStyle`: 1 has the ponytail, bangs and big lashed eyes; 2 short tousled hair and straighter brows
     for (const style of [1, 2] as const) {
@@ -567,50 +581,47 @@ export class Avatar {
       this.styles.push(look);
       const one = style === 1;
       const hairBuilder = new PartBuilder()
-        .add(new THREE.SphereGeometry(0.178, 20, 12, 0, TAU, 0, Math.PI * 0.58), hair, [0, 0.165, 0.008], [0.35, 0, 0]);
+        .add(new THREE.SphereGeometry(0.178, 6, 4, 0, TAU, 0, Math.PI * 0.58), hair, [0, 0.165, 0.008], [0.35, 0, 0]);
       if (one) {
         hairBuilder
-          .add(sphere(0.12, 12, 8), hair, [0, 0.17, 0.07], [0, 0, 0], [1.3, 1.25, 1.1])
+          .add(sphere(0.12, 6, 4), hair, [0, 0.17, 0.07], [0, 0, 0], [1.3, 1.25, 1.1])
           // Side locks and bangs hang down (cones point up, so flip them)
-          .add(new THREE.ConeGeometry(0.045, 0.17, 8), hair, [0.14, 0.06, -0.035], [Math.PI + 0.1, 0, -0.12])
-          .add(new THREE.ConeGeometry(0.045, 0.17, 8), hair, [-0.14, 0.06, -0.035], [Math.PI + 0.1, 0, 0.12])
-          .add(new THREE.ConeGeometry(0.038, 0.12, 7), hair, [0.065, 0.205, -0.125], [Math.PI + 0.45, 0, 0.3])
-          .add(new THREE.ConeGeometry(0.04, 0.13, 7), hair, [-0.01, 0.21, -0.135], [Math.PI + 0.4, 0, -0.05])
-          .add(new THREE.ConeGeometry(0.034, 0.11, 7), hair, [-0.085, 0.2, -0.12], [Math.PI + 0.45, 0, -0.35])
-          .add(new THREE.ConeGeometry(0.018, 0.14, 6), hair, [0.02, 0.36, -0.01], [-0.7, 0, 0.2])
+          .add(new THREE.ConeGeometry(0.045, 0.17, 5), hair, [0.14, 0.06, -0.035], [Math.PI + 0.1, 0, -0.12])
+          .add(new THREE.ConeGeometry(0.045, 0.17, 5), hair, [-0.14, 0.06, -0.035], [Math.PI + 0.1, 0, 0.12])
+          .add(new THREE.ConeGeometry(0.038, 0.12, 5), hair, [0.065, 0.205, -0.125], [Math.PI + 0.45, 0, 0.3])
+          .add(new THREE.ConeGeometry(0.04, 0.13, 5), hair, [-0.01, 0.21, -0.135], [Math.PI + 0.4, 0, -0.05])
+          .add(new THREE.ConeGeometry(0.034, 0.11, 5), hair, [-0.085, 0.2, -0.12], [Math.PI + 0.45, 0, -0.35])
+          .add(new THREE.ConeGeometry(0.018, 0.14, 5), hair, [0.02, 0.36, -0.01], [-0.7, 0, 0.2])
           // A tiny hair clip
           .add(new THREE.OctahedronGeometry(0.03, 0), "trim", [0.15, 0.22, -0.04], [0, 0, 0.6], [1, 1.4, 0.6]);
       } else {
         hairBuilder
-          .add(sphere(0.115, 12, 8), hair, [0, 0.16, 0.06], [0, 0, 0], [1.32, 1.18, 1.08])
+          .add(sphere(0.115, 6, 4), hair, [0, 0.16, 0.06], [0, 0, 0], [1.32, 1.18, 1.08])
           // Short side burns and a tousled fringe swept to one side
-          .add(new THREE.ConeGeometry(0.038, 0.1, 7), hair, [0.145, 0.1, -0.03], [Math.PI + 0.1, 0, -0.1])
-          .add(new THREE.ConeGeometry(0.038, 0.1, 7), hair, [-0.145, 0.1, -0.03], [Math.PI + 0.1, 0, 0.1])
-          .add(new THREE.ConeGeometry(0.042, 0.11, 7), hair, [0.075, 0.225, -0.12], [Math.PI + 0.75, 0, 0.55])
-          .add(new THREE.ConeGeometry(0.044, 0.12, 7), hair, [0.005, 0.235, -0.13], [Math.PI + 0.7, 0, 0.35])
-          .add(new THREE.ConeGeometry(0.04, 0.1, 7), hair, [-0.075, 0.225, -0.12], [Math.PI + 0.75, 0, 0.1])
+          .add(new THREE.ConeGeometry(0.038, 0.1, 5), hair, [0.145, 0.1, -0.03], [Math.PI + 0.1, 0, -0.1])
+          .add(new THREE.ConeGeometry(0.038, 0.1, 5), hair, [-0.145, 0.1, -0.03], [Math.PI + 0.1, 0, 0.1])
+          .add(new THREE.ConeGeometry(0.042, 0.11, 5), hair, [0.075, 0.225, -0.12], [Math.PI + 0.75, 0, 0.55])
+          .add(new THREE.ConeGeometry(0.044, 0.12, 5), hair, [0.005, 0.235, -0.13], [Math.PI + 0.7, 0, 0.35])
+          .add(new THREE.ConeGeometry(0.04, 0.1, 5), hair, [-0.075, 0.225, -0.12], [Math.PI + 0.75, 0, 0.1])
           // Spikes on the crown and the nape, swept back by the wind
-          .add(new THREE.ConeGeometry(0.04, 0.12, 7), hair, [0.03, 0.33, 0.02], [-0.9, 0, -0.25])
-          .add(new THREE.ConeGeometry(0.04, 0.12, 7), hair, [-0.05, 0.31, 0.06], [-1.2, 0, 0.3])
-          .add(new THREE.ConeGeometry(0.045, 0.11, 7), hair, [0.05, 0.12, 0.15], [-2.4, 0, -0.2])
-          .add(new THREE.ConeGeometry(0.045, 0.11, 7), hair, [-0.05, 0.12, 0.15], [-2.4, 0, 0.2]);
+          .add(new THREE.ConeGeometry(0.04, 0.12, 5), hair, [0.03, 0.33, 0.02], [-0.9, 0, -0.25])
+          .add(new THREE.ConeGeometry(0.04, 0.12, 5), hair, [-0.05, 0.31, 0.06], [-1.2, 0, 0.3])
+          .add(new THREE.ConeGeometry(0.045, 0.11, 5), hair, [0.05, 0.12, 0.15], [-2.4, 0, -0.2])
+          .add(new THREE.ConeGeometry(0.045, 0.11, 5), hair, [-0.05, 0.12, 0.15], [-2.4, 0, 0.2]);
       }
       part(look, hairBuilder);
-      // Eyes: a dark almond, a lit iris in its lower half, two highlights, a lash line and a brow
+      // Eyes: a dark almond, a lit iris in its lower half and a highlight (lash lines and brows to be redone chunky)
       const eyes = new PartBuilder();
       for (const s of [1, -1]) {
         const x = 0.058 * s, y = one ? 0.13 : 0.128, turn = 0.38 * s;
         eyes
-          .add(sphere(one ? 0.027 : 0.025, 12, 8), "eye", [x, y, -0.149], [0, turn, 0], one ? [0.85, 1.25, 0.5] : [0.92, 1.02, 0.5])
-          .add(sphere(0.018, 10, 8), iris, [x, y - 0.012, -0.158], [0, turn, 0], [0.85, 0.85, 0.35])
-          .add(sphere(0.008, 6, 5), "white", [x + 0.007 * s, y + 0.013, -0.166])
-          .add(sphere(0.004, 5, 4), "white", [x - 0.008 * s, y - 0.016, -0.166])
-          .add(capsule(0.0045, one ? 0.05 : 0.044), "eye", [x, y + (one ? 0.031 : 0.025), -0.156], [0, turn, Math.PI / 2 - 0.14 * s])
-          .add(capsule(one ? 0.0035 : 0.006, one ? 0.034 : 0.04), "hair", [x + 0.004 * s, y + (one ? 0.06 : 0.05), -0.155], [0, turn, Math.PI / 2 + (one ? 0.2 : 0.05) * s]);
+          .add(sphere(one ? 0.027 : 0.025, 6, 4), "eye", [x, y, -0.149], [0, turn, 0], one ? [0.85, 1.25, 0.5] : [0.92, 1.02, 0.5])
+          .add(sphere(0.018, 6, 4), iris, [x, y - 0.012, -0.158], [0, turn, 0], [0.85, 0.85, 0.35])
+          .add(sphere(0.008, 6, 4), "white", [x + 0.007 * s, y + 0.013, -0.166]);
         // Style 1's lashes flick up at the outer corner
         if (one) eyes.add(new THREE.ConeGeometry(0.006, 0.022, 5), "eye", [x + 0.026 * s, y + 0.03, -0.148], [0, turn, -1.1 * s]);
       }
-      part(look, eyes, skinMat, false);
+      part(look, eyes, skinMat);
     }
 
     // A ponytail in two links that swing (style 1)
@@ -624,8 +635,8 @@ export class Avatar {
       joint.position.set(...ponyAt[i]);
       parent.add(joint);
       const builder = new PartBuilder();
-      if (i === 0) builder.add(new THREE.TorusGeometry(0.03, 0.012, 6, 12), "trim", [0, 0, 0], [Math.PI / 2, 0, 0]);
-      builder.add(sphere(0.06 - i * 0.012, 10, 8), "hair", [0, -0.07, 0], [0, 0, 0], [1, 1.6, 0.9]);
+      if (i === 0) builder.add(new THREE.TorusGeometry(0.03, 0.012, 5, 6), "trim", [0, 0, 0], [Math.PI / 2, 0, 0]);
+      builder.add(sphere(0.06 - i * 0.012, 6, 4), "hair", [0, -0.07, 0], [0, 0, 0], [1, 1.6, 0.9]);
       part(joint, builder);
       this.pony.push(joint);
       parent = joint;
@@ -639,9 +650,9 @@ export class Avatar {
       part(
         shoulder,
         new PartBuilder()
-          .add(sphere(0.05, 10, 8), "clothLight", [0, -0.02, 0])
+          .add(sphere(0.05, 6, 4), "clothLight", [0, -0.02, 0])
           .add(capsule(0.036, 0.13), "clothLight", [0, -0.1, 0])
-          .add(new THREE.TorusGeometry(0.037, 0.01, 5, 12), "trim", [0, -0.17, 0], [Math.PI / 2, 0, 0]),
+          .add(new THREE.TorusGeometry(0.037, 0.01, 5, 6), "trim", [0, -0.17, 0], [Math.PI / 2, 0, 0]),
       );
       const elbow = new THREE.Object3D();
       elbow.position.set(0, -0.19, 0);
@@ -650,8 +661,8 @@ export class Avatar {
         elbow,
         new PartBuilder()
           .add(capsule(0.03, 0.13), "skin", [0, -0.08, 0])
-          .add(cyl(0.036, 0.033, 0.05, 10), "white", [0, -0.12, 0])
-          .add(sphere(0.036, 10, 8), "skin", [0, -0.19, 0], [0, 0, 0], [0.75, 1.15, 0.45]),
+          .add(cyl(0.036, 0.033, 0.05, 6), "white", [0, -0.12, 0])
+          .add(sphere(0.036, 6, 4), "skin", [0, -0.19, 0], [0, 0, 0], [0.75, 1.15, 0.45]),
       );
 
       const hip = new THREE.Object3D();
@@ -665,63 +676,36 @@ export class Avatar {
         knee,
         new PartBuilder()
           .add(capsule(0.042, 0.18), "dark", [0, -0.13, 0])
-          .add(new THREE.TorusGeometry(0.046, 0.013, 6, 12), "trim", [0, -0.03, 0], [Math.PI / 2, 0, 0])
+          .add(new THREE.TorusGeometry(0.046, 0.013, 5, 6), "trim", [0, -0.03, 0], [Math.PI / 2, 0, 0])
           // Pointed toes, like a dancer's
           .add(capsule(0.034, 0.08), "dark", [0, -0.3, -0.012], [0.25, 0, 0]),
       ));
 
-      // Wings: an inner arm-wing and an outer hand-wing, each a fan of feathers
+      // Wing joints: an inner arm-wing and an outer hand-wing. The geometry hangs off them
+      // (`mountWings`); the tip and trail markers sit where the longest and shortest primaries end
       const wing = new THREE.Object3D();
       wing.position.set(0.05 * s, 0.17, 0.12);
       wing.rotation.order = "YZX";
       this.chest.add(wing);
-      const featherPaint: Paint = (p, t, out) => {
-        const d = p.length();
-        out.copy(t.cloth).lerp(t.clothLight, smoothstep(0.05, 0.6, d)).lerp(t.white, smoothstep(0.5, 0.9, d) * 0.6);
-      };
-      const inner = new PartBuilder().add(capsule(0.022, 0.5), "trim", [0.27 * s, 0.03, 0], [0, 0, Math.PI / 2 - 0.12 * s]);
-      for (let i = 0; i < 4; i++) {
-        const angle = -0.9 - i * 0.22; // fanning back towards the feet
-        inner.add(feather(0.5 + i * 0.05, 0.13), featherPaint, [(0.08 + i * 0.13) * s, 0.02 + i * 0.012, 0.004 * i], [
-          0,
-          0,
-          s > 0 ? angle : Math.PI - angle,
-        ]);
-      }
-      const innerMesh = part(wing, inner, wingMat);
       const wingOuter = new THREE.Object3D();
       wingOuter.position.set(0.54 * s, 0.07, 0);
       wingOuter.rotation.order = "YZX";
       wing.add(wingOuter);
-      const tipPaint: Paint = (p, t, out) => {
-        const d = p.length();
-        out.copy(t.clothLight).lerp(t.white, smoothstep(0.05, 0.4, d) * 0.5).lerp(t.tip, smoothstep(0.45, 0.95, d));
-      };
-      const outer = new PartBuilder().add(capsule(0.018, 0.3), "trim", [0.15 * s, -0.02, 0], [0, 0, Math.PI / 2 + 0.25 * s]);
-      const primaries = 5;
-      for (let i = 0; i < primaries; i++) {
-        const angle = 0.12 - i * 0.3;
-        const length = 0.98 - i * 0.1;
-        outer.add(feather(length, 0.15), tipPaint, [(0.05 + i * 0.045) * s, -0.02 * i, 0.004 * i], [
-          0,
-          0,
-          s > 0 ? angle : Math.PI - angle,
-        ]);
-      }
-      const outerMesh = part(wingOuter, outer, wingMat);
       const tip = new THREE.Object3D();
       tip.position.set((0.05 + 0.98 * Math.cos(0.12)) * s, 0.98 * Math.sin(0.12), 0);
       wingOuter.add(tip);
+      const primaries = 5;
       const last = 0.12 - (primaries - 1) * 0.3;
       const lastLength = 0.98 - (primaries - 1) * 0.1;
       const trail = new THREE.Object3D();
       trail.position.set((0.05 + (primaries - 1) * 0.045 + lastLength * Math.cos(last)) * s, -0.02 * (primaries - 1) + lastLength * Math.sin(last), 0);
       wingOuter.add(trail);
 
-      return { shoulder, elbow, hip, knee, wing, wingOuter, tip, trail, boot, innerMesh, outerMesh };
+      return { shoulder, elbow, hip, knee, wing, wingOuter, tip, trail, boot };
     };
     this.right = makeSide(1);
     this.left = makeSide(-1);
+    this.mountWings(this.appearance.wings);
 
     // Item slots: between the shoulder blades over the cape, the middle of the head, the right palm
     const back = new THREE.Object3D();
@@ -779,20 +763,18 @@ export class Avatar {
       return tail;
     });
 
-    // A soft glow around the body, like a Sky child's light
-    this.aura = new THREE.Sprite(
-      new THREE.SpriteMaterial({
-        map: glowTexture(),
-        color: this.tones.clothLight,
-        blending: THREE.AdditiveBlending,
-        transparent: true,
-        depthWrite: false,
-        opacity: 0.25,
-      }),
-    );
-    this.materials.push(this.aura.material);
-    this.aura.scale.setScalar(1.8);
-    this.rig.add(this.aura);
+    // A soft, diffused halo behind the body, tinted in the outfit's light tone
+    this.auraMaterial = new THREE.SpriteMaterial({
+      map: glowTexture(),
+      blending: THREE.AdditiveBlending,
+      transparent: true,
+      depthWrite: false,
+      fog: true,
+    });
+    this.aura = new THREE.Sprite(this.auraMaterial);
+    this.aura.scale.setScalar(AURA_SCALE);
+    this.aura.renderOrder = 3;
+    this.group.add(this.aura);
 
     this.repaint();
     this.applyPose(0);
@@ -811,7 +793,14 @@ export class Avatar {
         applyPaint(painted, capeTones);
       } else applyPaint(painted, this.tones);
     }
-    (this.aura.material as THREE.SpriteMaterial).color.copy(this.tones.clothLight);
+    this.auraMaterial.color.copy(this.tones.clothLight);
+  }
+
+  /** The halo's opacity this frame, 0..1 before tuning; ghosts wear a dimmer one that thins out with them */
+  private setAuraOpacity(k: number) {
+    const value = AURA_OPACITY * k * FX.aura * (1 + ATMOSPHERE.night.value * 1.5) * (this.ghost ? 0.3 * this.ghostFade : 1);
+    this.auraMaterial.opacity = value;
+    this.aura.visible = value > 0.01;
   }
 
   setColor(color: string) {
@@ -827,18 +816,20 @@ export class Avatar {
     this.styles.forEach((look, i) => (look.visible = i + 1 === style));
   }
 
+  /** Hangs a wing style's chunky paddles on both sides' wing joints, replacing the last pair */
+  private mountWings(id: WingId) {
+    this.wingModels.forEach(model => model.dispose()); this.wingModels = [];
+    for (const [side, sign] of [[this.left, -1], [this.right, 1]] as const) {
+      const model = buildWing(id, sign);
+      // Ghosts fade as a whole: their wings take the avatar's translucent material
+      if (this.ghost) for (const piece of [model.inner, model.outer]) piece.traverse(o => { if (o instanceof THREE.Mesh) o.material = this.wingMat; });
+      side.wing.add(model.inner); side.wingOuter.add(model.outer); this.wingModels.push(model);
+    }
+  }
+
   setAppearance(appearance: Appearance) {
     if (this.ghost) return;
-    if (appearance.wings !== this.appearance.wings) {
-      this.wingModels.forEach(model => model.dispose()); this.wingModels = [];
-      for (const [side, sign] of [[this.left, -1], [this.right, 1]] as const) {
-        side.innerMesh.visible = side.outerMesh.visible = appearance.wings === "classic";
-        if (appearance.wings !== "classic") {
-          const model = buildWing(appearance.wings, sign);
-          side.wing.add(model.inner); side.wingOuter.add(model.outer); this.wingModels.push(model);
-        }
-      }
-    }
+    if (appearance.wings !== this.appearance.wings) this.mountWings(appearance.wings);
     if (appearance.hat !== this.appearance.hat) {
       if (this.hat) disposeModel(this.hat);
       this.hat = appearance.hat === "none" ? null : buildHat(appearance.hat);
@@ -968,7 +959,6 @@ export class Avatar {
     const far = distance > 110;
     if (far !== !this.detailed) {
       this.detailed = !far;
-      this.outlines.forEach((o) => (o.visible = this.detailed));
     }
     this.applyPose(dt, proximity);
   }
@@ -1020,7 +1010,7 @@ export class Avatar {
       side.wing.rotation.set(-0.15 * Math.cos(this.flapPhase) * amp, -lift(s) * s, (-0.18 - sweep) * s);
       side.wingOuter.rotation.set(0, -(amp * 0.8 * strokeOuter + 0.05) * s, (-0.1 - sweep * 0.7) * s);
 
-      // Arms reach out like a Sky glide and follow the wings a little
+      // Arms reach out in a glide pose and follow the wings a little
       const glide = 1.3 - speedK * 0.35 - barrelTuck * 0.5 + this.brake * 0.25 - this.boost * 0.15;
       const armLift = 0.25 + stroke * amp * 0.35 + turn * 0.25 * s * A.limbSwing;
       side.shoulder.rotation.set(0, -armLift * s, glide * s);
@@ -1047,10 +1037,10 @@ export class Avatar {
     this.pony[0].rotation.set(-1.25 + this.pitchRate * 0.1 + sway * 0.5, 0, -turn * 0.4 + sway);
     this.pony[1].rotation.set(0.25 + sway * 0.4, 0, sway * 1.2);
 
-    // Aura breathes with the flaps and burns brighter when skimming
-    const auraMat = this.aura.material as THREE.SpriteMaterial;
-    auraMat.opacity = (0.14 + 0.08 * Math.max(0, stroke) * this.effort + proximity * 0.25) * FX.aura * (1 + ATMOSPHERE.night.value * 1.5);
-    this.aura.visible = auraMat.opacity > 0.01;
+    // Aura: a faint halo when cruising, a touch brighter with speed and skimming the ground...
+    this.setAuraOpacity(0.4 + speedK * 0.6 + proximity * 0.3);
+    // ...with a gentle living pulse in its size
+    this.aura.scale.setScalar(AURA_SCALE * (1 + 0.03 * Math.sin(t * 1.5)));
 
     if (!this.detailed && dt > 0) return;
     this.clothTime += dt * (4.5 + this.speed * 0.11) * A.clothSpeed;
@@ -1109,7 +1099,7 @@ export class Avatar {
   private clearCloth(out: THREE.Vector3) {
     for (const { bounds } of this.clothObstacles) {
       // Cover half a cloth grid cell beyond the bounds so triangles between
-      // samples also clear the boots. The z gap includes their ink outlines.
+      // samples also clear the boots.
       const dx = Math.max(bounds.min.x - out.x, out.x - bounds.max.x, 0);
       const dy = Math.max(bounds.min.y - out.y, out.y - bounds.max.y, 0);
       const drape = 1 - smoothstep(0.06, 0.12, Math.max(dx, dy));
@@ -1204,9 +1194,9 @@ export class Avatar {
     this.pony[0].rotation.set(-1.25 + flop * 0.6, 0, wave(9, 1) * 0.6);
     this.pony[1].rotation.set(0.25 + flop * 0.4, 0, wave(11, 2) * 0.8);
 
-    const auraMat = this.aura.material as THREE.SpriteMaterial;
-    auraMat.opacity = 0.12 * FX.aura * vanish * (1 + ATMOSPHERE.night.value * 1.5);
-    this.aura.visible = auraMat.opacity > 0.01;
+    // The aura fades out with the dissolve
+    this.setAuraOpacity(0.6 * vanish);
+    this.aura.scale.setScalar(AURA_SCALE);
 
     if (!this.detailed) return;
     // Cloth whips around hard
@@ -1218,7 +1208,6 @@ export class Avatar {
   spectral(amount: number) {
     if(this.ghost)return;
     for(const material of this.materials){
-      if(material===this.aura.material)continue;
       const transparent=amount>0;
       if(material.transparent!==transparent){material.transparent=transparent;material.needsUpdate=true;}
       material.opacity=1-amount*0.65;
@@ -1229,8 +1218,10 @@ export class Avatar {
   /** A ghost's opacity, 0..1 (Wind-Shear Dash's afterimages fade out); solid pilots ignore it */
   fade(opacity: number) {
     if (!this.ghost) return;
-    for (const material of this.materials) if (material !== this.aura.material) material.opacity = opacity;
-    (this.aura.material as THREE.SpriteMaterial).opacity = opacity * 0.3;
+    for (const material of this.materials) material.opacity = opacity;
+    // The halo follows (ghosts wear 0.3 of it, see `setAuraOpacity`); the next pose applies it
+    this.ghostFade = opacity;
+    this.auraMaterial.opacity *= opacity;
   }
 
   /** Hides the pilot (e.g. after a crash) */
@@ -1248,8 +1239,16 @@ export class Avatar {
     this.shoes.forEach(disposeModel);
     this.painted.forEach((p) => p.geometry.dispose());
     this.materials.forEach((m) => m.dispose());
+    this.auraMaterial.dispose();
   }
 }
+
+// --- aura halo ------------------------------------------------------------------------
+
+/** Base alpha of the halo at full strength: faint on purpose, just enough to lift the silhouette off the scenery */
+const AURA_OPACITY = 0.18;
+/** Side of the halo sprite (m): a little larger than the body so it reads as a soft glow, not an outline */
+const AURA_SCALE = 2.0;
 
 function slow01(speed: number) {
   return clamp((35 - speed) / 20, 0, 1);
@@ -1257,7 +1256,7 @@ function slow01(speed: number) {
 
 let glow: THREE.Texture | null = null;
 
-/** A soft round glow, shared by the aura and other sprites */
+/** A soft round glow for item sprites (items/equip.ts) */
 export function glowTexture(): THREE.Texture {
   if (!glow) {
     const size = 64;

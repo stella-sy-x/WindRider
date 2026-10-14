@@ -7,7 +7,7 @@ import type { GroundSpec } from "../terrain/ground";
 // the air, and what there is to do. One engine renders them all; nothing here
 // is code that runs per frame.
 
-export type BiomeId = "skyIsles" | "verdant" | "glacier" | "archipelago" | "lagoon" | "twilight" | "ember" | "aurora" | "reef";
+export type BiomeId = "verdant" | "glacier" | "archipelago" | "lagoon" | "twilight" | "ember" | "aurora" | "reef";
 
 /**
  * How a kind of land is painted. The mesher picks the rock color per face
@@ -92,21 +92,17 @@ export interface IslandFallsSpec {
   colors: { deep: string; shallow: string; foam: string };
 }
 
-/** How the land is shaped */
-export type TerrainRecipe =
-  /** The race map, kept bit for bit so ghosts and leaderboards stay valid */
-  | { kind: "legacyIslands" }
-  /** Generator v2: a ground heightfield (or none) plus rock shapes, one distance field */
-  | {
-      kind: "v2";
-      ground: GroundSpec | null;
-      groundSurface: number;
-      surfaces: Surface[];
-      layers: Layers;
-      land: LandRecipe;
-      sea?: SeaSpec;
-      islandFalls?: IslandFallsSpec;
-    };
+/** How the land is shaped: a ground heightfield (or none) plus rock shapes, one distance field */
+export interface TerrainRecipe {
+  kind: "v2";
+  ground: GroundSpec | null;
+  groundSurface: number;
+  surfaces: Surface[];
+  layers: Layers;
+  land: LandRecipe;
+  sea?: SeaSpec;
+  islandFalls?: IslandFallsSpec;
+}
 
 /** One species in a biome's flora, with its colors and where it grows */
 export interface FloraSpecies {
@@ -137,8 +133,6 @@ export interface GrassSpec {
 
 /** What grows on the land */
 export type VegetationSpec =
-  /** One pine species placed by the mesher, as on the race map */
-  | { kind: "legacyPines" }
   | { kind: "none" }
   | {
       kind: "flora";
@@ -204,7 +198,7 @@ export interface SkySpec {
   puffsBelow: boolean;
   /** Metres added to the height of the puffs above the line (clear of hills and mountains) */
   puffLift: number;
-  /** Cloud banks lying across the racing line, to fly through (generator-v2 biomes) */
+  /** Cloud banks lying across the racing line, to fly through */
   banks?: number;
   /**
    * Where the mood's mist gathers: below the camera (over a sea of clouds), or
@@ -240,7 +234,7 @@ export interface Biome {
   readonly moods: readonly Palette[];
   readonly terrain: TerrainRecipe;
   readonly vegetation: VegetationSpec;
-  /** Towers, lanterns, windmills… (generator-v2 biomes with flora) */
+  /** Towers, lanterns, windmills… (biomes with flora) */
   readonly structures?: readonly StructureSpec[];
   readonly sky: SkySpec;
   readonly particles: ParticleStyle;

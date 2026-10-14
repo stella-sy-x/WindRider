@@ -1,13 +1,16 @@
 import * as THREE from "three";
 import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
 import type { FloraSpecies } from "../biomes/types";
+import { type MoodShift, shifted } from "../palette";
 import type { SpeciesId } from "./species";
 
 // Low-poly plant meshes built from primitives, one per species, 1 m tall with
 // a radius of about 1 m (instances scale them). Every vertex carries a color
 // (shaded darker towards the bottom of each part, for volume), a sway weight
 // (0 on the trunk's foot, 1 on the leaves; the shader moves it with the wind)
-// and a glow weight (self-lit caps and crystals).
+// and a glow weight (self-lit caps and crystals). The colors are the mood's:
+// a species' authored colors repainted by the seed's palette (World.mood) as
+// the mesh is built, so a mood is baked into the plants' vertices.
 
 export interface Paint {
   color: THREE.Color;
@@ -104,7 +107,7 @@ function pine(c: Colors, tiers = 4, width = 1, snow?: THREE.Color): THREE.Buffer
     const r = width * (1 - t * 0.78);
     const h = 0.5 - t * 0.18;
     const y = 0.2 + t * 0.66;
-    const cone = new THREE.ConeGeometry(r, h, 7, 1).rotateY(random() * 6.28).translate(0, y + h / 2, 0);
+    const cone = new THREE.ConeGeometry(r, h, 6, 1).rotateY(random() * 6.28).translate(0, y + h / 2, 0);
     const foliage = i % 2 ? c.foliage2 : c.foliage;
     const p = part(cone, { color: foliage, shade: [0.62, 1.12], sway: [0.25 + t * 0.6, 0.45 + t * 0.55] });
     if (snow) {
@@ -123,11 +126,11 @@ function pine(c: Colors, tiers = 4, width = 1, snow?: THREE.Color): THREE.Buffer
 
 function oak(c: Colors, trunkTop = 0.5, spread = 1): THREE.BufferGeometry[] {
   const parts = [
-    part(limb(v(0, 0, 0), v(0.02, trunkTop, 0), 0.11, 0.07, 6), { color: c.trunk, sway: [0, 0.25] }),
+    part(limb(v(0, 0, 0), v(0.02, trunkTop, 0), 0.11, 0.07, 5), { color: c.trunk, sway: [0, 0.25] }),
     part(limb(v(0.02, trunkTop * 0.75, 0), v(0.32 * spread, trunkTop + 0.18, 0.08), 0.045, 0.025), { color: c.trunk, sway: [0.2, 0.5] }),
     part(limb(v(0, trunkTop * 0.8, 0), v(-0.28 * spread, trunkTop + 0.2, -0.12), 0.045, 0.025), { color: c.trunk, sway: [0.2, 0.5] }),
   ];
-  const blobs = 7;
+  const blobs = 5;
   for (let i = 0; i < blobs; i++) {
     const a = (i / blobs) * Math.PI * 2 + random() * 0.6;
     const ring = i === 0 ? 0 : rr(0.35, 0.6) * spread;
@@ -140,7 +143,7 @@ function oak(c: Colors, trunkTop = 0.5, spread = 1): THREE.BufferGeometry[] {
 }
 
 function birch(c: Colors): THREE.BufferGeometry[] {
-  const trunk = part(limb(v(0, 0, 0), v(0.03, 0.72, 0.01), 0.07, 0.04, 6), { color: c.trunk, color2: c.trunk.clone().multiplyScalar(0.25), share2: 0.18, shade: [0.9, 1.05], sway: [0, 0.4] });
+  const trunk = part(limb(v(0, 0, 0), v(0.03, 0.72, 0.01), 0.07, 0.04, 5), { color: c.trunk, color2: c.trunk.clone().multiplyScalar(0.25), share2: 0.18, shade: [0.9, 1.05], sway: [0, 0.4] });
   const parts = [trunk];
   for (let i = 0; i < 4; i++) {
     const a = (i / 4) * Math.PI * 2 + random();
@@ -168,37 +171,18 @@ function palm(c: Colors): THREE.BufferGeometry[] {
   for (let i = 1; i <= segments; i++) {
     const t = i / segments;
     const next = v(0.28 * t * t, 0.92 * t, 0);
-    parts.push(part(limb(prev, next, 0.05 - t * 0.012, 0.045 - t * 0.012, 6), { color: i % 2 ? c.trunk : c.trunk.clone().multiplyScalar(0.8), sway: [t * 0.3, t * 0.35] }));
+    parts.push(part(limb(prev, next, 0.05 - t * 0.012, 0.045 - t * 0.012, 5), { color: i % 2 ? c.trunk : c.trunk.clone().multiplyScalar(0.8), sway: [t * 0.3, t * 0.35] }));
     prev = next;
   }
   const crown = prev;
-  // Fronds: folded strips drooping out of the crown
+  // Fronds: solid five-sided cones drooping out of the crown
   const fronds = 8;
   for (let i = 0; i < fronds; i++) {
     const a = (i / fronds) * Math.PI * 2 + random() * 0.4;
     const dir = v(Math.cos(a), 0, Math.sin(a));
-    const side = v(-dir.z, 0, dir.x);
     const length = rr(0.5, 0.62);
-    const positions: number[] = [];
-    const steps = 4;
-    const at = (s: number) => crown.clone().addScaledVector(dir, length * s).add(v(0, 0.12 * s - 0.42 * s * s, 0));
-    for (let s = 0; s < steps; s++) {
-      const p0 = at(s / steps);
-      const p1 = at((s + 1) / steps);
-      const w0 = 0.13 * Math.sin(Math.PI * Math.min(0.95, s / steps + 0.08));
-      const w1 = 0.13 * Math.sin(Math.PI * Math.min(0.95, (s + 1) / steps + 0.08));
-      const fold = 0.035;
-      for (const k of [-1, 1]) {
-        const e0 = p0.clone().addScaledVector(side, k * w0).add(v(0, -fold, 0));
-        const e1 = p1.clone().addScaledVector(side, k * w1).add(v(0, -fold, 0));
-        positions.push(...p0.toArray(), ...e0.toArray(), ...p1.toArray(), ...p1.toArray(), ...e0.toArray(), ...e1.toArray());
-        // And the back side, so fronds read from below
-        positions.push(...p0.toArray(), ...p1.toArray(), ...e0.toArray(), ...p1.toArray(), ...e1.toArray(), ...e0.toArray());
-      }
-    }
-    const g = new THREE.BufferGeometry();
-    g.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
-    parts.push(part(g, { color: i % 2 ? c.foliage : c.foliage2, shade: [0.75, 1.1], sway: [0.6, 1] }));
+    const tip = crown.clone().addScaledVector(dir, length).add(v(0, -0.3, 0));
+    parts.push(part(limb(crown, tip, 0.11, 0.01, 5), { color: i % 2 ? c.foliage : c.foliage2, shade: [0.75, 1.1], sway: [0.6, 1] }));
   }
   for (let i = 0; i < 3; i++) {
     const a = (i / 3) * Math.PI * 2;
@@ -208,15 +192,15 @@ function palm(c: Colors): THREE.BufferGeometry[] {
 }
 
 function jungle(c: Colors): THREE.BufferGeometry[] {
-  const parts = [part(limb(v(0, 0, 0), v(0, 0.72, 0), 0.08, 0.05, 6), { color: c.trunk, sway: [0, 0.2] })];
+  const parts = [part(limb(v(0, 0, 0), v(0, 0.72, 0), 0.08, 0.05, 5), { color: c.trunk, sway: [0, 0.2] })];
   // Buttress roots
   for (let i = 0; i < 4; i++) {
     const a = (i / 4) * Math.PI * 2 + 0.4;
     parts.push(part(limb(v(Math.cos(a) * 0.2, 0, Math.sin(a) * 0.2), v(0, 0.22, 0), 0.03, 0.05, 4), { color: c.trunk, sway: [0, 0] }));
   }
   // A wide, flat crown: an umbrella of blobs
-  for (let i = 0; i < 8; i++) {
-    const a = (i / 8) * Math.PI * 2 + random() * 0.4;
+  for (let i = 0; i < 5; i++) {
+    const a = (i / 5) * Math.PI * 2 + random() * 0.4;
     const ring = i === 0 ? 0 : rr(0.42, 0.68);
     const g = blob(i === 0 ? 0.42 : rr(0.3, 0.38), 0.55).translate(Math.cos(a) * ring, rr(0.76, 0.9), Math.sin(a) * ring);
     parts.push(part(g, { color: i % 2 ? c.foliage : c.foliage2, shade: [0.55, 1.12], sway: [0.6, 1] }));
@@ -225,11 +209,11 @@ function jungle(c: Colors): THREE.BufferGeometry[] {
 }
 
 function mushroom(c: Colors): THREE.BufferGeometry[] {
-  const parts = [part(limb(v(0, 0, 0), v(0.03, 0.62, 0), 0.13, 0.09, 8), { color: c.trunk, shade: [0.8, 1.05], sway: [0, 0.3] })];
+  const parts = [part(limb(v(0, 0, 0), v(0.03, 0.62, 0), 0.13, 0.09, 5), { color: c.trunk, shade: [0.8, 1.05], sway: [0, 0.3] })];
   // The cap: a dome with glowing spots, glowing gills underneath
-  const cap = new THREE.SphereGeometry(0.5, 12, 5, 0, Math.PI * 2, 0, Math.PI / 2).scale(1, 0.5, 1).translate(0.03, 0.58, 0);
+  const cap = new THREE.SphereGeometry(0.5, 8, 5, 0, Math.PI * 2, 0, Math.PI / 2).scale(1, 0.5, 1).translate(0.03, 0.58, 0);
   parts.push(part(cap, { color: c.foliage, color2: c.foliage2, share2: 0.16, shade: [0.75, 1.15], sway: [0.3, 0.4], glow: 0.2, glow2: 1 }));
-  const gills = new THREE.CircleGeometry(0.48, 12).rotateX(Math.PI / 2).translate(0.03, 0.585, 0);
+  const gills = new THREE.CircleGeometry(0.48, 8).rotateX(Math.PI / 2).translate(0.03, 0.585, 0);
   parts.push(part(gills, { color: c.foliage2, shade: [1, 1], sway: [0.3, 0.3], glow: 0.85 }));
   return parts;
 }
@@ -288,10 +272,10 @@ function boulder(c: Colors): THREE.BufferGeometry[] {
 }
 
 function redwood(c: Colors): THREE.BufferGeometry[] {
-  const parts = [part(limb(v(0, 0, 0), v(0, 0.75, 0), 0.32, 0.18, 7), { color: c.trunk, shade: [0.7, 1.05], sway: [0, 0.1] })];
+  const parts = [part(limb(v(0, 0, 0), v(0, 0.75, 0), 0.32, 0.18, 5), { color: c.trunk, shade: [0.7, 1.05], sway: [0, 0.1] })];
   for (let i = 0; i < 5; i++) {
     const t = i / 5;
-    const g = new THREE.ConeGeometry(0.9 - t * 0.55, 0.3, 7).translate(0, 0.5 + t * 0.42, 0);
+    const g = new THREE.ConeGeometry(0.9 - t * 0.55, 0.3, 6).translate(0, 0.5 + t * 0.42, 0);
     parts.push(part(g, { color: i % 2 ? c.foliage : c.foliage2, shade: [0.6, 1.1], sway: [0.3, 0.5] }));
   }
   return parts;
@@ -307,9 +291,10 @@ export function leaves(triangles: THREE.Vector3[][]): THREE.BufferGeometry {
 }
 
 // The reef's plants stand in their thousands (kelp forests, coral gardens), so
-// they are built lean: three-sided limbs without caps, one triangle per blade.
+// they are built lean: three-sided limbs without caps. Their flat blades and
+// webs were zero-thickness triangles and are gone until redone with volume.
 
-/** Kelp: a clump of wavy stalks reaching for the surface, two broad blades at every joint */
+/** Kelp: a clump of wavy stalks reaching for the surface */
 function kelp(c: Colors): THREE.BufferGeometry[] {
   const parts: THREE.BufferGeometry[] = [];
   const stalks = 3;
@@ -320,24 +305,11 @@ function kelp(c: Colors): THREE.BufferGeometry[] {
     const top = i === 0 ? 1 : rr(0.6, 0.92);
     const wave = rr(0, 6.28);
     const at = (t: number) => v(foot.x + Math.sin(t * 5 + wave) * 0.22 * t, top * t, foot.z + Math.cos(t * 4 + wave) * 0.22 * t);
-    const blades: THREE.Vector3[][] = [];
     for (let k = 0; k < joints; k++) {
       const t0 = k / joints;
       const t1 = (k + 1) / joints;
       parts.push(part(limb(at(t0), at(t1), 0.05 - t0 * 0.02, 0.05 - t1 * 0.02, 3, true), { color: c.trunk, shade: [1, 1], sway: [t0 * t0, t1 * t1] }));
-      // Blades off the joint, lifting with the water
-      for (const flip of [0, 2.6]) {
-        const turn = a + k * 2.4 + flip;
-        const out = v(Math.cos(turn), 0, Math.sin(turn));
-        const root = at(t1);
-        const reach = 0.8 - t1 * 0.25;
-        const edge = v(-out.z, 0, out.x).multiplyScalar(0.2);
-        const belly = root.clone().addScaledVector(out, reach * 0.4).add(v(0, 0.1, 0));
-        blades.push([root.clone().sub(edge.clone().multiplyScalar(0.25)), belly.add(edge), root.clone().addScaledVector(out, reach).add(v(0, 0.04, 0))]);
-      }
     }
-    const sway: [number, number] = [0.15, top];
-    parts.push(part(leaves(blades), { color: i % 2 ? c.foliage : c.foliage2, shade: [0.7, 1.15], sway }));
   }
   return parts;
 }
@@ -365,22 +337,17 @@ function coral(c: Colors): THREE.BufferGeometry[] {
   return parts;
 }
 
-/** A sea fan: a flat lattice of ribs standing across the current */
+/** A sea fan: a fan of ribs standing across the current */
 function seaFan(c: Colors): THREE.BufferGeometry[] {
   const parts = [part(limb(v(0, 0, 0), v(0, 0.2, 0), 0.06, 0.045, 4, true), { color: c.trunk, sway: [0, 0.1] })];
   const ribs = 7;
-  const web: THREE.Vector3[][] = [];
-  let last: THREE.Vector3 | null = null;
   const hub = v(0, 0.2, 0);
   for (let i = 0; i < ribs; i++) {
     const a = ((i + 0.5) / ribs - 0.5) * 2.5;
     const length = rr(0.62, 0.8) * (1 - Math.abs(a) * 0.12);
     const tip = v(Math.sin(a) * length * 0.95, 0.2 + Math.cos(a) * length, 0);
     parts.push(part(limb(hub, tip, 0.028, 0.012, 3, true), { color: c.foliage2, shade: [0.85, 1.15], sway: [0.1, 1] }));
-    if (last) web.push([hub, last, tip]);
-    last = tip;
   }
-  parts.push(part(leaves(web), { color: c.foliage, shade: [0.65, 1.1], sway: [0.1, 1] }));
   return parts;
 }
 
@@ -418,7 +385,7 @@ function sponge(c: Colors): THREE.BufferGeometry[] {
   spots.forEach(([x, z, top], i) => {
     const r = 0.2 + top * 0.12;
     const lean = v(x * 0.25, top, z * 0.25);
-    const tube = limb(v(x, 0, z), v(x, 0, z).add(lean), r * 0.75, r, 6, true);
+    const tube = limb(v(x, 0, z), v(x, 0, z).add(lean), r * 0.75, r, 5, true);
     parts.push(part(tube, { color: i % 2 ? c.foliage2 : c.foliage, shade: [0.65, 1.15], sway: [0, 0] }));
     // The mouth, glowing a little
     const mouth = new THREE.CircleGeometry(r * 0.95, 6).rotateX(-Math.PI / 2).translate(x + lean.x, top - 0.03, z + lean.z);
@@ -427,14 +394,45 @@ function sponge(c: Colors): THREE.BufferGeometry[] {
   return parts;
 }
 
-/** Builds a species' mesh in a biome's colors */
-export function speciesGeometry(spec: FloraSpecies, snow: THREE.Color): THREE.BufferGeometry {
+/**
+ * Which of the mood's colors a species follows: trees and bushes take the palette's forest for
+ * their foliage and its trunk for their wood, rocks take its rock. The rest (mushroom caps, crystals,
+ * sea life) are lit or colored in their own right and keep their authored colors in every mood
+ */
+const FOLLOWS: Record<SpeciesId, "forest" | "rock" | null> = {
+  pine: "forest",
+  fir: "forest",
+  snowFir: "forest",
+  oak: "forest",
+  birch: "forest",
+  bush: "forest",
+  palm: "forest",
+  jungle: "forest",
+  redwood: "forest",
+  deadTree: "forest",
+  basalt: "rock",
+  boulder: "rock",
+  mushroom: null,
+  crystal: null,
+  kelp: null,
+  coral: null,
+  seaFan: null,
+  anemone: null,
+  sponge: null,
+};
+
+/** Builds a species' mesh in a biome's colors, repainted for the mood */
+export function speciesGeometry(spec: FloraSpecies, snow: THREE.Color, mood: MoodShift): THREE.BufferGeometry {
   reseed(spec.id.length * 7919 + 17);
-  const foliage = new THREE.Color(spec.foliage);
+  const follows = FOLLOWS[spec.id];
+  const none = new THREE.Color(0, 0, 0);
+  const foliageShift = follows === "forest" ? mood.forest : follows === "rock" ? mood.rock : none;
+  const trunkShift = follows === "forest" ? mood.trunk : none;
+  const foliage = shifted(spec.foliage, foliageShift);
   const colors: Colors = {
     foliage,
-    foliage2: new THREE.Color(spec.foliage2 ?? foliage.clone().multiplyScalar(0.82).getHex()),
-    trunk: new THREE.Color(spec.trunk ?? "#5a4330"),
+    foliage2: spec.foliage2 ? shifted(spec.foliage2, foliageShift) : foliage.clone().multiplyScalar(0.82),
+    trunk: shifted(spec.trunk ?? "#5a4330", trunkShift),
   };
   const builders: Record<SpeciesId, () => THREE.BufferGeometry[]> = {
     pine: () => pine(colors, 4, 1),

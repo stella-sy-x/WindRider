@@ -1,107 +1,208 @@
+import type { Palette } from "../palette";
 import type { Biome } from "./types";
 
-// Sky Archipelago: islands adrift in golden light, carved by wind into
-// overhangs and arches, waterfalls pouring off their rims into the void, cloud
-// banks to dive through, and a sea of clouds far below.
+// Sky Archipelago: the look of the old Sky Isles, rebuilt on the v2 terrain.
+// Clean teardrop islands, each crowned with a dense single-species pine wood,
+// a two-tone palette of warm rock and green cap, clouds drifting above and
+// below the islands, and a sea of clouds far beneath. Nothing fancy on the
+// rock: no strata, no holes, no arches carved through it; the islands read
+// as simple soft shapes and the forests and clouds do the talking.
+//
+// The surfaces and species below are authored in the first mood's colors
+// (Alpine: its rock, grass, forest and trunk are the island rock, its cap, the
+// pine and its trunk). Every other mood repaints them by its palette as the
+// land is meshed and the trees are built (World.mood, palette.ts), so Winter's
+// islands come out white-capped and grey and Starlight's purple, as they did
+// in Sky Isles, besides the mood's light, sky, mist and clouds.
+
+// Moods lifted from Sky Isles, with every sun kept between 22° and 34° up and
+// 25°–40° off the course so it never sits straight ahead of the pilot.
+const MOODS: readonly Palette[] = [
+  {
+    // Bright blue sky, green grass, warm brown rock: the archipelago at its crispest
+    name: "Alpine",
+    horizon: "#cdeaf6",
+    zenith: "#3f8fd2",
+    grass: "#8cb648",
+    forest: "#3f7a3a",
+    trunk: "#6b4a2f",
+    rock: "#93694a",
+    snow: "#f4f6f8",
+    cloud: "#ffffff",
+    accent: "#ff4f9a",
+    sun: "#fffaf0",
+    sunIntensity: 2.4,
+    ambient: 1.5,
+    sunElevation: 28,
+    sunAzimuth: 35,
+    night: 0,
+    mist: "#e6f4fb",
+    mistDensity: 0.45,
+    glow: 1.25,
+  },
+  {
+    // Soft grey-blue, lower sun, the pines fading into haze
+    name: "Misty pines",
+    horizon: "#e2e9d6",
+    zenith: "#9fbcac",
+    grass: "#6e8e55",
+    forest: "#355a3e",
+    trunk: "#5a4634",
+    rock: "#b3ab8e",
+    snow: "#eeeee2",
+    cloud: "#f4f6ee",
+    accent: "#ff7a3d",
+    sun: "#fff8e8",
+    sunIntensity: 2.0,
+    ambient: 1.7,
+    sunElevation: 22,
+    sunAzimuth: -35,
+    night: 0,
+    mist: "#e9eee0",
+    mistDensity: 0.75,
+    glow: 1.2,
+  },
+  {
+    // Amber light, warm gold horizon
+    name: "Autumn",
+    horizon: "#ffe2bd",
+    zenith: "#5f9bd6",
+    grass: "#a9a24c",
+    forest: "#c4642c",
+    trunk: "#5a3b25",
+    rock: "#8a6b58",
+    snow: "#fffaf2",
+    cloud: "#fff8ee",
+    accent: "#2b7fff",
+    sun: "#fff1d6",
+    sunIntensity: 2.3,
+    ambient: 1.5,
+    sunElevation: 26,
+    sunAzimuth: 40,
+    night: 0,
+    mist: "#ffe8cc",
+    mistDensity: 0.45,
+    glow: 1.2,
+  },
+  {
+    // Warm pink horizon under a purple zenith, golden sun low over the clouds
+    name: "Dusk",
+    horizon: "#ffb894",
+    zenith: "#5a4fc0",
+    grass: "#6f8a4c",
+    forest: "#36503c",
+    trunk: "#4a3530",
+    rock: "#8a5c5e",
+    snow: "#ffe8e2",
+    cloud: "#ffd6cc",
+    accent: "#00f0ff",
+    sun: "#ffe0c8",
+    sunIntensity: 2.0,
+    ambient: 1.5,
+    sunElevation: 22,
+    sunAzimuth: -28,
+    night: 0.2,
+    mist: "#ffc4a3",
+    mistDensity: 0.55,
+    glow: 1.1,
+  },
+  {
+    // Pale blue sky, cool white light, snow-white tops
+    name: "Winter",
+    horizon: "#dde8f4",
+    zenith: "#5e86c2",
+    grass: "#e6edf4",
+    forest: "#2e4f48",
+    trunk: "#4d3b30",
+    rock: "#7a8594",
+    snow: "#ffffff",
+    cloud: "#ffffff",
+    accent: "#ff3d5a",
+    sun: "#ffffff",
+    sunIntensity: 2.3,
+    ambient: 1.6,
+    sunElevation: 28,
+    sunAzimuth: 25,
+    night: 0,
+    mist: "#eef4fb",
+    mistDensity: 0.55,
+    glow: 1.3,
+  },
+  {
+    // Deep blue night, purple-tinged rock, a faint aurora over the islands
+    name: "Starlight",
+    horizon: "#4a2f6e",
+    zenith: "#0e0b28",
+    grass: "#3f5a6e",
+    forest: "#1f3a44",
+    trunk: "#3a2c3c",
+    rock: "#4b3f6a",
+    snow: "#cfd8ff",
+    cloud: "#6a5aa0",
+    accent: "#b4ff6a",
+    sun: "#d8c6ff",
+    sunIntensity: 1.6,
+    ambient: 1.7,
+    sunElevation: 26,
+    sunAzimuth: -28,
+    night: 1,
+    mist: "#5c3f8f",
+    mistDensity: 0.6,
+    glow: 0.9,
+    aurora: 0.3,
+  },
+];
 
 export const ARCHIPELAGO: Biome = {
   id: "archipelago",
   name: "Sky Archipelago",
-  tagline: "Islands adrift in golden light, waterfalls pouring into the void",
-  moods: [
-    {
-      name: "Golden hour",
-      horizon: "#ffd9a8",
-      zenith: "#5f8fd6",
-      grass: "#8fbf55",
-      forest: "#3f7a3a",
-      trunk: "#6b4a2f",
-      rock: "#b08d6b",
-      snow: "#fff8ee",
-      cloud: "#fff2e0",
-      accent: "#3fd8ff",
-      sun: "#ffd9a0",
-      sunIntensity: 2.4,
-      ambient: 1.4,
-      sunElevation: 9,
-      sunAzimuth: -20,
-      night: 0.1,
-      mist: "#ffe2bf",
-      mistDensity: 0.5,
-      glow: 1.15,
-    },
-    {
-      name: "Starfall night",
-      horizon: "#3a3070",
-      zenith: "#0b0a26",
-      grass: "#4a6a5a",
-      forest: "#1f3a44",
-      trunk: "#3a2c3c",
-      rock: "#5b4a6a",
-      snow: "#d8d0ff",
-      cloud: "#6a5aa0",
-      accent: "#ffe680",
-      sun: "#d0c4ff",
-      sunIntensity: 1.3,
-      ambient: 1.6,
-      sunElevation: 28,
-      sunAzimuth: 30,
-      night: 1,
-      mist: "#4a3c80",
-      mistDensity: 0.55,
-      glow: 0.9,
-    },
-  ],
+  tagline: "Pine-crowned islands adrift in a sea of clouds",
+  moods: MOODS,
   terrain: {
     kind: "v2",
     ground: null,
     groundSurface: 0,
     surfaces: [
-      // 0: warm sandstone islands, banded, grassy on top
-      { rock: "#b08d6b", rock2: "#c9a47a", bands: 6, under: "#6d5341", top: "#8fbf55", top2: "#c4cf6a", snow: false },
-      // 1: bare floating rock
-      { rock: "#9c8a78", rock2: "#b49e86", bands: 4, under: "#5d4d40", top: "#a5c46a", snow: false },
+      // 0: the islands: warm brown rock, green cap, no strata
+      { rock: "#93694a", rock2: "#a47a58", bands: 0, under: "#5e4330", top: "#8cb648", top2: "#9ec255", snow: false },
+      // 1: the gates: the same rock a touch greyer so they read against the islands
+      { rock: "#8a7360", rock2: "#9a836e", bands: 0, under: "#55423a", top: "#8cb648", snow: false },
     ],
-    layers: { dirt: "#7a5a3a", sand: "#e0c58f", snow: "#ffffff", snowLine: 9999, topSlope: 0.7, texture: 1, glow: "#ffd98a" },
+    layers: { dirt: "#7a5538", sand: "#c9b48c", snow: "#ffffff", snowLine: 9999, topSlope: 0.45, texture: 0.5, glow: "#ffd98a" },
     land: {
-      gates: { tunnel: 3, squeeze: 2, arch: 2, needles: 1 },
+      gates: { arch: 3, pillars: 2, needles: 1, spur: 1 },
       gateSurface: 1,
       features: [
-        { kind: "islands", count: 120, size: [16, 60], lateral: [30, 300], rise: [-110, 120], surface: 0, holes: 0.35 },
-        { kind: "islands", count: 14, size: [70, 120], lateral: [320, 620], rise: [-150, 160], surface: 0, holes: 0.5 },
-        { kind: "rings", count: 10, radius: [14, 24], lateral: [60, 260], rise: [-60, 80], surface: 1 },
+        // Clean teardrops along the line, no holes, the default soft noise
+        { kind: "islands", count: 100, size: [14, 55], lateral: [25, 150], rise: [-80, 120], surface: 0, holes: 0 },
       ],
     },
-    islandFalls: { chance: 0.35, colors: { deep: "#3f8fb0", shallow: "#9fdff0", foam: "#ffffff" } },
+    islandFalls: { chance: 0.15, colors: { deep: "#3f8fb0", shallow: "#9fdff0", foam: "#ffffff" } },
   },
   vegetation: {
     kind: "flora",
-    spacing: 7,
-    density: 0.55,
-    openDensity: 0.06,
-    forest: { scale: 180, cover: 0.4 },
+    spacing: 5,
+    density: 0.8,
+    openDensity: 0.3,
+    forest: { scale: 100, cover: 0.6 },
     treeline: 400,
-    minUp: 0.7,
+    minUp: 0.75,
     species: [
-      { id: "pine", weight: 3, height: [8, 15], foliage: "#3f7a3a", foliage2: "#4d8a40", trunk: "#6b4a2f" },
-      { id: "oak", weight: 3, height: [7, 12], foliage: "#c9a43a", foliage2: "#e0b94a", trunk: "#5b4330", tints: ["#ffffff", "#ffe0b0", "#ffd0a0"] },
-      { id: "bush", weight: 2, height: [1.4, 2.4], foliage: "#7aa848", foliage2: "#a8b850", where: { forest: false } },
-      { id: "boulder", weight: 0.4, height: [1.2, 2.6], foliage: "#b49e86", foliage2: "#9c8a78", where: { forest: false } },
+      // One species: dense pine over every island top
+      { id: "pine", weight: 5, height: [8, 15], foliage: "#3f7a3a", foliage2: "#4d8a40", trunk: "#6b4a2f" },
+      { id: "boulder", weight: 0.3, height: [1.2, 2.6], foliage: "#a47a58", foliage2: "#93694a", where: { forest: false } },
     ],
-    grass: { spacing: 2.6, height: [0.5, 0.9], color: "#7aa848", tip: "#e0d070", flowers: ["#ffffff", "#ffd84a", "#ff9ac8"], flowerShare: 0.2 },
+    grass: { spacing: 2.6, height: [0.5, 0.9], color: "#7aa848", tip: "#c8d070", flowers: ["#ffffff", "#ffd84a"], flowerShare: 0.15 },
   },
   structures: [
-    // A temple on one of the islands; broken colonnades, prayer flags in the wind and lanterns on the others
-    { id: "monastery", landmark: 1100, spacing: 40, chance: 1, height: [24, 30], colors: { stone: "#fbf6ea", stone2: "#cfc4ac", roof: "#3f7fb8", cloth: "#f2c761" }, where: { lateral: [40, 420], on: "rock", facing: true } },
-    { id: "ruinColumn", spacing: 50, chance: 0.7, height: [8, 13], colors: { stone: "#f3ecdc", stone2: "#b8c79a", roof: "#f3ecdc" }, where: { lateral: [20, 500], on: "rock" } },
-    { id: "prayerPole", spacing: 60, chance: 0.6, height: [7, 10], colors: { stone: "#cfc4ac", roof: "#f2c761" }, where: { lateral: [20, 500], on: "rock", hilltop: true } },
-    { id: "stoneLantern", spacing: 24, chance: 0.4, height: [2.6, 3.4], colors: { stone: "#efe6d2", stone2: "#b8c79a", roof: "#3f7fb8" }, where: { lateral: [0, 400], on: "rock" } },
+    // The odd stone lantern on an island top, nothing more
+    { id: "stoneLantern", spacing: 60, chance: 0.15, height: [2.6, 3.4], colors: { stone: "#efe6d2", stone2: "#b8c79a", roof: "#3f7fb8" }, where: { lateral: [0, 300], on: "rock" } },
   ],
-  sky: { cloudSea: { depth: 260 }, puffs: 30, puffsBelow: true, puffLift: 0, banks: 6, mist: { mode: "camera" } },
+  sky: { cloudSea: { depth: 260 }, puffs: 65, puffsBelow: true, puffLift: 200, mist: { mode: "camera" }, fog: [80, 1400] },
   particles: {
     ambient: [
-      { kind: "motes", rate: 22, colors: ["#ffe9b0", "#fff6dc"] },
-      { kind: "fireflies", rate: 4, colors: ["#fff2a0"], night: 4 },
+      { kind: "motes", rate: 12, colors: ["#ffe9b0", "#fff6dc"] },
+      { kind: "fireflies", rate: 3, colors: ["#fff2a0"], night: 4 },
     ],
   },
 };

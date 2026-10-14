@@ -2,17 +2,16 @@
 
 This file is Claude's memory for Wind Rider. Read it before touching code.
 
-## Art direction: Genshin Impact and Sky (光遇)
+## Art direction
 
-Wind Rider is styled after Genshin Impact and Sky: Children of the Light.
-Cel-shaded toon material, chibi proportions, soft silhouettes, warm colors,
+Low-poly flat shading, chibi proportions, soft silhouettes, warm colors,
 gold trims, capes and feathers. Painted skies, bloom, particles, glass UI.
 No realistic assets or photo textures.
 
 ## The game
 
 Wind Rider is a browser wingsuit racer. Seeded procedural courses through
-floating islands and nine biomes, crystal gates, multiplayer race rooms.
+floating islands and eight biomes, crystal gates, multiplayer race rooms.
 React + Three.js frontend, FastAPI backend behind Caddy, `docker compose`.
 
 ### Modes
@@ -40,6 +39,7 @@ cd frontend && npm install && npm run dev  # http://localhost:5173
 4. Tunable looks go in `tuning.ts`, physics in `FLIGHT` (flight.ts).
 5. Shader safety: never `pow()` on negatives, never divide by zero.
 6. Don't add Claude as co-author on commits.
+7. Models: Opus 4.6 (1M context) as main agent, Fable 5.1 for subagents.
 
 ### Architecture (frontend/src)
 
@@ -47,12 +47,12 @@ cd frontend && npm install && npm run dev  # http://localhost:5173
 |:-----|:-----|
 | `game/Game.ts` | Frame loop, physics steps, race state, HUD, effects, rendering |
 | `game/flight.ts` | Arcade flight model (`FLIGHT` constants). Physics only |
-| `game/avatar.ts` | Cel-shaded chibi pilot, animation, cloth, face |
+| `game/avatar.ts` | Low-poly chibi pilot, animation, cloth, face |
 | `game/camera.ts` | Chase camera, crash fall camera |
 | `game/particles.ts` | GPU particle system |
 | `game/pilotfx.ts` | Wingtip ribbons, motes, roll arcs, boost dust |
 | `game/trail.ts` | Glowing ribbon trail |
-| `game/toon.ts` | Toon material and ink outline |
+| `game/toon.ts` | Flat material and shared light parameters |
 | `game/world/` | Terrain generation, biomes, courses, trees, water, atmosphere |
 | `game/world/crystals.ts` | Crystal gates |
 | `game/world/landCollider.ts` | Collision with drawn land meshes |
@@ -72,6 +72,22 @@ Backend: `app.py` endpoints, `rooms.py` race state machine and SSE relay,
 `store.py` SQLite ghosts and runs, `models.py` Pydantic models.
 
 ## Change log
+
+### 2026-10-12: Unify visual style (Claude)
+
+- Removed external IP references (Genshin Impact, Sky)
+- Replaced cel-shading with low-poly flat shading (deleted toon gradient,
+  rim light, ink outlines; unified to MeshLambertMaterial + flatShading)
+- Applied Plan B poly budget: avatar ≤2400 verts, wings ≤1500/pair,
+  pets ≤1500, hats/shoes ≤400, items ≤600, trees ≤400. Max 12 segments.
+- Deleted Sky Isles biome and legacy terrain renderer (islands.ts,
+  mesher.ts, legacy branches in WorldView/World/worker). Unified to v2
+  renderer only. Biome count 9 → 8. Existing Sky Isles ghosts/leaderboards
+  invalidated.
+- Improved Archipelago: sun 9°→28°, island noise 0.16→0.08, holes 35%→10%,
+  vegetation density 6%→25%, pine-dominant, added 3 day moods.
+- Fixed iOS Chrome fullscreen (webkit prefix fallback).
+- Build and lint pass. Backend untouched.
 
 ### 2026-10-12: Strip adventure mode, keep pure racing (Claude)
 

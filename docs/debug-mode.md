@@ -8,11 +8,11 @@ alone turns it on.
 
 | URL | Opens |
 | :-- | :-- |
-| `/?test` | Sky Isles, seed 1 |
-| `/?test=verdant&seed=2` | Verdant Highlands, seed 2 |
-| `/?seed=42&test` | Sky Isles, seed 42 |
+| `/?test` | Verdant Highlands, seed 1 |
+| `/?test=ember&seed=2` | Ember, seed 2 |
+| `/?seed=42&test` | Verdant Highlands, seed 42 |
 
-An unknown world falls back to Sky Isles. N/B/V switch between biomes.
+An unknown world falls back to Verdant Highlands. N/B/V switch between biomes.
 
 ## Shortcuts
 

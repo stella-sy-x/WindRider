@@ -1,9 +1,9 @@
 import * as THREE from "three";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 
-// Building items from painted primitives: each primitive is painted per vertex
-// (a color and a `glow` the toon material reads) before it is placed, and
-// everything is merged into one geometry.
+// Building items from painted primitives: each primitive is painted per face
+// (a color and a `glow` intensity, constant across each triangle) before it is
+// placed, and everything is merged into one geometry.
 
 export type Vec = [number, number, number];
 export type Paint = string | ((p: THREE.Vector3, out: THREE.Color) => void);
@@ -16,7 +16,7 @@ const s3 = new THREE.Vector3();
 const point = new THREE.Vector3();
 const paintColor = new THREE.Color();
 
-/** Collects painted primitives into one geometry with `color` and `glow` (what toonMaterial reads) */
+/** Collects painted primitives into one geometry with `color` and `glow` vertex attributes */
 export class Builder {
   private readonly parts: THREE.BufferGeometry[] = [];
 
@@ -28,7 +28,23 @@ export class Builder {
     const position = flat.getAttribute("position");
     const colors = new Float32Array(position.count * 3);
     const glows = new Float32Array(position.count).fill(glow);
-    for (let i = 0; i < position.count; i++) {
+    // One paint call per triangle at its centroid, written to all three corners, so
+    // items read as flat facets like the terrain instead of smooth gradients
+    const facesEnd = position.count - (position.count % 3);
+    for (let i = 0; i < facesEnd; i += 3) {
+      if (typeof paint === "string") paintColor.set(paint);
+      else {
+        point.set(
+          (position.getX(i) + position.getX(i + 1) + position.getX(i + 2)) / 3,
+          (position.getY(i) + position.getY(i + 1) + position.getY(i + 2)) / 3,
+          (position.getZ(i) + position.getZ(i + 1) + position.getZ(i + 2)) / 3,
+        );
+        paint(point, paintColor);
+      }
+      for (let k = 0; k < 3; k++) paintColor.toArray(colors, (i + k) * 3);
+    }
+    // Guard: any leftover vertices (never expected on non-indexed geometry) are painted per vertex
+    for (let i = facesEnd; i < position.count; i++) {
       if (typeof paint === "string") paintColor.set(paint);
       else paint(point.fromBufferAttribute(position, i), paintColor);
       paintColor.toArray(colors, i * 3);
@@ -49,9 +65,9 @@ export class Builder {
   }
 }
 
-export const sphere = (r: number, w = 16, h = 12) => new THREE.SphereGeometry(r, w, h);
-export const cyl = (top: number, bottom: number, h: number, n = 14, rows = 1) => new THREE.CylinderGeometry(top, bottom, h, n, rows);
-export const lathe = (profile: [number, number][], n = 18) =>
+export const sphere = (r: number, w = 8, h = 6) => new THREE.SphereGeometry(r, w, h);
+export const cyl = (top: number, bottom: number, h: number, n = 8, rows = 1) => new THREE.CylinderGeometry(top, bottom, h, n, rows);
+export const lathe = (profile: [number, number][], n = 8) =>
   new THREE.LatheGeometry(
     profile.map(([r, y]) => new THREE.Vector2(r, y)),
     n,
@@ -71,7 +87,7 @@ export function star(outer: number, inner: number, depth: number, points = 5): T
 }
 
 /** A leaf or feather shape along +y, with a little thickness */
-export function leaf(length: number, width: number, depth = 0.008, segments = 6): THREE.BufferGeometry {
+export function leaf(length: number, width: number, depth = 0.03, segments = 3): THREE.BufferGeometry {
   const shape = new THREE.Shape();
   shape.moveTo(0, 0);
   shape.quadraticCurveTo(width, length * 0.4, 0, length);

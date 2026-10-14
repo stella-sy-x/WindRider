@@ -5,16 +5,13 @@ import { EMBER } from "./ember";
 import { GLACIER } from "./glacier";
 import { LAGOON } from "./lagoon";
 import { REEF } from "./reef";
-import { SKY_ISLES } from "./skyIsles";
 import { TWILIGHT } from "./twilight";
 import { VERDANT } from "./verdant";
 import type { Biome, BiomeId, Level, LevelKey } from "./types";
 
 export type { Biome, BiomeId, Level, LevelKey } from "./types";
-export { SKY_ISLES };
 
 export const BIOMES: Record<BiomeId, Biome> = {
-  skyIsles: SKY_ISLES,
   verdant: VERDANT,
   glacier: GLACIER,
   archipelago: ARCHIPELAGO,
@@ -42,15 +39,6 @@ export function seedMap(seed: number): { biome: BiomeId; mood: number } {
 export function seedLevel(seed: number): Level {
   const { biome, mood } = seedMap(seed);
   return makeLevel({ biome, seed, mood });
-}
-
-/**
- * Sky Isles on a seed, with the mood that seed picks: the old race map, whose generator stays frozen
- * (`__raceHashes()` checks it on seeds 1, 7 and 42)
- */
-export function skyIslesLevel(seed: number): Level {
-  const mood = Math.floor(makeRng(seed, "palette")() * SKY_ISLES.moods.length);
-  return makeLevel({ biome: "skyIsles", seed, mood });
 }
 
 const SEED_SEARCH = 10_000; // a seed for a given biome turns up in about as many tries as there are maps

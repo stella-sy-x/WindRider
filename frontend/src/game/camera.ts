@@ -84,7 +84,7 @@ export class CameraRig {
       this.camera.position.x += (Math.random() - 0.5) * shake;
       this.camera.position.y += (Math.random() - 0.5) * shake;
     }
-    // A slow drift when gliding slowly, so the view breathes like in Sky
+    // A slow drift when gliding slowly, so the view breathes
     const calm = clamp((45 - speed) / 25, 0, 1);
     if (!this.reducedMotion) this.camera.position.y += Math.sin(this.time * 0.9) * 0.15 * calm;
 

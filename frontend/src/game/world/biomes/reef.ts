@@ -98,11 +98,11 @@ export const REEF: Biome = {
       gateSurface: 1,
       named: { stem: 2, cap: 3 },
       features: [
-        { kind: "pillars", count: 70, radius: [7, 16], rise: [30, 110], lateral: [50, 420], surface: 1 },
+        { kind: "pillars", count: 30, radius: [7, 16], rise: [30, 110], lateral: [50, 150], surface: 1 },
         // Table corals: the giant mushrooms' shape, in coral
-        { kind: "mushrooms", count: 50, cap: [10, 26], rise: [10, 42], lateral: [30, 340], stem: 2, surface: 3 },
-        { kind: "arches", count: 12, radius: [12, 24], lateral: [50, 320], surface: 5 },
-        { kind: "boulders", count: 70, size: [6, 12], lateral: [18, 240], surface: 4 },
+        { kind: "mushrooms", count: 30, cap: [10, 26], rise: [10, 42], lateral: [30, 150], stem: 2, surface: 3 },
+        { kind: "arches", count: 7, radius: [12, 24], lateral: [50, 150], surface: 5 },
+        { kind: "boulders", count: 60, size: [6, 12], lateral: [18, 150], surface: 4 },
         { kind: "mesas", count: 8, radius: [40, 90], rise: [40, 110], lateral: [220, 700], step: 12, surface: 1 },
       ],
     },

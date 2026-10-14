@@ -1,10 +1,10 @@
 import * as THREE from "three";
 import { sceneryTime as fxTime } from "../../particles";
 import { TOON_LIGHT } from "../../toon";
-import { FLORA, STRUCTURES } from "../../tuning";
-import { ATMOSPHERE, MIST, atmospheric, bornNow } from "../atmosphere";
+import { FLORA, STRUCTURES, TERRAIN } from "../../tuning";
+import { ATMOSPHERE, BORN_GLSL, MIST, atmospheric } from "../atmosphere";
 import type { VegetationSpec } from "../biomes/types";
-import { sunDirection } from "../palette";
+import { shifted, sunDirection } from "../palette";
 import { STRUCTURE_INFO, structuresOf } from "../structures/kinds";
 import { structureGeometry } from "../structures/models";
 import type { World } from "../World";
@@ -16,7 +16,9 @@ import { PLANT_STRIDE, SPECIES, TUFT_STRIDE } from "./species";
 // species, swaying in the wind), camera-facing impostors further out (one pool
 // for every species, drawn from an atlas baked at load), and grass tufts and
 // flowers close by. Land nodes hand over their plants when they come on screen
-// and take them back when they go.
+// and take them back when they go. The mood's colors are baked into the
+// species meshes and the tufts' instance colors (World.mood); the materials
+// know nothing of moods.
 
 /** Shared by every plant material: wind, time and how much caps and crystals glow */
 const FLORA_UNIFORMS = {
@@ -24,6 +26,17 @@ const FLORA_UNIFORMS = {
   glow: { value: 0.2 },
   gust: { value: 1 },
 };
+
+/**
+ * GLSL: plants shrink a little (to 0.85) over the band past `floraFull`, where full trees give way to
+ * impostors, so the swap is a dissolve between two things of one size. Both shaders apply it
+ */
+const FAR_SCALE_GLSL = /* glsl */ `
+  uniform float floraFull;
+  float floraFarScale(float dist) { return 1.0 - 0.15 * smoothstep(floraFull, floraFull * 1.5, dist); }
+`;
+/** Where full trees give way to impostors: a full-detail node's box is within lodDetail (+ hysteresis) of the camera */
+const floraFull = { get value() { return TERRAIN.lodDetail + TERRAIN.lodHysteresis; } };
 
 const ATLAS_COLUMNS = 4;
 const ATLAS_ROWS = 4;
@@ -39,7 +52,12 @@ const FRAME_Y1 = 1.1;
  * `built`: a structure, whose lights follow STRUCTURES.lights and whose `spin` parts
  * turn about the model's z axis at height `spin.y`
  */
-function plantMaterial(sway: number, grass = false, grassGlow = 0, built: { spin: { y: number; rate: number; upright?: boolean } | null } | null = null): THREE.MeshLambertMaterial {
+function plantMaterial(
+  sway: number,
+  grass = false,
+  grassGlow = 0,
+  built: { spin: { y: number; rate: number; upright?: boolean } | null } | null = null,
+): THREE.MeshLambertMaterial {
   const spin = built?.spin ?? null;
   const material = atmospheric(new THREE.MeshLambertMaterial({ vertexColors: !grass, side: grass ? THREE.DoubleSide : THREE.FrontSide }), 0);
   const atmosphere = material.onBeforeCompile;
@@ -51,6 +69,7 @@ function plantMaterial(sway: number, grass = false, grassGlow = 0, built: { spin
     shader.uniforms.floraGust = FLORA_UNIFORMS.gust;
     shader.uniforms.floraWind = wind;
     shader.uniforms.floraFade = { get value() { return FLORA.grassDistance; } };
+    shader.uniforms.floraFull = floraFull;
     shader.uniforms.floraLights = { get value() { return built ? STRUCTURES.lights : 1; } };
     if (spin) shader.uniforms.floraSpin = { get value() { return spin.rate * STRUCTURES.sails; } };
     shader.vertexShader = shader.vertexShader
@@ -63,6 +82,7 @@ function plantMaterial(sway: number, grass = false, grassGlow = 0, built: { spin
         uniform float floraWind;
         uniform float floraGust;
         uniform float floraFade;
+        ${FAR_SCALE_GLSL}
         varying float vGlow;
         varying float vBlade;
         void main() {`,
@@ -96,15 +116,19 @@ function plantMaterial(sway: number, grass = false, grassGlow = 0, built: { spin
           transformed.x += w * (sin(floraTime * 1.7 + phase) * 0.7 + sin(floraTime * 3.3 + phase * 1.9) * 0.3);
           transformed.z += w * cos(floraTime * 1.3 + phase) * 0.5;
           #ifdef USE_INSTANCING
-            // Plants of land that has just arrived grow out of the ground (born, atmoNow: atmosphere.ts)
-            float grown = clamp((atmoNow - born) * atmoRevealRate, 0.0, 1.0);
+            // Plants of land that has just arrived grow out of the ground; a change of detail
+            // stays at full size and fades by color instead, as the land does (born: BORN_FRESH)
+            float grown = mix(1.0, atmoAge(born), atmoFresh(born));
             transformed *= grown * (2.0 - grown);
           #endif
+          float far = distance(root, cameraPosition);
           ${grass ? `
           // Tufts shrink away with distance instead of popping
-          float far = distance(root, cameraPosition);
           transformed *= 1.0 - smoothstep(floraFade * 0.7, floraFade, far);
-          vBlade = sway;` : "vGlow = glow;"}
+          vBlade = sway;` : `
+          // Towards where impostors take over, trees shrink a little, as the impostors do
+          transformed *= floraFarScale(far);
+          vGlow = glow;`}
         }`,
       );
     shader.fragmentShader = shader.fragmentShader
@@ -118,10 +142,8 @@ function plantMaterial(sway: number, grass = false, grassGlow = 0, built: { spin
       )
       .replace(
         "#include <color_fragment>",
-        grass
-          ? `#include <color_fragment>
-          diffuseColor.rgb *= 0.55 + 0.6 * vBlade;`
-          : "#include <color_fragment>",
+        `#include <color_fragment>
+        ${grass ? "diffuseColor.rgb *= 0.55 + 0.6 * vBlade;" : ""}`,
       )
       .replace(
         "#include <emissivemap_fragment>",
@@ -141,21 +163,36 @@ const impostorVertex = /* glsl */ `
   uniform float atmoNow;
   uniform float atmoRevealRate;
   uniform vec2 cells;
+  #ifdef USE_FOG
+    uniform float fogFar;
+  #endif
+  ${BORN_GLSL}
+  ${FAR_SCALE_GLSL}
   varying vec2 vUv;
   varying vec3 vTint;
   varying vec3 vWorld;
+  varying float vReveal;
   #include <fog_pars_vertex>
   void main() {
     // instanceMatrix carries the plant's foot (column 3), width and height (scales of x and y) and atlas cell (z scale)
     vec3 foot = vec3(instanceMatrix[3][0], instanceMatrix[3][1], instanceMatrix[3][2]);
-    // Plants of land that has just arrived grow out of the ground, like the full meshes
-    float grown = clamp((atmoNow - born) * atmoRevealRate, 0.0, 1.0);
+    // Plants of land that has just arrived grow out of the ground, like the full meshes; a change
+    // of detail stays at full size and fades by color, as the land does (born: BORN_FRESH, atmosphere.ts)
+    float grown = mix(1.0, atmoAge(born), atmoFresh(born));
     grown *= 2.0 - grown;
-    float width = instanceMatrix[0][0] * grown;
-    float height = instanceMatrix[1][1] * grown;
+    vReveal = atmoReveal(born);
+    vec3 toCamera = cameraPosition - foot;
+    float dist = length(toCamera);
+    // The same small shrink the full trees have where they give way to impostors, and towards
+    // the fog's far edge impostors shrink away into the haze instead of popping out of view
+    float size = grown * floraFarScale(dist);
+    #ifdef USE_FOG
+      size *= 1.0 - smoothstep(fogFar * 0.7, fogFar, dist);
+    #endif
+    float width = instanceMatrix[0][0] * size;
+    float height = instanceMatrix[1][1] * size;
     float cell = floor(instanceMatrix[2][2] + 0.5);
     // Turn to face the camera, about the vertical only
-    vec3 toCamera = cameraPosition - foot;
     vec3 right = normalize(vec3(toCamera.z, 0.0, -toCamera.x) + vec3(1e-4, 0.0, 0.0));
     vec3 world = foot + right * position.x * width + vec3(0.0, (position.y + ${FRAME_Y0.toFixed(3)}) * height, 0.0);
     vec2 corner = vec2(mod(cell, cells.x), floor(cell / cells.x));
@@ -181,6 +218,7 @@ const impostorFragment = /* glsl */ `
   varying vec2 vUv;
   varying vec3 vTint;
   varying vec3 vWorld;
+  varying float vReveal;
   #include <fog_pars_fragment>
   void main() {
     vec4 texel = texture2D(atlas, vUv);
@@ -195,6 +233,10 @@ const impostorFragment = /* glsl */ `
       float fogFactor = smoothstep(fogNear, fogFar, vFogDepth);
       color = mix(color, atmoMistColor, clamp(atmoMist(vWorld, dist), 0.0, 0.85) * (1.0 - fogFactor));
       color = mix(color, fogColor + glow, fogFactor);
+      // Just arrived: out of the haze; on its way out: back into it. The same plain blend as
+      // the land (atmosphere.ts), so plants fade with the ground they stand on
+      float reveal = vReveal * vReveal * (3.0 - 2.0 * vReveal);
+      color = mix(fogColor + glow, color, reveal);
     #endif
     gl_FragColor = vec4(color, 1.0);
     #include <colorspace_fragment>
@@ -272,7 +314,7 @@ export class FloraView {
   private readonly flowerColors: THREE.Color[] = [];
   private readonly grassBase = new THREE.Color();
   private readonly grassTip = new THREE.Color();
-  private readonly tints: THREE.Color[][] = [];
+  private readonly speciesTints: THREE.Color[][] = [];
   private readonly nodes = new Map<number, NodeFlora>();
   private readonly geometries: THREE.BufferGeometry[] = [];
   private readonly materials: THREE.Material[] = [];
@@ -288,12 +330,13 @@ export class FloraView {
     const terrain = world.biome.terrain;
     const snow = new THREE.Color(terrain.kind === "v2" ? terrain.layers.snow : "#ffffff");
     for (const spec of veg.species) {
-      const geometry = speciesGeometry(spec, snow);
+      // Built in the mood's colors: the meshes are this level's, as the land's are
+      const geometry = speciesGeometry(spec, snow, world.mood);
       this.geometries.push(geometry);
       const material = plantMaterial(SPECIES[spec.id].sway);
       this.materials.push(material);
       this.full.push(new InstancePool(geometry, material, this.group, 256));
-      this.tints.push((spec.tints ?? []).map((t) => new THREE.Color(t)));
+      this.speciesTints.push((spec.tints ?? []).map((t) => new THREE.Color(t)));
     }
     // Structures follow the species, as in the nodes' plant lists
     for (const spec of structuresOf(world.biome)) {
@@ -303,7 +346,7 @@ export class FloraView {
       const material = plantMaterial(info.sway, false, 0, { spin: info.spin });
       this.materials.push(material);
       this.full.push(new InstancePool(geometry, material, this.group, 32));
-      this.tints.push([]);
+      this.speciesTints.push([]);
     }
     this.atlas = new THREE.WebGLRenderTarget(CELL_W * ATLAS_COLUMNS, CELL_H * ATLAS_ROWS, { samples: 0 });
     this.atlas.texture.generateMipmaps = true;
@@ -324,6 +367,7 @@ export class FloraView {
     this.impostorMaterial.uniforms.atmoMistThickness = ATMOSPHERE.mistThickness;
     this.impostorMaterial.uniforms.atmoNow = ATMOSPHERE.now;
     this.impostorMaterial.uniforms.atmoRevealRate = ATMOSPHERE.revealRate;
+    this.impostorMaterial.uniforms.floraFull = floraFull;
     this.materials.push(this.impostorMaterial);
     const quad = new THREE.PlaneGeometry(2, FRAME_Y1 - FRAME_Y0).translate(0, (FRAME_Y1 - FRAME_Y0) / 2, 0);
     this.geometries.push(quad);
@@ -338,13 +382,14 @@ export class FloraView {
       this.materials.push(grassMaterial, flowerMaterial);
       this.grass = new InstancePool(tuft, grassMaterial, this.group, 2048);
       this.flowers = new InstancePool(flower, flowerMaterial, this.group, 512);
-      this.grassBase.set(veg.grass.color);
-      this.grassTip.set(veg.grass.tip);
+      // Tufts follow the mood's grass, as the land's cover does; flowers keep their colors
+      shifted(veg.grass.color, world.mood.grass, this.grassBase);
+      shifted(veg.grass.tip, world.mood.grass, this.grassTip);
       for (const c of veg.grass.flowers) this.flowerColors.push(new THREE.Color(c));
     }
   }
 
-  /** Renders each species once into the impostor atlas, in this level's light */
+  /** Renders each species once into the impostor atlas, in this level's light (the meshes already carry the mood's colors) */
   bake(renderer: THREE.WebGLRenderer) {
     if (this.baked || !this.atlas) return;
     this.baked = true;
@@ -387,15 +432,28 @@ export class FloraView {
 
   /**
    * A node came on screen: its plants appear, as full meshes or impostors by its level of detail.
-   * `fresh`: nothing stood there before (not a change of detail), so they grow in
+   * `born` says how (BORN_FRESH, atmosphere.ts): growing out of the ground where nothing stood,
+   * or at full size and color for a change of detail. Plants of the node still on their way out go first
    */
-  show(key: number, lod: number, plants: Float32Array, tufts: Float32Array, box: THREE.Box3, fresh = false) {
+  show(key: number, lod: number, plants: Float32Array, tufts: Float32Array, box: THREE.Box3, born = 0) {
+    if (this.nodes.has(key)) this.hide(key);
     const node: NodeFlora = { lod, plants, tufts, box, impostors: false, full: false, grass: false };
     this.nodes.set(key, node);
-    const born = fresh ? bornNow() : 0;
     if (lod === 0) this.addFull(key, node, born);
     else this.addImpostors(key, node, born);
     this.lastGrassCheck.set(Infinity, 0, 0);
+  }
+
+  /** Rewrites `born` for a node's plants, e.g. to have them fade into the haze while their replacements show */
+  setBorn(key: number, born: number) {
+    const node = this.nodes.get(key);
+    if (!node) return;
+    if (node.full) for (const pool of this.full) pool.setBorn(key, born);
+    if (node.impostors) this.impostors?.setBorn(key, born);
+    if (node.grass) {
+      this.grass?.setBorn(key, born);
+      this.flowers?.setBorn(key, born);
+    }
   }
 
   hide(key: number) {
@@ -411,7 +469,7 @@ export class FloraView {
   }
 
   private plantColor(species: number, variant: number, out: THREE.Color) {
-    const tints = this.tints[species];
+    const tints = this.speciesTints[species];
     if (tints.length) out.copy(tints[Math.floor(variant * tints.length) % tints.length]);
     else out.setScalar(1);
     return out.multiplyScalar(0.86 + 0.28 * ((variant * 7.13) % 1));

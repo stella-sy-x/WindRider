@@ -47,7 +47,7 @@ export const FX = {
   bloomRadius: 0.12,
   bloomHalo: 0.12, // contribution from the widest blur layers
   bloomThreshold: 1.3,
-  bloomResolution: 1, // with bloom, the frame renders at most at this pixel ratio (its cost grows fast with it)
+  bloomResolution: 1.5, // with bloom, the frame renders at most at this pixel ratio (its cost grows fast with it)
   bloomSamples: 0, // multisampling of the bloom's float target (very dear on integrated GPUs); 0 smooths edges with FXAA instead
   autoQuality: true, // drop effects if the frame rate can't keep up
 };
@@ -60,6 +60,9 @@ export const RINGS = {
   spin: 0.08, // how fast the cohort turns around the gate (rad/s)
   selfSpin: 0.6, // how fast each crystal turns on its own axis
   glow: 1, // inner glow of the next gate
+  motes: 28, // glowing motes that trace each gate's ring; applies to the next map
+  moteSize: 0.7, // metres across, for a 13 m ring (smaller gates get smaller motes)
+  moteDrift: 0.25, // metres each mote wanders from its place on the ring
   shatter: 1, // particles when you pass through
   passTime: 1.4, // seconds of the pass animation
 };
@@ -111,10 +114,10 @@ export const TERRAIN = {
   lodFar: 700, // closer than this at half detail (12 m), further at quarter (24 m)
   lodHysteresis: 48, // extra distance before merging fine detail again
   cacheMiB: 48, // bounded cache of hidden terrain (estimated CPU + GPU buffers)
-  viewDistance: 1500,
+  viewDistance: 1400, // metres: the default fog ends at 1300 (WorldView FOG_FAR), so nothing is built much beyond it
   readyRadius: 260, // the start waits until the land this close has arrived
   arrivalsPerFrame: 12, // arrived land meshes taken in per frame once you're flying (each costs about 0.04 ms)
-  fadeIn: 0.9, // seconds for land that has just arrived to fade in out of the haze, and its plants to grow in
+  fadeIn: 1.8, // seconds for land that has just arrived to fade in out of the haze and its plants to grow in, and for a change of detail to dissolve across
   snowLine: 0, // metres added to the biome's snow line
   coverSlope: 0, // added to the slope where grass (moss, sand…) gives way to rock
   texture: 1, // strength of the painted noise on cliffs

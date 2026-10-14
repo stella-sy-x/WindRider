@@ -95,7 +95,7 @@ POST up, plain HTTP (WebSockets didn't survive the hackathon network).
 - The server times runs and rejects anything under 25 s or more than 3 s off
 
 **Seeded worlds**: the racing line descends through procedurally generated
-terrain, with a gate every 95–130 m. Nine biomes share one map pool (a seed
+terrain, with a gate every 95–130 m. Eight biomes share one map pool (a seed
 determines the biome, layout and lighting). All rock is a signed distance
 field meshed in web workers. Collisions use the drawn triangles, not the field.
 

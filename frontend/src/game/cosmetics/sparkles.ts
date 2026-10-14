@@ -6,9 +6,8 @@ import type { Appearance } from "./storage";
 
 // Rare and legendary capes, hats and shoes shed their own light in flight:
 // starlight off the Aurora veil's hem, gilded flakes off the royal cape,
-// embers off the ember mantle (brighter while boosting), a wisp off the
-// winged helm, stardust off the star-witch hat, frost and sparks off the
-// shoes. Decoration only (CLAUDE.md rule 6): nothing here touches the flight.
+// embers off the ember mantle (brighter while boosting), stardust off the
+// star-witch hat, frost and sparks off the shoes. Decoration only (CLAUDE.md rule 6): nothing here touches the flight.
 // Wings shed their particles in pilotfx.ts, pets their trails in pets/.
 
 interface Sparkle {
@@ -28,7 +27,6 @@ export const COSMETIC_SPARKLES: Readonly<Record<string, Sparkle>> = {
   "cape:aurora": { from: "hem", color: "#cfe6ff", kind: Kind.Star, rate: 14, size: 0.12, life: 1.1, gravity: -0.2 },
   "cape:royal": { from: "hem", color: "#ffe39a", kind: Kind.Shard, rate: 10, size: 0.09, life: 0.9, gravity: 0.6 },
   "cape:ember": { from: "hem", color: "#ff9a52", kind: Kind.Glow, rate: 22, size: 0.11, life: 0.8, gravity: -0.9, boost: 2 },
-  "hat:wingedHelm": { from: "head", color: "#fff1c4", kind: Kind.Wisp, rate: 6, size: 0.18, life: 0.6, gravity: 0 },
   "hat:starwitch": { from: "head", color: "#d8c8ff", kind: Kind.Star, rate: 8, size: 0.1, life: 1.2, gravity: -0.3 },
   "shoes:frost": { from: "feet", color: "#d7f3ff", kind: Kind.Shard, rate: 10, size: 0.08, life: 0.9, gravity: 0.8 },
   "shoes:ember": { from: "feet", color: "#ffb36b", kind: Kind.Glow, rate: 12, size: 0.08, life: 0.6, gravity: -0.6 },

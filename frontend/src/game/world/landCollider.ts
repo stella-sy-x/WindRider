@@ -1,7 +1,7 @@
 import type { Vector3 } from "three";
 
 // Collisions against the land exactly as it is drawn: the triangles of every
-// land mesh on screen (Sky Isles' chunks, generator-v2 nodes) in a grid per
+// land mesh on screen (terrain nodes) in a grid per
 // mesh, built the first time something comes near. What you see is what you
 // hit, and nothing else: a sliver of the distance field too thin for the
 // meshing grid, which is never drawn, is never hit either.

@@ -13,18 +13,17 @@ const DEMO: [number, (e: Equipment) => void][] = [
   [0.5, (e) => e.equip("firework")],
   [2.4, (e) => e.setThrust(1)],
   [4.6, (e) => e.setThrust(0)],
-  [5.2, (e) => e.equip("wingedHelm")],
+  [5.2, (e) => e.equip("aviatorCap")],
   [6.6, (e) => e.equip("apple")],
   [8.0, (e) => e.use()],
   [9.4, (e) => e.equip("lollipop")],
   [10.8, (e) => e.use()],
-  [12.0, (e) => e.equip("aviatorCap")],
-  [13.4, (e) => e.equip("goldenFeather")],
-  [14.8, (e) => e.use()],
-  [15.6, (e) => e.unequip("back")],
-  [16.4, (e) => e.unequip("head")],
+  [12.0, (e) => e.equip("starCandy")],
+  [13.4, (e) => e.use()],
+  [14.2, (e) => e.unequip("back")],
+  [15.0, (e) => e.unequip("head")],
 ];
-const DEMO_LENGTH = 17.5;
+const DEMO_LENGTH = 16;
 
 export class ItemGallery {
   private readonly container: HTMLElement;

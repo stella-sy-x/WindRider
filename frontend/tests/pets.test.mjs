@@ -68,7 +68,7 @@ test("teleports while visible snap instead of dragging a pet through the whole w
 
 test("all existing pets are genuine pets, stay by the pilot and take a rail through every hoop without changing the player", () => {
   assert.deepEqual(PETS.map(p => p.id), ["swallow", "owl", "crane", "phoenix", "dragon", "kirin", "fox", "griffin"]);
-  for (const biome of ["skyIsles", "verdant", "reef", "glacier", "archipelago", "lagoon", "twilight", "ember", "aurora"]) {
+  for (const biome of ["verdant", "reef", "glacier", "archipelago", "lagoon", "twilight", "ember", "aurora"]) {
     const world = new World(makeLevel({ biome, seed: 7, mood: 0 })), course = world.course;
     const scene = new Group(), pilot = new Group(), companion = new Companion(scene);
     companion.set("crane"); let previous = null, onRail = 0, beside = 0;
@@ -123,7 +123,7 @@ test("far from hoops the pet circles the pilot playfully and smoothly instead of
 });
 
 test("after a hoop the pet plays around for a few seconds, and never jumps on or off the rail", () => {
-  for (const biome of ["verdant", "skyIsles", "ember"]) {
+  for (const biome of ["verdant", "archipelago", "ember"]) {
     const world = new World(makeLevel({ biome, seed: 7, mood: 0 })), course = world.course;
     const scene = new Group(), pilot = new Group(), companion = new Companion(scene);
     companion.set("fox");

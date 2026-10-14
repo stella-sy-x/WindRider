@@ -10,7 +10,9 @@ import type { Layers } from "../biomes/types";
 // a band of soil where it breaks, rock on the steep; sand and dark wet rock at
 // the water's edge; snow above the snow line on faces flat enough to hold it.
 // Cliffs get a soft triplanar noise so they read as painted stone. Inputs are
-// constant over a face, so the land keeps its flat-shaded, low-poly look.
+// constant over a face, so the land keeps its flat-shaded, low-poly look. The
+// mood's colors arrive baked in the faces (terrain/mesh.ts); nothing here is
+// per mood.
 
 export interface TerrainUniforms {
   dirt: { value: THREE.Color };
@@ -150,7 +152,7 @@ export function terrainMaterial(layers: Layers): { material: THREE.MeshLambertMa
         }`,
       );
   };
-  material.customProgramCacheKey = () => "windrider-terrain-crystal-v3";
+  material.customProgramCacheKey = () => "windrider-terrain-crystal-v5-baked";
   return { material, uniforms };
 }
 

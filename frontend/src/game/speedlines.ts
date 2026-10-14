@@ -38,7 +38,7 @@ const basisA = new THREE.Vector3();
 const basisB = new THREE.Vector3();
 
 /**
- * Wind streaks, like gliding in Genshin: thin lines that hang in the air ahead
+ * Wind streaks: thin lines that hang in the air ahead
  * of you and rush past as you fly through them. More and longer with speed.
  */
 export class SpeedLines {

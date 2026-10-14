@@ -112,7 +112,10 @@ export class TouchControls {
     this.input.touchBoost = this.input.touchBrake = false;
     void this.wakeLock?.release().catch(() => {});
     this.wakeLock = null;
-    if (this.wentFullscreen && document.fullscreenElement) void document.exitFullscreen().catch(() => {});
+    if (this.wentFullscreen && document.fullscreenElement) {
+      const doc = document as Document & { webkitExitFullscreen?: () => Promise<void> };
+      void (doc.exitFullscreen?.() ?? doc.webkitExitFullscreen?.())?.catch(() => {});
+    }
     this.root.remove();
   }
 
@@ -231,10 +234,15 @@ export class TouchControls {
     void this.keepAwake();
     if (this.askedFullscreen) return;
     this.askedFullscreen = true;
-    // Android turns the screen sideways for a full-screen page that asks; iOS has neither
-    const page = document.documentElement;
-    if (document.fullscreenElement || !page.requestFullscreen) return;
-    page.requestFullscreen({ navigationUI: "hide" })
+    if (document.fullscreenElement) return;
+    const page = document.documentElement as HTMLElement & { webkitRequestFullscreen?: () => Promise<void> };
+    const request = page.requestFullscreen?.bind(page) ?? page.webkitRequestFullscreen?.bind(page);
+    if (!request) {
+      // iOS Safari/Chrome: no fullscreen API — still try orientation lock
+      void (screen.orientation as unknown as OrientationLock | undefined)?.lock?.("landscape").catch(() => {});
+      return;
+    }
+    request({ navigationUI: "hide" } as FullscreenOptions)
       .then(() => {
         this.wentFullscreen = true;
         return (screen.orientation as unknown as OrientationLock | undefined)?.lock?.("landscape");

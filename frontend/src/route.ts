@@ -33,7 +33,7 @@ export function screenFromSearch(search: string, hasNickname: boolean): Screen {
   const seed = validSeed(params.get("seed"));
   if (params.has("test")) {
     // The world may be named by test= or explore=; the seed by seed= or run=
-    const biome = [params.get("test"), params.get("explore")].find(validBiome) ?? "skyIsles";
+    const biome = [params.get("test"), params.get("explore")].find(validBiome) ?? "verdant";
     return { kind: "test", biome, seed: seed ?? 1 };
   }
   if (seed !== null) return { kind: "solo", seed };
