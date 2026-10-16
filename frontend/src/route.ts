@@ -8,7 +8,7 @@ export type Screen =
   | { kind: "test"; biome: BiomeId; seed: number }
   | { kind: "gallery" };
 
-export function validBiome(biome: string | null): biome is BiomeId {
+function validBiome(biome: string | null): biome is BiomeId {
   return biome !== null && Object.hasOwn(BIOMES, biome);
 }
 
@@ -25,16 +25,15 @@ function validSeed(value: string | null): number | null {
 export function screenFromSearch(search: string, hasNickname: boolean): Screen {
   const params = new URLSearchParams(search);
   const room = params.get("room")?.toUpperCase();
-  if (room && /^[A-Z0-9]{3,8}$/.test(room)) {
+  if (room && /^[A-Z0-9]{5,8}$/.test(room)) {
     // First visit through an invite link: pick a name before joining
     return hasNickname ? { kind: "room", code: room } : { kind: "menu", joinCode: room };
   }
   if (params.has("gallery")) return { kind: "gallery" };
   const seed = validSeed(params.get("seed"));
   if (params.has("test")) {
-    // The world may be named by test= or explore=; the seed by seed= or run=
-    const biome = [params.get("test"), params.get("explore")].find(validBiome) ?? "verdant";
-    return { kind: "test", biome, seed: seed ?? 1 };
+    const biome = params.get("test");
+    return { kind: "test", biome: validBiome(biome) ? biome : "verdant", seed: seed ?? 1 };
   }
   if (seed !== null) return { kind: "solo", seed };
   return { kind: "menu" };

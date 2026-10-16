@@ -43,7 +43,7 @@ html.touch .touch-controls {
   display: block;
 }
 
-/* Nothing to steer (a run's start panel, the wormhole, the victory lap) */
+/* Nothing to steer: the game reports it through TouchControls.sync */
 html.touch .touch-controls.idle:not(.paused) {
   display: none;
 }

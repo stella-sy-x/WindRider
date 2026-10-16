@@ -117,7 +117,7 @@ export const TERRAIN = {
   viewDistance: 1400, // metres: the default fog ends at 1300 (WorldView FOG_FAR), so nothing is built much beyond it
   readyRadius: 260, // the start waits until the land this close has arrived
   arrivalsPerFrame: 12, // arrived land meshes taken in per frame once you're flying (each costs about 0.04 ms)
-  fadeIn: 1.8, // seconds for land that has just arrived to fade in out of the haze and its plants to grow in, and for a change of detail to dissolve across
+  fadeIn: 1.8, // seconds for land that has just arrived to fade in out of the haze and its plants to grow in (a change of detail is instant)
   snowLine: 0, // metres added to the biome's snow line
   coverSlope: 0, // added to the slope where grass (moss, sand…) gives way to rock
   texture: 1, // strength of the painted noise on cliffs
@@ -157,7 +157,7 @@ export const DEEP = {
   life: 1, // how brightly fish and jellyfish glow
 };
 
-/** The autopilot (the menu's chase view, the victory lap): flies the racing line on rails */
+/** The autopilot (the menu's chase view): flies the racing line on rails */
 export const AUTOPILOT = {
   railMinSpeed: 28, // m/s: the slowest it glides…
   railMaxSpeed: 48, // …and the fastest it dives

@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import { Avatar, createLabel, disposeLabel } from "../avatar";
 import { Particles, fxTime } from "../particles";
+import { PLAYER_COLOR } from "../toon";
 import { Equipment, ItemDisplay } from "./equip";
 import { ITEMS, type ItemId } from "./models";
 
@@ -73,7 +74,7 @@ export class ItemGallery {
     this.scene.add(new THREE.HemisphereLight("#d6ecff", "#ffe2c8", 1.3), sun, this.particles.points);
 
     // The pilot, flying in place and turned three-quarters to the camera
-    this.avatar = new Avatar("#ff5d73");
+    this.avatar = new Avatar(PLAYER_COLOR);
     this.avatar.group.position.set(-1.6, -1.2, 3.6);
     this.avatar.group.scale.setScalar(0.78);
     this.avatar.group.rotation.set(0.15, Math.PI * 0.78, 0);

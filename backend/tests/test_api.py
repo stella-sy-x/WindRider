@@ -1,3 +1,4 @@
+import pytest
 from fastapi.testclient import TestClient
 
 import app as app_module
@@ -5,6 +6,25 @@ from app import app, rooms
 from rooms import COUNTDOWN_MS, Listener
 
 client = TestClient(app, headers={"X-Flight-Rules": "speed-control-v3"})
+
+
+@pytest.fixture(scope="module", autouse=True)
+def running_app():
+    # Runs the app's lifespan: the store opens (and the room ticker starts) for the whole module
+    with client:
+        yield
+
+
+def backdate_run(token: str, by_ms: int):
+    """Pretend a solo run's clock started this long ago"""
+    app_module.store.backdate_solo_run(token, by_ms)
+
+
+@pytest.fixture(autouse=True)
+def fresh_rate_limits():
+    # Every test client request comes from the same address: start each test with a clean slate
+    app_module.write_limiter.hits.clear()
+    app_module.start_limiter.hits.clear()
 
 
 def ghost(n=3):
@@ -21,12 +41,32 @@ def test_me_has_played():
     # Newcomers get the tutorial: anyone (or any guest browser) with a finished run doesn't
     portal = {"X-User-Id": "max@ethz.ch", "X-User-Name": "Max"}
     assert client.get("/api/me", headers=portal).json()["has_played"] is False
-    assert client.get("/api/me", params={"client_id": "fresh"}).json()["has_played"] is False
+    assert client.get("/api/me", headers={"X-Client-Id": "fresh"}).json()["has_played"] is False
     app_module.store.add_run(7, "max@ethz.ch", "Max", 61_000, None)
     app_module.store.add_run(7, "guest:fresh", "Guest", 62_000, None)
     assert client.get("/api/me", headers=portal).json()["has_played"] is True
-    assert client.get("/api/me", params={"client_id": "fresh"}).json()["has_played"] is True
-    assert client.get("/api/me", params={"client_id": "other"}).json()["has_played"] is False
+    assert client.get("/api/me", headers={"X-Client-Id": "fresh"}).json()["has_played"] is True
+    assert client.get("/api/me", headers={"X-Client-Id": "other"}).json()["has_played"] is False
+    # The browser id is a header now, not a query parameter (keeps it out of logs)
+    assert client.get("/api/me", params={"client_id": "fresh"}).json()["id"] == "guest"
+    assert client.get("/api/me", headers={"X-Client-Id": "no spaces!"}).status_code == 400
+
+
+def test_portal_name_never_falls_back_to_the_email():
+    me = client.get("/api/me", headers={"X-User-Id": "lea@ethz.ch"}).json()
+    assert me == {"id": "lea@ethz.ch", "name": "Pilot", "verified": True, "has_played": False}
+    assert client.get("/api/me", headers={"X-User-Id": "lea@ethz.ch", "X-User-Name": "  "}).json()["name"] == "Pilot"
+
+
+def test_duplicate_login_headers_are_rejected():
+    response = client.get("/api/me", headers=[("X-User-Id", "a@ethz.ch"), ("X-User-Id", "b@ethz.ch")])
+    assert response.status_code == 400
+
+
+def test_clean_name_drops_control_and_format_characters():
+    assert app_module.clean_name("Zo​ë‮\n Pilot\x00") == "Zoë Pilot"
+    assert app_module.clean_name("\x1b[31mred") == "[31mred"
+    assert app_module.clean_name("a" * 40) == "a" * 24
 
 
 def test_room_flow():
@@ -53,7 +93,7 @@ def test_room_flow():
     assert finished["place"] == 1
     assert client.get("/api/rooms/RACE1").json()["phase"] == "lobby"
 
-    board = client.get("/api/leaderboard", params={"seed": room.seed, "client_id": "c1"}).json()
+    board = client.get("/api/leaderboard", params={"seed": room.seed}, headers={"X-Client-Id": "c1"}).json()
     assert board[0]["name"] == "Ace Pilot" and board[0]["is_me"]
 
     # The first pilot in is the host and may restart; anyone else may not
@@ -74,7 +114,9 @@ def test_room_map_from_the_map_select():
     assert made["room"]["seed"] == 13
     joined = client.post("/api/rooms/pick1/join", json={"client_id": "p2", "seed": 6}).json()
     assert joined["room"]["seed"] == 13
-    # In the lobby, any player can switch to a picked map, or to a random one
+    # In the lobby, the host can switch to a picked map, or to a random one; nobody else can
+    assert client.post("/api/rooms/PICK1/map", json={"token": joined["token"], "seed": 6}).status_code == 409
+    assert client.get("/api/rooms/PICK1").json()["seed"] == 13
     assert client.post("/api/rooms/PICK1/map", json={"token": made["token"], "seed": 6}).status_code == 204
     assert client.get("/api/rooms/PICK1").json()["seed"] == 6
     assert client.post("/api/rooms/PICK1/map", json={"token": made["token"]}).status_code == 204
@@ -86,7 +128,57 @@ def test_room_map_from_the_map_select():
 
 def test_bad_room_code():
     assert client.post("/api/rooms/no!/join", json={"client_id": "c1"}).status_code == 400
-    assert client.post("/api/rooms/ABC%0A/join", json={"client_id": "c1"}).status_code == 400
+    assert client.post("/api/rooms/ABCDE%0A/join", json={"client_id": "c1"}).status_code == 400
+    # Shorter than 5 characters is too easy to guess
+    assert client.post("/api/rooms/ABCD/join", json={"client_id": "c1"}).status_code == 400
+    assert client.post("/api/rooms/ABCDEFGHJ/join", json={"client_id": "c1"}).status_code == 400
+
+
+def test_tokens_are_bounded():
+    assert client.post("/api/rooms/RACE1/state", json={"token": "x" * 65, "t": 1, "p": [0, 0, 0], "q": [0, 0, 0, 1], "v": 1, "cp": 0}).status_code == 422
+    assert client.post("/api/rooms/RACE1/leave", json={"token": ""}).status_code == 422
+    assert client.post("/api/runs/finish", json={"run_token": "x" * 65, "time_ms": 60_000, "client_id": "x"}).status_code == 422
+
+
+def test_api_docs_are_off_by_default():
+    assert client.get("/api/docs").status_code == 404
+    assert client.get("/api/openapi.json").status_code == 404
+
+
+def test_writes_are_rate_limited(monkeypatch):
+    monkeypatch.setattr(app_module.write_limiter, "max_requests", 3)
+    joined = client.post("/api/rooms/LIMITED/join", json={"client_id": "fast"}).json()  # write 1
+    state = {"token": joined["token"], "t": 1, "p": [0, 0, 0], "q": [0, 0, 0, 1], "v": 1, "cp": 0}
+    # Position updates (15 a second) and reads are never limited
+    for _ in range(5):
+        assert client.post("/api/rooms/LIMITED/state", json=state).status_code == 204
+        assert client.get("/api/rooms/LIMITED").status_code == 200
+    for _ in range(2):  # writes 2 and 3
+        assert client.post("/api/runs/start", json={"seed": 1}).status_code == 200
+    response = client.post("/api/runs/start", json={"seed": 1})
+    assert response.status_code == 429 and "slow down" in response.json()["detail"]
+    assert client.post("/api/rooms/LIMITED/leave", json={"token": joined["token"]}).status_code == 429
+    # The 15 Hz stream is still fine
+    assert client.post("/api/rooms/LIMITED/state", json=state).status_code == 204
+
+
+def test_run_starts_are_rate_limited(monkeypatch):
+    monkeypatch.setattr(app_module.start_limiter, "max_requests", 2)
+    assert client.post("/api/runs/start", json={"seed": 1}).status_code == 200
+    assert client.post("/api/runs/start", json={"seed": 1}).status_code == 200
+    assert client.post("/api/runs/start", json={"seed": 1}).status_code == 429
+    # Other writes from the same address still go through
+    assert client.post("/api/rooms/STILLOK/join", json={"client_id": "ok"}).status_code == 200
+
+
+def test_rate_limiter_window_slides():
+    limiter = app_module.RateLimiter(2, 60)
+    assert limiter.allow("ip", now=0) and limiter.allow("ip", now=1)
+    assert not limiter.allow("ip", now=2)
+    assert limiter.allow("other", now=2)
+    assert limiter.allow("ip", now=61)  # the first hit fell out of the window
+    # Quiet addresses are forgotten
+    assert limiter.allow("ip", now=200) and "other" not in limiter.hits
 
 
 def test_stream_with_stale_token_is_404():
@@ -97,9 +189,7 @@ def test_solo_runs_and_ghosts():
     seed = 4242
     for client_id, time_ms in [("a", 70_000), ("b", 65_000), ("a", 68_000)]:
         token = client.post("/api/runs/start", json={"seed": seed}).json()["run_token"]
-        # Pretend the clock started long enough ago
-        s, started = app_module.solo_runs[token]
-        app_module.solo_runs[token] = (s, started - time_ms)
+        backdate_run(token, time_ms)
         result = client.post(
             "/api/runs/finish",
             json={"run_token": token, "time_ms": time_ms, "client_id": client_id, "nickname": client_id.upper(), "ghost": ghost()},
@@ -116,10 +206,17 @@ def test_solo_runs_and_ghosts():
 
 def test_solo_finish_faster_than_server_clock_is_rejected():
     token = client.post("/api/runs/start", json={"seed": 7}).json()["run_token"]
-    s, started = app_module.solo_runs[token]
-    app_module.solo_runs[token] = (s, started - 90_000)
+    backdate_run(token, 90_000)
     response = client.post("/api/runs/finish", json={"run_token": token, "time_ms": 30_000, "client_id": "x"})
     assert response.status_code == 409
+
+
+def test_solo_run_token_is_single_use():
+    token = client.post("/api/runs/start", json={"seed": 7}).json()["run_token"]
+    backdate_run(token, 60_000)
+    body = {"run_token": token, "time_ms": 60_000, "client_id": "x"}
+    assert client.post("/api/runs/finish", json=body).status_code == 200
+    assert client.post("/api/runs/finish", json=body).status_code == 404
 
 
 def test_solo_finish_right_after_start_is_rejected():
@@ -132,8 +229,7 @@ def test_own_slower_run_ranks_against_others_only():
     seed = 999
     for time_ms in (60_000, 70_000):
         token = client.post("/api/runs/start", json={"seed": seed}).json()["run_token"]
-        s, started = app_module.solo_runs[token]
-        app_module.solo_runs[token] = (s, started - time_ms)
+        backdate_run(token, time_ms)
         result = client.post(
             "/api/runs/finish", json={"run_token": token, "time_ms": time_ms, "client_id": "solo"}
         ).json()
@@ -179,7 +275,7 @@ def test_login_headers_are_ignored_unless_trusted(monkeypatch):
     assert client.get("/api/me", headers=portal).json()["verified"] is True
     monkeypatch.delenv("TRUST_USER_HEADERS")
     # Without the portal in front, a forged header is just a guest
-    me = client.get("/api/me", params={"client_id": "abc"}, headers=portal).json()
+    me = client.get("/api/me", headers={**portal, "X-Client-Id": "abc"}).json()
     assert me["id"] == "guest:abc" and me["verified"] is False
 
 
@@ -187,11 +283,11 @@ def test_room_creation_is_limited(monkeypatch):
     import rooms as rooms_module
     monkeypatch.setattr(rooms_module, "ROOMS_PER_CREATOR_HOUR", 2)
     join = lambda code, cid: client.post(f"/api/rooms/{code}/join", json={"client_id": cid, "nickname": "A"})
-    assert join("LIMA", "spammer").status_code == 200
-    assert join("LIMB", "spammer").status_code == 200
-    assert join("LIMC", "spammer").status_code == 429
+    assert join("LIMITA", "spammer").status_code == 200
+    assert join("LIMITB", "spammer").status_code == 200
+    assert join("LIMITC", "spammer").status_code == 429
     # Joining a room that exists is never limited, and others can still create rooms
-    assert join("LIMA", "friend").status_code == 200
-    assert join("LIMD", "someone-else").status_code == 200
+    assert join("LIMITA", "friend").status_code == 200
+    assert join("LIMITD", "someone-else").status_code == 200
     monkeypatch.setattr(rooms_module, "MAX_ROOMS", len(rooms.rooms))
-    assert join("LIME", "third").status_code == 429
+    assert join("LIMITE", "third").status_code == 429

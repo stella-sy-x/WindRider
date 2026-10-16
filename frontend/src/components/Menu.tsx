@@ -33,6 +33,8 @@ const Menu = ({ me, settings, onSettings, joinCode, go }: MenuProps) => {
   const [tab, setTab] = useState<"solo" | "friends">(joinCode ? "friends" : "solo");
   const [code, setCode] = useState(joinCode ?? "");
   const [board, setBoard] = useState<LeaderboardEntry[]>([]);
+  // The board couldn't be fetched (server down, offline): shown instead of "no times yet"
+  const [boardError, setBoardError] = useState(false);
   const [panel, setPanel] = useState<"none" | "settings">("none");
   const [countdown, setCountdown] = useState(untilTomorrow);
   // The map select, for a time trial, a run or a new room: it shows its course behind the glass, and the UI
@@ -56,8 +58,14 @@ const Menu = ({ me, settings, onSettings, joinCode, go }: MenuProps) => {
 
   useEffect(() => {
     getLeaderboard(daily, clientId())
-      .then(setBoard)
-      .catch(() => {});
+      .then((entries) => {
+        setBoard(entries);
+        setBoardError(false);
+      })
+      .catch((e: unknown) => {
+        console.warn("Couldn't load today's leaderboard", e);
+        setBoardError(true);
+      });
   }, [daily]);
 
   useEffect(() => {
@@ -82,7 +90,7 @@ const Menu = ({ me, settings, onSettings, joinCode, go }: MenuProps) => {
   const joinRoom = (e: FormEvent) => {
     e.preventDefault();
     const room = code.trim().toUpperCase();
-    if (/^[A-Z0-9]{3,8}$/.test(room)) go({ kind: "room", code: room });
+    if (/^[A-Z0-9]{5,8}$/.test(room)) go({ kind: "room", code: room });
   };
 
   const closePicker = () => {
@@ -182,7 +190,7 @@ const Menu = ({ me, settings, onSettings, joinCode, go }: MenuProps) => {
                     aria-label="Room code"
                     autoFocus={!!joinCode}
                   />
-                  <button type="submit" disabled={!/^[A-Za-z0-9]{3,8}$/.test(code.trim())}>
+                  <button type="submit" disabled={!/^[A-Za-z0-9]{5,8}$/.test(code.trim())}>
                     Join
                   </button>
                 </form>
@@ -192,7 +200,7 @@ const Menu = ({ me, settings, onSettings, joinCode, go }: MenuProps) => {
         </>
       )}
 
-      {!picking && <TodaysBest entries={board} />}
+      {!picking && <TodaysBest entries={board} error={boardError} />}
 
       <button className="menu-pilot glass" aria-label={pilotName}>
         <span className="menu-badge">

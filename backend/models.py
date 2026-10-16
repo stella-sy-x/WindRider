@@ -5,6 +5,8 @@ from pydantic import BaseModel, Field, FiniteFloat, field_validator
 # Ids the browser makes up for itself (stored in localStorage)
 ClientId = Annotated[str, Field(min_length=1, max_length=64, pattern=r"^[A-Za-z0-9_-]+$")]
 Nickname = Annotated[str, Field(max_length=40)]
+# Room player tokens and solo run tokens are secrets.token_urlsafe(16): 22 characters
+Token = Annotated[str, Field(min_length=1, max_length=64)]
 Seed = Annotated[int, Field(ge=1, le=2_147_483_647)]
 # A race takes between a few seconds and an hour
 RaceTime = Annotated[int, Field(ge=1_000, le=3_600_000)]
@@ -51,7 +53,7 @@ class JoinRequest(BaseModel):
 
 
 class TokenRequest(BaseModel):
-    token: str
+    token: Token
 
 
 class MapRequest(TokenRequest):
@@ -60,7 +62,7 @@ class MapRequest(TokenRequest):
 
 
 class StateRequest(BaseModel):
-    token: str
+    token: Token
     t: FiniteFloat  # when the state was sampled, in server time (ms)
     p: Annotated[list[FiniteFloat], Field(min_length=3, max_length=3)]
     q: Annotated[list[FiniteFloat], Field(min_length=4, max_length=4)]
@@ -72,7 +74,7 @@ class StateRequest(BaseModel):
 
 
 class FinishRequest(BaseModel):
-    token: str
+    token: Token
     time_ms: RaceTime
     ghost: Ghost | None = None
 
@@ -86,7 +88,7 @@ class RunStartResponse(BaseModel):
 
 
 class RunFinishRequest(BaseModel):
-    run_token: str
+    run_token: Token
     time_ms: RaceTime
     client_id: ClientId
     nickname: Nickname = ""

@@ -47,11 +47,11 @@ export const ATMOSPHERE = {
  * to be on screen, in one float against the wall clock `atmoNow`:
  *   0           long there (geometry without the attribute reads this)
  *   t           swapped in at time t for another level of detail: drawn in its full color at
- *               once, while the old level fades out over TERRAIN.fadeIn
+ *               once (the old level came off the same frame; the two never overlap)
  *   FRESH + t   arrived at t where nothing was drawn: fades in out of the haze's color over
  *               TERRAIN.fadeIn, and its plants grow out of the ground
- *   -t          on its way out since t, replaced by another level: its color fades back into
- *               the haze's over TERRAIN.fadeIn, then the streamer takes it off
+ *   -t          on its way out since t: its color fades back into the haze's over
+ *               TERRAIN.fadeIn (supported by the shaders; the land streamer no longer uses it)
  * The fades are plain color blends (no discard or dither), so nothing needs sorting and nothing
  * speckles: a surface only ever moves between its own color and the haze's.
  * FRESH is 2^17: float32 still keeps 1/64 s above it, and the wall clock stays below it for 36 h.

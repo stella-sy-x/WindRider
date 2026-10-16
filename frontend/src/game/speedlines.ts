@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import { WHITE } from "./toon";
 import { FX } from "./tuning";
 
 const COUNT = 90;
@@ -75,7 +76,7 @@ export class SpeedLines {
   }
 
   setColor(color: THREE.ColorRepresentation) {
-    (this.mesh.material.uniforms.color.value as THREE.Color).set(color).lerp(new THREE.Color("#ffffff"), 0.7);
+    (this.mesh.material.uniforms.color.value as THREE.Color).set(color).lerp(WHITE, 0.7);
   }
 
   reset() {

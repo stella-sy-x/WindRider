@@ -1,12 +1,54 @@
-"""Finished runs, per seed, in a SQLite file (kept on a Docker volume)."""
+"""Finished runs, per seed, and solo runs in progress, in a SQLite file (kept on a Docker volume)."""
 
 import json
 import os
+import secrets
 import sqlite3
 import threading
 import time
 
 from models import Ghost, GhostRun, LeaderboardEntry
+
+# Solo time trials in progress are forgotten after this long
+SOLO_RUN_TTL_MS = 60 * 60 * 1000
+
+# The tables as first created. Changes to them go in MIGRATIONS, never here: an existing database
+# only runs the migrations it hasn't seen yet (PRAGMA user_version counts them).
+SCHEMA = [
+    """
+    CREATE TABLE IF NOT EXISTS runs (
+        id INTEGER PRIMARY KEY,
+        seed INTEGER NOT NULL CHECK (seed BETWEEN 1 AND 2147483647),
+        user_id TEXT NOT NULL,
+        name TEXT NOT NULL CHECK (length(name) BETWEEN 1 AND 40),
+        time_ms INTEGER NOT NULL CHECK (time_ms BETWEEN 1000 AND 3600000),
+        created_at INTEGER NOT NULL,
+        ghost TEXT
+    )
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS solo_runs (
+        token TEXT PRIMARY KEY,
+        seed INTEGER NOT NULL,
+        started_at INTEGER NOT NULL
+    )
+    """,
+]
+
+# One statement per version, applied in order; a database at user_version n has run the first n.
+MIGRATIONS = [
+    # 1: keep historical times and ghosts in their original ruleset
+    "ALTER TABLE runs ADD COLUMN rules TEXT NOT NULL DEFAULT 'legacy'",
+    # 2, 3: the original indexes, replaced by the ones in INDEXES (which lead with rules)
+    "DROP INDEX IF EXISTS runs_seed_time",
+    "DROP INDEX IF EXISTS runs_user",
+    # future migrations go here
+]
+
+INDEXES = [
+    "CREATE INDEX IF NOT EXISTS runs_board ON runs (rules, seed, time_ms)",
+    "CREATE INDEX IF NOT EXISTS runs_user ON runs (rules, user_id)",
+]
 
 
 class Store:
@@ -19,26 +61,29 @@ class Store:
         self.db.row_factory = sqlite3.Row
         self.db.execute("PRAGMA journal_mode=WAL")
         self.db.execute("PRAGMA synchronous=NORMAL")
-        self.db.execute(
-            """
-            CREATE TABLE IF NOT EXISTS runs (
-                id INTEGER PRIMARY KEY,
-                seed INTEGER NOT NULL,
-                user_id TEXT NOT NULL,
-                name TEXT NOT NULL,
-                time_ms INTEGER NOT NULL,
-                created_at INTEGER NOT NULL,
-                ghost TEXT
-            )
-            """
-        )
-        # Preserve historical times and ghosts in their original ruleset.
-        columns = {row["name"] for row in self.db.execute("PRAGMA table_info(runs)")}
-        if "rules" not in columns:
-            self.db.execute("ALTER TABLE runs ADD COLUMN rules TEXT NOT NULL DEFAULT 'legacy'")
-        self.db.execute("CREATE INDEX IF NOT EXISTS runs_seed_time ON runs (seed, time_ms)")
-        self.db.execute("CREATE INDEX IF NOT EXISTS runs_user ON runs (user_id)")
+        for sql in SCHEMA:
+            self.db.execute(sql)
+        self._migrate()
+        for sql in INDEXES:
+            self.db.execute(sql)
         self.db.commit()
+
+    def _migrate(self):
+        version = self.db.execute("PRAGMA user_version").fetchone()[0]
+        if version == 0:
+            # Before versioning, the first migration was applied by probing for its column
+            columns = {row["name"] for row in self.db.execute("PRAGMA table_info(runs)")}
+            if "rules" in columns:
+                version = 1
+        for sql in MIGRATIONS[version:]:
+            self.db.execute(sql)
+        self.db.execute(f"PRAGMA user_version = {len(MIGRATIONS)}")
+
+    def close(self):
+        with self.lock:
+            self.db.close()
+
+    # --- finished runs ------------------------------------------------------
 
     def _best(self, seed: int, user_id: str) -> int | None:
         row = self.db.execute(
@@ -52,22 +97,25 @@ class Store:
             return self._add_run(seed, user_id, name, time_ms, ghost)
 
     def _add_run(self, seed: int, user_id: str, name: str, time_ms: int, ghost: Ghost | None) -> int:
-        previous_best = self._best(seed, user_id)
-        is_best = previous_best is None or time_ms < previous_best
-        if is_best:
-            self.db.execute("UPDATE runs SET ghost = NULL WHERE rules = 'speed-control-v3' AND seed = ? AND user_id = ?", (seed, user_id))
-        self.db.execute(
-            "INSERT INTO runs (seed, user_id, name, time_ms, created_at, ghost, rules) VALUES (?, ?, ?, ?, ?, ?, 'speed-control-v3')",
-            (
-                seed,
-                user_id,
-                name,
-                time_ms,
-                int(time.time()),
-                ghost.model_dump_json() if ghost and is_best else None,
-            ),
-        )
-        self.db.commit()
+        # One transaction: if the insert fails, the previous best keeps its ghost
+        with self.db:
+            previous_best = self._best(seed, user_id)
+            is_best = previous_best is None or time_ms < previous_best
+            if is_best:
+                self.db.execute(
+                    "UPDATE runs SET ghost = NULL WHERE rules = 'speed-control-v3' AND seed = ? AND user_id = ?", (seed, user_id)
+                )
+            self.db.execute(
+                "INSERT INTO runs (seed, user_id, name, time_ms, created_at, ghost, rules) VALUES (?, ?, ?, ?, ?, ?, 'speed-control-v3')",
+                (
+                    seed,
+                    user_id,
+                    name,
+                    time_ms,
+                    int(time.time()),
+                    ghost.model_dump_json() if ghost and is_best else None,
+                ),
+            )
         return time_ms if is_best else previous_best
 
     def has_played(self, user_id: str) -> bool:
@@ -119,3 +167,28 @@ class Store:
             GhostRun(name=row["name"], time_ms=row["time_ms"], ghost=Ghost(**json.loads(row["ghost"])))
             for row in rows
         ]
+
+    # --- solo runs in progress ----------------------------------------------
+    # Kept in the database (not in memory), so a restart or a second process doesn't lose them
+
+    def start_solo_run(self, seed: int, now_ms: int) -> str:
+        """Remembers when a solo run's clock started and returns its token; forgets expired runs."""
+        token = secrets.token_urlsafe(16)
+        with self.lock, self.db:
+            self.db.execute("DELETE FROM solo_runs WHERE started_at < ?", (now_ms - SOLO_RUN_TTL_MS,))
+            self.db.execute("INSERT INTO solo_runs (token, seed, started_at) VALUES (?, ?, ?)", (token, seed, now_ms))
+        return token
+
+    def pop_solo_run(self, token: str) -> tuple[int, int] | None:
+        """Takes a run out, returning (seed, started_at ms), or None if unknown or already finished."""
+        with self.lock, self.db:
+            row = self.db.execute("SELECT seed, started_at FROM solo_runs WHERE token = ?", (token,)).fetchone()
+            if row is None:
+                return None
+            self.db.execute("DELETE FROM solo_runs WHERE token = ?", (token,))
+        return row["seed"], row["started_at"]
+
+    def backdate_solo_run(self, token: str, by_ms: int):
+        """Moves a run's start back in time (tests pretend the clock started a while ago)."""
+        with self.lock, self.db:
+            self.db.execute("UPDATE solo_runs SET started_at = started_at - ? WHERE token = ?", (by_ms, token))

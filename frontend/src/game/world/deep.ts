@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { sceneryTime as fxTime } from "../particles";
 import { makeRng, range } from "../rng";
-import { TOON_LIGHT } from "../toon";
+import { FX_LIGHT } from "../toon";
 import { ATMOSPHERE } from "./atmosphere";
 import type { UnderwaterSpec } from "./biomes/types";
 import type { World } from "./World";
@@ -373,7 +373,7 @@ export class SeaLife {
 
   /** `life`: how brightly they glow, on top of the level's own light (dim by day, bright at night) */
   update(life: number) {
-    this.glow.value = TOON_LIGHT.glow.value * life;
+    this.glow.value = FX_LIGHT.glow.value * life;
   }
 
   dispose() {

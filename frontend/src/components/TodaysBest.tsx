@@ -8,10 +8,12 @@ const WIDE = "(min-width: 900px)";
 
 interface TodaysBestProps {
   entries: LeaderboardEntry[];
+  /** The board couldn't be fetched */
+  error?: boolean;
 }
 
 /** The top three on today's course, folded into a flag in the corner */
-const TodaysBest = ({ entries }: TodaysBestProps) => {
+const TodaysBest = ({ entries, error = false }: TodaysBestProps) => {
   const [open, setOpen] = useMediaToggle(WIDE);
 
   return (
@@ -24,7 +26,9 @@ const TodaysBest = ({ entries }: TodaysBestProps) => {
       {open && (
         <div className="menu-best-list">
           <b>Today's best</b>
-          {entries.length === 0 ? (
+          {error ? (
+            <span className="menu-hint">Couldn't load leaderboard</span>
+          ) : entries.length === 0 ? (
             <span className="menu-hint">No times yet. Be the first!</span>
           ) : (
             entries.slice(0, 3).map((entry) => (

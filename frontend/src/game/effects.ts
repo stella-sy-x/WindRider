@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import { WHITE } from "./toon";
 
 const PIECES = 18;
 const LIFETIME = 2.2;
@@ -23,7 +24,6 @@ export class Debris {
   private readonly quaternion = new THREE.Quaternion();
   private readonly matrix = new THREE.Matrix4();
   private readonly scale = new THREE.Vector3();
-  private readonly white = new THREE.Color("#ffffff");
   private age = LIFETIME;
 
   constructor(color: string) {
@@ -83,7 +83,7 @@ export class Debris {
   }
 
   setColor(color: string) {
-    (this.mesh.material as THREE.MeshLambertMaterial).color.set(color).lerp(this.white, 0.45);
+    (this.mesh.material as THREE.MeshLambertMaterial).color.set(color).lerp(WHITE, 0.45);
   }
 
   dispose() {

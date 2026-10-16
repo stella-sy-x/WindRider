@@ -1,6 +1,6 @@
 import * as THREE from "three";
 import { sceneryTime as fxTime } from "../../particles";
-import { TOON_LIGHT } from "../../toon";
+import { FX_LIGHT } from "../../toon";
 import { FLORA, STRUCTURES, TERRAIN } from "../../tuning";
 import { ATMOSPHERE, BORN_GLSL, MIST, atmospheric } from "../atmosphere";
 import type { VegetationSpec } from "../biomes/types";
@@ -558,7 +558,7 @@ export class FloraView {
 
   /** Per frame: grass only on full-detail nodes near the camera; light and wind from the biome */
   update(camera: THREE.Camera) {
-    FLORA_UNIFORMS.glow.value = TOON_LIGHT.glow.value * FLORA.glow;
+    FLORA_UNIFORMS.glow.value = FX_LIGHT.glow.value * FLORA.glow;
     FLORA_UNIFORMS.gust.value = FLORA.wind;
     if (this.grass && this.lastGrassCheck.distanceToSquared(camera.position) > 10 * 10) {
       this.lastGrassCheck.copy(camera.position);

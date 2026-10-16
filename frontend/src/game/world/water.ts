@@ -1,6 +1,6 @@
 import * as THREE from "three";
 import { FX_LIGHT, sceneryTime as fxTime } from "../particles";
-import { TOON_LIGHT } from "../toon";
+import { FX_LIGHT as GLOW_LIGHT } from "../toon";
 import { WATER } from "../tuning";
 import { ATMOSPHERE, MIST } from "./atmosphere";
 import type { WaterKind } from "./terrain/river";
@@ -14,7 +14,7 @@ import type { IslandFall, World } from "./World";
 // - lava: a dark crust cracked over a glow that pulses and blooms;
 // - ice: frozen pools with cracks, still and reflective;
 // - glow: dark pools with bioluminescent specks (night biomes).
-// All of it takes its light from ATMOSPHERE, glows with FX_LIGHT and TOON_LIGHT.
+// All of it takes its light from ATMOSPHERE, glows with the particle boost (FX_LIGHT) and the shared glow light (toon.ts).
 
 const KINDS: Record<WaterKind, number> = { water: 0, lava: 1, ice: 2, glow: 3 };
 
@@ -616,7 +616,7 @@ export class WaterView {
       m.uniforms.lipFoam.value = WATER.lipFoam;
       m.uniforms.lipFoamWidth.value = WATER.lipFoamWidth;
       m.uniforms.glitter.value = WATER.glitter * FX_LIGHT.boost.value;
-      m.uniforms.glow.value = WATER.glow * (0.55 + TOON_LIGHT.glow.value * 0.6);
+      m.uniforms.glow.value = WATER.glow * (0.55 + GLOW_LIGHT.glow.value * 0.6);
     }
   }
 

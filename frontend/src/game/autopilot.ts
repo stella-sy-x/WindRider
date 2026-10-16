@@ -4,7 +4,7 @@ import { clamp } from "./math";
 import { AUTOPILOT } from "./tuning";
 import type { Course } from "./world/course";
 
-// The autopilot (the menu's chase view, the victory lap after a run): the
+// The autopilot (the menu's chase view): the
 // pilot flies the racing line itself, on rails. The line goes through the
 // middle of every gate, and both terrain generators carve a tube of
 // TUBE_RADIUS (11 m) around it that rock, trees and structures keep out of,

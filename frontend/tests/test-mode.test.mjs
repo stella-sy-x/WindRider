@@ -7,19 +7,14 @@ test("?test opens the test sandbox, however it is added to a URL", () => {
   const screen = (search) => screenFromSearch(search, true);
   assert.deepEqual(screen("?test"), { kind: "test", biome: "verdant", seed: 1 });
   assert.deepEqual(screen("?test=verdant&seed=2"), { kind: "test", biome: "verdant", seed: 2 });
-  assert.deepEqual(screen("?explore=verdant&seed=2&test"), { kind: "test", biome: "verdant", seed: 2 });
-  assert.deepEqual(screen("?test&explore=ember"), { kind: "test", biome: "ember", seed: 1 });
   assert.deepEqual(screen("?seed=42&test"), { kind: "test", biome: "verdant", seed: 42 });
-  assert.deepEqual(screen("?run=5&test"), { kind: "test", biome: "verdant", seed: 5 });
   assert.deepEqual(screen("?test=1"), { kind: "test", biome: "verdant", seed: 1 });
-  assert.deepEqual(screen("?test=nowhere&explore=lagoon"), { kind: "test", biome: "lagoon", seed: 1 });
+  assert.deepEqual(screen("?test=nowhere"), { kind: "test", biome: "verdant", seed: 1 });
   assert.deepEqual(screen("?test=toString"), { kind: "test", biome: "verdant", seed: 1 });
   // Multiplayer and the gallery never run in test mode
-  assert.deepEqual(screen("?room=ABCD&test"), { kind: "room", code: "ABCD" });
+  assert.deepEqual(screen("?room=ABCDE&test"), { kind: "room", code: "ABCDE" });
   assert.deepEqual(screen("?gallery&test"), { kind: "gallery" });
   // Without test, nothing changed
-  assert.deepEqual(screen("?run=5"), { kind: "run", seed: 5 });
-  assert.deepEqual(screen("?explore=ember&seed=3"), { kind: "explore", biome: "ember", seed: 3 });
   assert.deepEqual(screen("?seed=42"), { kind: "solo", seed: 42 });
   assert.deepEqual(screen(""), { kind: "menu" });
   assert.equal(urlFor({ kind: "test", biome: "verdant", seed: 2 }), "/?test=verdant&seed=2");

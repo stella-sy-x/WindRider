@@ -8,7 +8,7 @@ import { dailySeed } from "../game/rng";
 import { keyboardBinding } from "../game/bindings";
 import { webglAvailable } from "../game/webgl";
 import { BIOMES, type BiomeId } from "../game/world/biomes";
-import { ExploreSession } from "../session/ExploreSession";
+import { TestSession } from "../session/TestSession";
 import { ITEMS } from "../game/items/models";
 import type { ItemGallery } from "../game/items/gallery";
 import { RoomSession } from "../session/RoomSession";
@@ -54,13 +54,12 @@ const TAP_MOVE = 12;
 const CHROME = ".glass";
 
 /**
- * In game every glass panel (anything `.glass`, plus the item bag and upgrade icons) is hidden until the
- * mouse moves (or, on a touch screen, a tap), and hides again once it rests: true while hidden. A mouse
- * locked to the game steers, and so does a finger dragging the stick: neither counts. What stays
- * (GameScreen.css, the `:not()` list): the lives, the objectives, the compass and gate marker, the
- * level's title, the touch controls, and what waits on you (upgrade picker, finish screen, results,
- * tutorial); everything shows while paused or with an overlay open. To bring a panel back for good,
- * add it to that list.
+ * In game every glass panel (anything `.glass`) is hidden until the mouse moves (or, on a touch screen,
+ * a tap), and hides again once it rests: true while hidden. A mouse locked to the game steers, and so
+ * does a finger dragging the stick: neither counts. What stays (GameScreen.css, the `:not()` list): the
+ * compass and gate marker, the level's title, the touch controls, and what waits on you (results, the
+ * tutorial); everything shows while paused or with an overlay open. To bring a panel back for good, add
+ * it to that list.
  */
 function useIdleUi(): boolean {
   const [idle, setIdle] = useState(true);
@@ -314,7 +313,7 @@ const RoomScreen = ({ code, seed, settings, onSettings, onExit, tutorial, onTuto
         if (!coaching && !building && !choosing) session.start();
       } else if (host && finished) session.restart();
     },
-    KeyN: () => lobby && !coaching && setChoosing(true),
+    KeyN: () => lobby && host && !coaching && setChoosing(true),
   });
 
   return (
@@ -340,9 +339,12 @@ const RoomScreen = ({ code, seed, settings, onSettings, onExit, tutorial, onTuto
             <button className="primary start-cta" disabled={building} onClick={() => session.start()}>
               {building ? "Loading the map…" : <>Start race <kbd>Enter</kbd></>}
             </button>
-            <button onClick={() => setChoosing(true)}>
-              Change map <kbd>N</kbd>
-            </button>
+            {/* Only the host can change the map (the server refuses anyone else) */}
+            {host && (
+              <button onClick={() => setChoosing(true)}>
+                Change map <kbd>N</kbd>
+              </button>
+            )}
           </div>
         </ReadyCard>
       )}
@@ -394,11 +396,11 @@ const RoomScreen = ({ code, seed, settings, onSettings, onExit, tutorial, onTuto
   );
 };
 
-// --- Explore ---------------------------------------------------------------------
+// --- Test ------------------------------------------------------------------------
 
 const TestScreen = ({ biome, seed, settings, onSettings, onExit }: ScreenProps & { biome: BiomeId; seed: number }) => {
   const idle = useIdleUi();
-  const [session] = useState(() => new ExploreSession(biome, seed, settings, true));
+  const [session] = useState(() => new TestSession(biome, seed, settings));
   const ref = useMountedSession(session, settings);
   const { hud, error, biome: current, mood, speed } = useSyncExternalStore(session.store.subscribe, session.store.get);
   usePaletteTheme(hud?.palette);
@@ -441,8 +443,6 @@ const TestScreen = ({ biome, seed, settings, onSettings, onExit }: ScreenProps &
         </div>
         <ul className="debug-keys no-touch">
           <li><kbd>N</kbd> next world · <kbd>B</kbd> previous · <kbd>V</kbd> next light</li>
-          <li><kbd>Shift+P</kbd> portal ahead</li>
-          <li><kbd>Shift+O</kbd> victory</li>
           <li><kbd>Shift+S</kbd> {speed === 1 ? "half speed" : "normal speed"}</li>
         </ul>
       </aside>

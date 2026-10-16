@@ -385,7 +385,7 @@
   }
 }
 
-/* Explore mode: switch worlds and lighting to check looks and music */
+/* Test mode: switch worlds and lighting to check looks and music */
 .debug-panel {
   position: absolute;
   left: 1rem;
@@ -483,12 +483,11 @@
   flex-wrap: wrap;
 }
 
-/* In game every glass panel (and the item bag and upgrade icons) shows only while the mouse moves or
-   after a tap (useIdleUi), and fades once it rests. The :not() list is what stays: the lives and
-   objectives, the pause box, results, the tutorial, the no-WebGL page, and the finish screen's and
-   upgrade picker's cards (the compass, gate marker, level title and touch controls aren't glass). All of
-   it shows while paused or while an overlay (settings, How to fly) is open. Hidden by visibility as well,
-   so panels with their own fade-in animations (toasts, the countdown) stay hidden too. */
+/* In game every glass panel shows only while the mouse moves or after a tap (useIdleUi), and fades
+   once it rests. The :not() list is what stays: the pause box, results, the tutorial and the no-WebGL
+   page (the compass, gate marker, level title and touch controls aren't glass). All of it shows while
+   paused or while an overlay (settings, How to fly) is open. Hidden by visibility as well, so panels
+   with their own fade-in animations (toasts, the countdown) stay hidden too. */
 .game .glass:not(.hud-pause, .panel, .coach, .no-webgl) {
   transition:
     opacity 0.3s ease,

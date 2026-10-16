@@ -2,10 +2,10 @@ import { type LeaderboardEntry, finishRun, getGhosts, getLeaderboard, startRun }
 import { type FinishResult, Game, type HudState } from "../game/Game";
 import type { Settings } from "../storage";
 import type { InputObserver } from "../game/input";
+import { PLAYER_COLOR } from "../game/toon";
 import { Store } from "./store";
 
 const COUNTDOWN_MS = 3000;
-const SOLO_COLOR = "#ff5d73";
 
 export interface SoloResult {
   timeMs: number;
@@ -51,7 +51,7 @@ export class SoloSession {
     try {
       this.game = this.createGame(container);
     } catch (e) {
-      console.error(e);
+      if (import.meta.env.DEV) console.error(e);
       this.store.set({ error: `The game couldn't start: ${(e as Error).message}` });
       return;
     }
@@ -63,7 +63,7 @@ export class SoloSession {
       seed: this.seed,
       clock: () => performance.now(),
       controls: this.settings,
-      color: SOLO_COLOR,
+      color: PLAYER_COLOR,
       events: {
         hud: (hud) => this.store.set({ hud }),
         raceStarted: () => {

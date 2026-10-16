@@ -23,6 +23,9 @@ export function untilTomorrow(): string {
 
 const CODE_LETTERS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 
+/** Six letters or digits (32^6 codes, so a guessed code almost never lands in someone's race) */
 export function randomRoomCode(): string {
-  return Array.from({ length: 4 }, () => CODE_LETTERS[Math.floor(Math.random() * CODE_LETTERS.length)]).join("");
+  // 32 letters: each random byte maps to one without bias
+  const bytes = crypto.getRandomValues(new Uint8Array(6));
+  return Array.from(bytes, (b) => CODE_LETTERS[b % CODE_LETTERS.length]).join("");
 }

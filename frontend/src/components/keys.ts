@@ -2,7 +2,7 @@ import { type BindingAction, defaultBindings, keyLabel } from "../game/bindings"
 import { loadSettings } from "../storage";
 
 /** A key as players know it: "Shift" for either Shift, "↑" for the arrow */
-export const shortKey = (code: string) => keyLabel(code).replace(/^(Left|Right) /, "");
+const shortKey = (code: string) => keyLabel(code).replace(/^(Left|Right) /, "");
 
 /**
  * The keys bound right now (players rebind them in the settings), one group per binding slot, without

@@ -1,5 +1,6 @@
 import * as THREE from "three";
 import { FX_LIGHT, fxTime } from "./particles";
+import { WHITE } from "./toon";
 import { FX } from "./tuning";
 
 const LENGTH = 64;
@@ -113,7 +114,7 @@ export class Trail {
   /** The newest end glows `head`, fading into `tail` */
   setColor(head: string, tail?: string) {
     const uniforms = this.mesh.material.uniforms;
-    (uniforms.head.value as THREE.Color).set(head).lerp(new THREE.Color("#ffffff"), 0.55);
+    (uniforms.head.value as THREE.Color).set(head).lerp(WHITE, 0.55);
     (uniforms.tail.value as THREE.Color).set(tail ?? head);
   }
 

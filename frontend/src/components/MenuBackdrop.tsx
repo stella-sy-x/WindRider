@@ -1,6 +1,7 @@
 import { useEffect, useEffectEvent, useRef } from "react";
 import { loadSettings, type Settings } from "../storage";
 import { type AttractMode, Game } from "../game/Game";
+import { PLAYER_COLOR } from "../game/toon";
 
 const ART_ASPECT = 2.2; // map-select card art, width / height (MapSelect.css draws it at about this shape)
 const ART_WIDTH = 720;
@@ -32,7 +33,7 @@ const MenuBackdrop = ({ seed, mode, onSnapshot, onShown, settings }: MenuBackdro
         seed: shown.current,
         clock: () => performance.now(),
         controls: loadSettings(),
-        color: "#ff5d73",
+        color: PLAYER_COLOR,
         events: { hud: () => {} },
         attract: mode,
       });

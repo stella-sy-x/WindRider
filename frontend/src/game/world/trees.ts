@@ -9,33 +9,6 @@ export interface Collider {
   distance(x: number, y: number, z: number): number;
 }
 
-/** A low-poly pine on the race map: a cone from the ground up, for collisions */
-export class Tree implements Collider {
-  readonly x: number;
-  readonly z: number;
-  readonly ground: number;
-  readonly height: number;
-  readonly radius: number; // of the lowest branches
-
-  constructor(x: number, z: number, ground: number, height: number, radius: number) {
-    this.x = x;
-    this.z = z;
-    this.ground = ground;
-    this.height = height;
-    this.radius = radius;
-  }
-
-  distance(x: number, y: number, z: number): number {
-    const top = this.ground + this.height;
-    const t = clamp((y - this.ground) / this.height, 0, 1);
-    // 6-sided cones: the flat faces sit at ~0.9 of the radius
-    const side = Math.hypot(x - this.x, z - this.z) - this.radius * 0.9 * (1 - t);
-    if (y > top) return Math.hypot(Math.max(side, 0), y - top);
-    if (y < this.ground) return Math.hypot(Math.max(side, 0), this.ground - y);
-    return side;
-  }
-}
-
 /** A generator-v2 plant: a tapered trunk (leaning, for palms) and an optional canopy */
 export class Plant implements Collider {
   readonly x: number;

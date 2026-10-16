@@ -1,7 +1,10 @@
 import asyncio
+import logging
 import os
 import re
-import secrets
+import sqlite3
+import time
+import unicodedata
 from contextlib import asynccontextmanager
 from typing import Annotated
 from urllib.parse import unquote
@@ -14,7 +17,6 @@ from fastapi.concurrency import run_in_threadpool
 from fastapi.sse import EventSourceResponse, ServerSentEvent
 
 from models import (
-    ClientId,
     FinishRequest,
     GhostRun,
     JoinRequest,
@@ -36,25 +38,91 @@ from store import Store
 # Load the .env file from the project root (Docker passes the variables in directly)
 load_dotenv()
 
-ROOM_CODE = re.compile(r"^[A-Z0-9]{3,8}$")
-RUN_TOKEN_TTL_MS = 60 * 60 * 1000
-MAX_OPEN_RUNS = 10_000
+# Under uvicorn the root logger has no handler of its own; a no-op when one is already set up
+logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
+log = logging.getLogger("windrider")
+
+ROOM_CODE = re.compile(r"^[A-Z0-9]{5,8}$")
+# The browser's own id (see models.ClientId), sent as the X-Client-Id header on GET requests
+CLIENT_ID = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
+DB_PATH = os.path.join(os.getenv("DATA_DIR", "data"), "game.db")
+
+
+class RateLimiter:
+    """At most `max_requests` per key (an IP) in any `window_seconds`, in memory."""
+
+    def __init__(self, max_requests: int, window_seconds: float):
+        self.max_requests = max_requests
+        self.window_seconds = window_seconds
+        self.hits: dict[str, list[float]] = {}
+        self.last_sweep = 0.0
+
+    def allow(self, key: str, now: float | None = None) -> bool:
+        now = time.monotonic() if now is None else now
+        if now - self.last_sweep > self.window_seconds:
+            # Forget keys that went quiet, so the dict doesn't grow with every IP ever seen
+            self.hits = {k: v for k, v in self.hits.items() if v and now - v[-1] < self.window_seconds}
+            self.last_sweep = now
+        recent = [t for t in self.hits.get(key, []) if now - t < self.window_seconds]
+        if len(recent) >= self.max_requests:
+            self.hits[key] = recent
+            return False
+        recent.append(now)
+        self.hits[key] = recent
+        return True
+
+
+# Position updates (POST .../state, ~15 a second) are exempt; everything else a client writes is rare
+write_limiter = RateLimiter(60, 60)
+start_limiter = RateLimiter(10, 60)
 
 rooms = RoomManager()
-store = Store(os.path.join(os.getenv("DATA_DIR", "data"), "game.db"))
-# Solo time trials in progress: run token -> (seed, server time the clock started)
-solo_runs: dict[str, tuple[int, int]] = {}
+# Finished runs and solo runs in progress: opened when the server starts (see lifespan), closed when it stops
+store: Store | None = None
+
+
+def get_store() -> Store:
+    if store is None:
+        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, "The server is starting up, try again in a moment")
+    return store
 
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
+    global store
+    try:
+        store = Store(DB_PATH)
+    except (OSError, sqlite3.OperationalError) as e:
+        # A missing volume, a read-only directory, a corrupt file: say so, instead of failing on the first request
+        log.error("Can't open the game database at %s: %s", DB_PATH, e)
+        raise RuntimeError(f"Can't open the game database at {DB_PATH}: {e}") from e
+    log.info("Game database open at %s", DB_PATH)
     # The tick loop moves races along and relays positions ~15 times a second
     ticker = asyncio.create_task(rooms.run())
-    yield
-    ticker.cancel()
+    try:
+        yield
+    finally:
+        ticker.cancel()
+        store.close()
+        store = None
+        log.info("Game database closed")
 
 
-app = FastAPI(lifespan=lifespan, docs_url="/api/docs", openapi_url="/api/openapi.json")
+# The interactive API docs are off unless API_DOCS=1 (handy in development, not for players)
+api_docs = os.getenv("API_DOCS", "") == "1"
+app = FastAPI(
+    lifespan=lifespan,
+    docs_url="/api/docs" if api_docs else None,
+    redoc_url=None,
+    openapi_url="/api/openapi.json" if api_docs else None,
+)
+
+
+@app.exception_handler(Exception)
+async def unhandled_error(request: Request, exc: Exception):
+    """Anything an endpoint didn't expect: logged with its traceback, answered with a plain 500"""
+    log.exception("Unhandled error on %s %s: %r", request.method, request.url.path, exc)
+    return JSONResponse(status_code=500, content={"detail": "Server error. Please try again."})
 
 
 @app.middleware("http")
@@ -67,7 +135,22 @@ async def require_flight_rules(request: Request, call_next):
     return await call_next(request)
 
 
+@app.middleware("http")
+async def rate_limit(request: Request, call_next):
+    path = request.url.path
+    if request.method == "POST" and path.startswith("/api/") and not path.endswith("/state"):
+        # Caddy passes the real address on (X-Forwarded-For); uvicorn puts it in client.host
+        ip = request.client.host if request.client else "unknown"
+        limited = not write_limiter.allow(ip) or (path == "/api/runs/start" and not start_limiter.allow(ip))
+        if limited:
+            return JSONResponse(status_code=429, content={"detail": "Too many requests, please slow down"})
+    return await call_next(request)
+
+
 def clean_name(name: str) -> str:
+    # Control characters (Cc: newlines, tabs, NUL...) become spaces and get collapsed below;
+    # format characters (Cf: zero-width joiners, direction overrides) are dropped
+    name = "".join(" " if unicodedata.category(c) == "Cc" else c for c in name if unicodedata.category(c) != "Cf")
     return " ".join(name.split())[:24]
 
 
@@ -79,12 +162,17 @@ def trust_user_headers() -> bool:
 
 
 def extract_user(request: Request, client_id: str = "", nickname: str = "") -> User:
-    id = request.headers.get("X-User-Id", "").strip() if trust_user_headers() else ""
+    id = ""
+    if trust_user_headers():
+        if len(request.headers.getlist("X-User-Id")) > 1:
+            raise HTTPException(status.HTTP_400_BAD_REQUEST, "ambiguous identity")
+        id = request.headers.get("X-User-Id", "").strip()
     if id:
         name = request.headers.get("X-User-Name")
         # The VIScon proxy percent-encodes non-ASCII characters (e.g. "Zo%C3%AB" -> "Zoë")
-        name = unquote(name) if name else id
-        return User(id=id, name=clean_name(name) or id, verified=True)
+        name = unquote(name) if name else ""
+        # Never fall back to the id: it is an email address, and names are shown to everyone
+        return User(id=id, name=clean_name(name) or "Pilot", verified=True)
 
     # No portal login (local development, or access control disabled): trust the
     # browser's own id and nickname. Good enough for a leaderboard among friends.
@@ -93,10 +181,18 @@ def extract_user(request: Request, client_id: str = "", nickname: str = "") -> U
     return User(id="guest", name="Guest")
 
 
+def header_client_id(request: Request) -> str:
+    """The browser's own id on GET requests: the X-Client-Id header (same shape as models.ClientId)"""
+    client_id = request.headers.get("X-Client-Id", "")
+    if client_id and not CLIENT_ID.fullmatch(client_id):
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Bad X-Client-Id header")
+    return client_id
+
+
 def room_code(code: str) -> str:
     code = code.upper()
     if not ROOM_CODE.fullmatch(code):
-        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Room codes are 3 to 8 letters or digits")
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Room codes are 5 to 8 letters or digits")
     return code
 
 
@@ -113,9 +209,9 @@ def room_error(e: RoomError) -> HTTPException:
 
 
 @app.get("/api/me", response_model=Me)
-async def auth_me(request: Request, client_id: str = ""):
-    user = extract_user(request, client_id)
-    return Me(**user.model_dump(), has_played=await run_in_threadpool(store.has_played, user.id))
+async def auth_me(request: Request):
+    user = extract_user(request, header_client_id(request))
+    return Me(**user.model_dump(), has_played=await run_in_threadpool(get_store().has_played, user.id))
 
 
 @app.get("/api/time")
@@ -198,9 +294,9 @@ async def restart_race(code: str, body: TokenRequest):
 
 @app.post("/api/rooms/{code}/map", status_code=status.HTTP_204_NO_CONTENT)
 async def new_map(code: str, body: MapRequest):
-    room, _ = room_player(code, body.token)
+    room, player = room_player(code, body.token)
     try:
-        room.new_map(seed=body.seed)
+        room.new_map(player, seed=body.seed)
     except RoomError as e:
         raise room_error(e)
 
@@ -213,7 +309,12 @@ async def finish_race(code: str, body: FinishRequest):
     except RoomError as e:
         raise room_error(e)
     # SQLite and the ghost's JSON run in a worker thread, so the room relay doesn't stall
-    best = await run_in_threadpool(store.add_run, room.seed, player.user_id, player.name, body.time_ms, body.ghost)
+    try:
+        best = await run_in_threadpool(get_store().add_run, room.seed, player.user_id, player.name, body.time_ms, body.ghost)
+    except (sqlite3.Error, HTTPException):
+        # The race is already finished in the room (everyone saw the place): only the leaderboard entry is lost
+        log.exception("Couldn't save %s's finish (%s ms) on seed %s", player.name, body.time_ms, room.seed)
+        return {"place": place, "personal_best_ms": None, "note": "Your time couldn't be saved to the leaderboard"}
     return {"place": place, "personal_best_ms": best}
 
 
@@ -231,21 +332,16 @@ async def leave_room(code: str, body: TokenRequest):
 @app.post("/api/runs/start", response_model=RunStartResponse)
 async def start_run(body: RunStartRequest):
     """Called when a solo run's clock starts, so the server can check the finish time."""
-    now = now_ms()
-    # Oldest first (dicts keep insertion order): drop expired runs, and the oldest when full
-    while solo_runs:
-        token, (_, started) = next(iter(solo_runs.items()))
-        if now - started <= RUN_TOKEN_TTL_MS and len(solo_runs) < MAX_OPEN_RUNS:
-            break
-        del solo_runs[token]
-    token = secrets.token_urlsafe(16)
-    solo_runs[token] = (body.seed, now)
+    # Runs in progress live in the database (expired ones are dropped as new ones start), so a restart
+    # doesn't void every time trial under way
+    token = await run_in_threadpool(get_store().start_solo_run, body.seed, now_ms())
     return RunStartResponse(run_token=token)
 
 
 @app.post("/api/runs/finish", response_model=RunFinishResponse)
 async def finish_run(body: RunFinishRequest, request: Request):
-    run = solo_runs.pop(body.run_token, None)
+    store = get_store()
+    run = await run_in_threadpool(store.pop_solo_run, body.run_token)
     if run is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Unknown or already finished run")
     seed, started = run
@@ -267,20 +363,20 @@ async def finish_run(body: RunFinishRequest, request: Request):
 async def leaderboard(
     request: Request,
     seed: Seed,
-    client_id: str = "",
     limit: Annotated[int, Query(ge=1, le=50)] = 10,
 ):
-    user = extract_user(request, client_id)
-    return await run_in_threadpool(store.leaderboard, seed, limit, user.id)
+    user = extract_user(request, header_client_id(request))
+    return await run_in_threadpool(get_store().leaderboard, seed, limit, user.id)
 
 
 @app.get("/api/ghosts", response_model=list[GhostRun])
 async def ghosts(seed: Seed, limit: Annotated[int, Query(ge=1, le=5)] = 3):
-    return await run_in_threadpool(store.ghosts, seed, limit)
+    return await run_in_threadpool(get_store().ghosts, seed, limit)
 
 
 if __name__ == "__main__":
-    print("Starting server")
+    logging.basicConfig(level=logging.INFO)
+    logging.getLogger(__name__).info("Starting server")
     uvicorn.run(
         "__main__:app",
         host="0.0.0.0",
