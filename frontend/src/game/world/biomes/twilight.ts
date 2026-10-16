@@ -100,9 +100,9 @@ export const TWILIGHT: Biome = {
       gateSurface: 1,
       named: { stem: 2, cap: 3 },
       features: [
-        { kind: "trunks", count: 35, radius: [5, 10], rise: [120, 220], lateral: [40, 150], surface: 1, canopy: 4 },
-        { kind: "mushrooms", count: 25, cap: [12, 28], rise: [18, 55], lateral: [40, 150], stem: 2, surface: 3 },
-        { kind: "arches", count: 6, radius: [12, 22], lateral: [60, 150], surface: 1 },
+        { kind: "trunks", count: 20, radius: [5, 10], rise: [120, 220], lateral: [40, 100], surface: 1, canopy: 4 },
+        { kind: "mushrooms", count: 14, cap: [12, 28], rise: [18, 55], lateral: [40, 100], stem: 2, surface: 3 },
+        { kind: "arches", count: 3, radius: [12, 22], lateral: [60, 100], surface: 1 },
       ],
     },
   },
