@@ -107,14 +107,18 @@ export const MESH_CLEANUP = {
 
 /** Generator-v2 terrain streaming and appearance. Collisions follow the visible meshes. */
 export const TERRAIN = {
-  lodLookAheadSeconds: 2, // prepare approaching terrain two seconds ahead of current velocity
+  lodLookAheadSeconds: 3, // prepare approaching terrain three seconds ahead of current velocity
   lodLookAheadMax: 240, // cap extra detail extent during fast dives (m)
+  freezeRadius: 80, // metres from the camera within which land already on screen keeps its level of detail (no split/merge, no plants popping)
   lodDetail: 140, // metres from any terrain node: finest 3 m cells, including side mountains
   lodNear: 300, // metres: 6 m cells before the finest approach tier
   lodFar: 700, // closer than this at half detail (12 m), further at quarter (24 m)
   lodHysteresis: 48, // extra distance before merging fine detail again
   cacheMiB: 48, // bounded cache of hidden terrain (estimated CPU + GPU buffers)
-  viewDistance: 1400, // metres: the default fog ends at 1300 (WorldView FOG_FAR), so nothing is built much beyond it
+  viewDistance: 700, // metres: LOD 2 ceiling; LOD 3 (24 m) is skipped — sky silhouettes fill the far distance
+  prefetchDistance: 1200, // metres: the workers generate land ahead out to here, held off screen until it comes within viewDistance
+  decorationLateral: 80, // metres from the racing line beyond which land is decoration: never finer than decorationMaxLod
+  decorationMaxLod: 2, // the finest level decoration land reaches (2: 12 m cells)
   readyRadius: 260, // the start waits until the land this close has arrived
   arrivalsPerFrame: 12, // arrived land meshes taken in per frame once you're flying (each costs about 0.04 ms)
   fadeIn: 1.8, // seconds for land that has just arrived to fade in out of the haze and its plants to grow in (a change of detail is instant)
@@ -308,12 +312,16 @@ export const RANGES: Record<string, [number, number, number?]> = {
   fallTrack: [1, 20],
   lodHysteresis: [0, 120, 4],
   cacheMiB: [0, 128, 8],
-  lodLookAheadSeconds: [0, 3, 0.25],
+  lodLookAheadSeconds: [0, 5, 0.25],
   lodLookAheadMax: [0, 360, 20],
+  freezeRadius: [0, 240, 10],
   lodDetail: [60, 240, 10],
   lodNear: [120, 600, 10],
   lodFar: [300, 1400, 10],
   viewDistance: [600, 2500, 10],
+  prefetchDistance: [600, 4000, 50],
+  decorationLateral: [20, 300, 10],
+  decorationMaxLod: [0, 3, 1],
   readyRadius: [100, 500, 10],
   arrivalsPerFrame: [1, 32, 1],
   fadeIn: [0, 3, 0.05],

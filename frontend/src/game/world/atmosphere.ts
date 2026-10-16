@@ -29,6 +29,9 @@ export const ATMOSPHERE = {
   night: { value: 0 },
   aurora: { value: 0 },
   underglow: { value: new THREE.Color("#000000") },
+  // Distant land painted on the sky dome around the horizon, 0 (none) to 1 (full): shapes
+  // for the real land to arrive into, so it is not seen to pop out of an empty haze
+  silhouettes: { value: 1 },
   // Under the sea (0 or 1): the height of the water's surface, how bright the
   // ripples of light on the land are, and how bright the surface is from below
   underwater: { value: 0 },
@@ -280,6 +283,7 @@ const skyFragment = /* glsl */ `
   uniform float night;
   uniform float aurora;
   uniform vec3 underglow;
+  uniform float silhouettes;
   uniform float underwater;
   uniform float surface;
   uniform float surfaceGlow;
@@ -327,6 +331,31 @@ const skyFragment = /* glsl */ `
     }
     float up = max(dir.y, 0.0);
     vec3 color = mix(horizon, zenith, pow(up, 0.6));
+
+    // Horizon silhouettes: distant land painted on the dome, so the real land, arriving out
+    // of the haze at the edge of the fog, comes into a place that already had a shape there.
+    // Three layers, far to near: each a wavy skyline (noise around the horizon as a circle,
+    // so it has no seam; rounded bumps, which read as islands and hills in every biome), filled
+    // below with a shade of the horizon's color, cooler and darker the nearer the layer. The
+    // sun's haze is added after, so they sit in the air the same way the land does.
+    if (silhouettes > 0.0) {
+      vec2 ring = normalize(dir.xz + vec2(1e-5, 0.0));
+      // Only around the horizon: nothing overhead, and nothing far below, where real land is
+      float band = smoothstep(-0.3, -0.1, dir.y) * silhouettes;
+      // Far: faint low hills right on the horizon
+      float sky0 = noise(ring * 3.0 + vec2(11.0, 5.0)) * 0.03;
+      float fill = smoothstep(0.0, 0.008, sky0 - dir.y) * 0.15 * band;
+      color = mix(color, mix(horizon, zenith, 0.12) * 0.95, fill);
+      // Mid: a little lower and darker, with a second octave of detail
+      float sky1 = (noise(ring * 5.0 + vec2(37.0, 19.0)) * 0.7 + noise(ring * 10.0 + vec2(3.0, 71.0)) * 0.3) * 0.05 - 0.012;
+      fill = smoothstep(0.0, 0.005, sky1 - dir.y) * 0.25 * band;
+      color = mix(color, mix(horizon, zenith, 0.18) * 0.9, fill);
+      // Near: the darkest, the land the fog is about to give up
+      float sky2 = (noise(ring * 8.0 + vec2(53.0, 29.0)) * 0.65 + noise(ring * 16.0 + vec2(91.0, 13.0)) * 0.35) * 0.08 - 0.025;
+      fill = smoothstep(0.0, 0.003, sky2 - dir.y) * 0.4 * band;
+      color = mix(color, mix(horizon, zenith, 0.22) * 0.84, fill);
+    }
+
     color += sunGlow(dir);
     // The sun (or moon) itself, brighter than white so it blooms
     float d = dot(dir, atmoSunDirection);
@@ -369,7 +398,7 @@ const skyFragment = /* glsl */ `
   }
 `;
 
-/** A sky dome: gradient, sun disc and halo, clouds, and stars at night; under the sea, the water's surface from below */
+/** A sky dome: gradient, distant land along the horizon, sun disc and halo, clouds, and stars at night; under the sea, the water's surface from below */
 export function skyMaterial(): THREE.ShaderMaterial {
   return new THREE.ShaderMaterial({
     uniforms: {
@@ -381,6 +410,7 @@ export function skyMaterial(): THREE.ShaderMaterial {
       night: ATMOSPHERE.night,
       aurora: ATMOSPHERE.aurora,
       underglow: ATMOSPHERE.underglow,
+      silhouettes: ATMOSPHERE.silhouettes,
       underwater: ATMOSPHERE.underwater,
       surface: ATMOSPHERE.surface,
       surfaceGlow: ATMOSPHERE.surfaceGlow,

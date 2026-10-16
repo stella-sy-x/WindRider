@@ -174,7 +174,7 @@ export const ARCHIPELAGO: Biome = {
       gateSurface: 1,
       features: [
         // Clean teardrops along the line, no holes, the default soft noise
-        { kind: "islands", count: 100, size: [14, 55], lateral: [25, 150], rise: [-80, 120], surface: 0, holes: 0 },
+        { kind: "islands", count: 60, size: [14, 55], lateral: [25, 100], rise: [-80, 120], surface: 0, holes: 0 },
       ],
     },
     islandFalls: { chance: 0.15, colors: { deep: "#3f8fb0", shallow: "#9fdff0", foam: "#ffffff" } },

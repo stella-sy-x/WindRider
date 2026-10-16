@@ -86,11 +86,18 @@ export class TerrainField {
     return this.finish(d, rough, grain, x, y, z);
   }
 
-  /** Roughness along the nearest part's grain, then the racing tube */
-  private finish(d: number, rough: number, grain: Grain, x: number, y: number, z: number): number {
+  /**
+   * Roughness along the nearest part's grain, then the racing tube. Column
+   * samplers pass the line's x and y at this z; otherwise they are looked up
+   */
+  private finish(d: number, rough: number, grain: Grain, x: number, y: number, z: number, lineX?: number, lineY?: number): number {
     if (d > rough * 1.4 + REACH) return d;
     if (rough > 0) d += rough * grainNoise(this.noise, grain, x, y, z);
-    if (d < TUBE_RADIUS) d = Math.max(d, TUBE_RADIUS - this.course.distance(x, y, z));
+    // The tube only carves where the line is nearer than TUBE_RADIUS - d (it leaves d alone
+    // otherwise), and most samples are plainly further: a cheap bound spares the search
+    if (d < TUBE_RADIUS && this.course.minDistance(x, y, z, lineX, lineY) < TUBE_RADIUS - d) {
+      d = Math.max(d, TUBE_RADIUS - this.course.distance(x, y, z));
+    }
     return d;
   }
 
@@ -130,18 +137,24 @@ export class TerrainField {
     const h = new Float64Array(columns);
     const gx = new Float64Array(columns);
     const gz = new Float64Array(columns);
+    // The racing line at each z-row, for the ground's heights and the tube's bound
+    const lineX = new Float64Array(n);
+    const lineY = new Float64Array(n);
+    for (let k = 0; k < n; k++) {
+      const z = oz + k * step;
+      lineX[k] = this.course.x(z);
+      lineY[k] = this.course.y(z);
+    }
     if (ground) {
       let lo = Infinity;
       let hi = -Infinity;
       for (let k = 0; k < n; k++) {
         const z = oz + k * step;
-        const lineX = this.course.x(z);
-        const lineY = this.course.y(z);
         for (let i = 0; i < n; i++) {
           const x = ox + i * step;
           const c = i + n * k;
-          h[c] = ground.heightAt(x, z, lineX, lineY);
-          gx[c] = ground.heightAt(x + 1, z, lineX, lineY) - h[c];
+          h[c] = ground.heightAt(x, z, lineX[k], lineY[k]);
+          gx[c] = ground.heightAt(x + 1, z, lineX[k], lineY[k]) - h[c];
           gz[c] = ground.height(x, z + 1) - h[c];
           if (h[c] < lo) lo = h[c];
           if (h[c] > hi) hi = h[c];
@@ -180,7 +193,7 @@ export class TerrainField {
             }
             d = smin(d, ds, BLEND);
           }
-          out[i + n * (j + n * k)] = this.finish(d, rough, grain, x, y, z);
+          out[i + n * (j + n * k)] = this.finish(d, rough, grain, x, y, z, lineX[k], lineY[k]);
         }
       }
     }

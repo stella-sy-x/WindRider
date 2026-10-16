@@ -25,6 +25,11 @@ export interface Box {
 const EMPTY = new Float32Array(0);
 /** Structures are looked for this far around a node, so its plants keep clear of a neighbour's tower */
 const SITE_MARGIN = 12;
+/** Plants grow in nodes up to this level of detail; coarser ones (700 m off, in the haze) get landmarks alone */
+const PLANT_MAX_LOD = 2;
+/** From this level of detail, structures spaced closer than SMALL_SPACING (lanterns…) are left out */
+const SMALL_STRUCTURE_LOD = 2;
+const SMALL_SPACING = 40;
 /** Floats per structure site: x, y, z, the radius plants keep clear of */
 const SITE_STRIDE = 4;
 
@@ -113,8 +118,13 @@ export function forestAt(world: World, x: number, z: number): number {
   return smoothstep(1 - veg.forest.cover - 0.12, 1 - veg.forest.cover + 0.12, 0.5 + 0.5 * fbm(n, x / veg.forest.scale + 40.3, z / veg.forest.scale, 3));
 }
 
-/** Plants (and, for full-detail nodes, grass and flowers) in a node's box */
-export function placeFlora(world: World, box: Box, withTufts: boolean): { plants: Float32Array; tufts: Float32Array } {
+/**
+ * Plants and structures in a node's box, by its level of detail: everything at
+ * LOD 0 (grass and flowers too) and 1, no lanterns and the like at LOD 2, only
+ * landmarks at LOD 3. What a level does place stands exactly where finer levels
+ * put it
+ */
+export function placeFlora(world: World, box: Box, lod: number): { plants: Float32Array; tufts: Float32Array } {
   const veg = world.biome.vegetation;
   const terrain = world.biome.terrain;
   if (veg.kind !== "flora" || terrain.kind !== "v2" || !world.land) return { plants: EMPTY, tufts: EMPTY };
@@ -223,7 +233,14 @@ export function placeFlora(world: World, box: Box, withTufts: boolean): { plants
     if (Math.hypot(x - start.x, y - start.y, z - start.z) < 40 + height) return null;
     return [x, y, z, height];
   };
-  for (let index = 0; index < structures.length; index++) {
+  // Which kinds this level of detail places: landmarks always (found once per world,
+  // so cheap), the rest only near enough to see. Sites claimed by earlier kinds decide
+  // later ones, so kinds are only dropped from the tail of the list: what remains
+  // comes out exactly as at full detail
+  const keep = (spec: StructureSpec) => !!spec.landmark || (lod <= PLANT_MAX_LOD && (lod < SMALL_STRUCTURE_LOD || spec.spacing >= SMALL_SPACING));
+  let placed = structures.length;
+  while (placed > 0 && !keep(structures[placed - 1])) placed--;
+  for (let index = 0; index < placed; index++) {
     const spec = structures[index];
     const info = STRUCTURE_INFO[spec.id];
     const step = spec.spacing;
@@ -278,7 +295,8 @@ export function placeFlora(world: World, box: Box, withTufts: boolean): { plants
   const gz0 = Math.ceil(box.z0 / spacing - 0.5);
   const gz1 = Math.floor(box.z1 / spacing - 0.5);
   const totalWeight = veg.species.reduce((a, s) => a + s.weight, 0);
-  for (let gi = gx0 - 1; gi <= gx1 + 1; gi++) {
+  const plantsHere = lod <= PLANT_MAX_LOD;
+  for (let gi = gx0 - 1; plantsHere && gi <= gx1 + 1; gi++) {
     for (let gk = gz0 - 1; gk <= gz1 + 1; gk++) {
       const x = (gi + 0.5 + (hash3(gi, gk, salt) - 0.5) * 0.9) * spacing;
       const z = (gk + 0.5 + (hash3(gi, gk, salt + 1) - 0.5) * 0.9) * spacing;
@@ -332,7 +350,7 @@ export function placeFlora(world: World, box: Box, withTufts: boolean): { plants
   // --- grass and flowers, near the camera only -------------------------------------
   const tufts: number[] = [];
   const grass = veg.grass;
-  if (withTufts && grass) {
+  if (lod === 0 && grass) {
     const step = grass.spacing;
     const tx0 = Math.ceil(box.x0 / step - 0.5);
     const tx1 = Math.floor(box.x1 / step - 0.5);

@@ -21,8 +21,37 @@ import { NODE_SIZE, type TerrainMesh, VOXEL, nodeKey } from "./mesh";
 // interpenetrate, so drawing both at once (as an earlier cross-fade did) mottled
 // the land with faces of each. Only land that comes on screen where none was
 // shown before fades in out of the haze over TERRAIN.fadeIn.
+//
+// Land within TERRAIN.freezeRadius of the camera is frozen: a node already on
+// screen there keeps its level (no split, no merge, so no trees popping in or
+// detail changing right in front of you). Levels change while the land is still
+// far off, in the haze, so by the time you reach it it is already at its final
+// detail; you only ever fly forward, so what is frozen stays as it is until it
+// is behind you and out of frame, where it is discarded like any land left
+// behind (merged back into coarse land, then dropped past the view distance).
+// The freeze never holds back land arriving where none was shown (that would
+// leave holes), and it never stops the workers: the finer replacements still
+// load ahead of you, so the land is complete before it enters the radius.
+//
+// Beyond the view distance, out to TERRAIN.prefetchDistance, land ahead of you is
+// generated too and held off screen (loaded, never shown): when it comes within the
+// view distance it is already there and fades in at once, instead of waiting for a
+// worker. Prefetch requests always queue behind requests for land on screen.
+//
+// Requests are ordered by distance, but the land under the racing line comes first:
+// land more than LINE_LATERAL metres off the line (decoration) is pushed back in the
+// queue, and land past TERRAIN.decorationLateral never splits finer than
+// TERRAIN.decorationMaxLod. The lateral distance is from the node's box to the line
+// at its centre z, in x and y (the plane the air wall is measured in), so a coarse
+// node the line runs through counts as on the line.
 
 export const LOD_LEVELS = 4;
+/** Land further than this from the racing line is decoration: its requests queue behind the rest */
+const LINE_LATERAL = 60;
+/** Metres added to a decoration node's request order */
+const DECORATION_PENALTY = 200;
+/** Metres added to a prefetch request's order: always after everything wanted on screen */
+const PREFETCH_AFTER = 1e6;
 const ROOT_LOD = LOD_LEVELS - 1;
 
 export interface NodeRequest {
@@ -52,6 +81,8 @@ interface Node {
   shown: boolean;
   split: boolean; // hysteresis: keep fine detail until beyond the outer threshold
   desired: number; // the update stamp it was last wanted in
+  prefetched: number; // the update stamp it was last wanted ahead in (loaded and held, not shown)
+  lateral: number; // metres from the node to the racing line at its centre z, in x and y (0: the line runs through it)
 }
 
 export class LandStreamer {
@@ -72,7 +103,9 @@ export class LandStreamer {
   private readonly cache = new Map<number, { node: Node; bytes: number }>();
   private cacheBytes = 0;
   private desired: Node[] = [];
+  private readonly prefetch: Node[] = [];
   private readonly wanted: { node: Node; d: number }[] = [];
+  private readonly linePoint = new THREE.Vector3();
 
   constructor(world: World, group: THREE.Group, material: THREE.Material, flora: FloraView | null, collider: LandCollider) {
     this.world = world;
@@ -113,13 +146,14 @@ export class LandStreamer {
   private node(lod: number, ix: number, iy: number, iz: number, parent: Node | null): Node {
     const size = NODE_SIZE << lod;
     const key = nodeKey(lod, ix, iy, iz);
+    const box = new THREE.Box3(new THREE.Vector3(ix * size, iy * size, iz * size), new THREE.Vector3((ix + 1) * size, (iy + 1) * size, (iz + 1) * size));
     const node: Node = {
       lod,
       ix,
       iy,
       iz,
       key,
-      box: new THREE.Box3(new THREE.Vector3(ix * size, iy * size, iz * size), new THREE.Vector3((ix + 1) * size, (iy + 1) * size, (iz + 1) * size)),
+      box,
       parent,
       children: null,
       state: "idle",
@@ -129,9 +163,19 @@ export class LandStreamer {
       shown: false,
       split: false,
       desired: -1,
+      prefetched: -1,
+      lateral: this.lateral(box),
     };
     this.byKey.set(key, node);
     return node;
+  }
+
+  /** How far a node stands off the racing line: from its box to the line at its centre z, in x and y */
+  private lateral(box: THREE.Box3): number {
+    const line = this.world.course.pointAt((box.min.z + box.max.z) / 2, this.linePoint);
+    const dx = Math.max(box.min.x - line.x, line.x - box.max.x, 0);
+    const dy = Math.max(box.min.y - line.y, line.y - box.max.y, 0);
+    return Math.hypot(dx, dy);
   }
 
   /** Land height range over a node column, cached (null: no land) */
@@ -181,19 +225,26 @@ export class LandStreamer {
     if (this.arrived.length) {
       const budget = this.ready ? TERRAIN.arrivalsPerFrame : this.arrived.length;
       for (const result of this.arrived.splice(0, budget)) this.take(result);
-      this.settle();
+      this.settle(at);
     }
+    // Every 8 m of travel: which nodes are wanted now, and (settle) frozen changes of
+    // level go on once the camera has left the freeze radius
     if (this.lastUpdate.distanceToSquared(at) > 8 * 8 || this.lastLookAhead.distanceToSquared(this.lookAhead) > 8 * 8 || this.stamp === 0) {
       this.lastUpdate.copy(at);
       this.lastLookAhead.copy(this.lookAhead);
       this.stamp++;
       this.desired.length = 0;
+      this.prefetch.length = 0;
       for (const root of this.roots) this.visit(root, at);
       for (const root of this.roots) this.pruneTree(root, false);
-      this.settle();
+      this.settle(at);
     }
 
-    // Ask for missing nodes, nearest first
+    // Ask for missing nodes, nearest first. A small preference for finer nodes at
+    // like distances only: the near land must always come before the far, whatever
+    // its level, so it is at its final detail before it enters the freeze radius.
+    // Land off to the side of the racing line (decoration) queues behind the land
+    // you fly over, and land prefetched beyond the view behind everything on screen
     const wanted = this.wanted;
     wanted.length = 0;
     let missingNearby = false;
@@ -201,9 +252,12 @@ export class LandStreamer {
       if (node.shown) continue;
       const d = node.box.distanceToPoint(at);
       if (d < TERRAIN.readyRadius && !this.shownAncestor(node) && !this.visibleCoverage(node)) missingNearby = true;
-      if (node.state === "idle") wanted.push({ node, d: d + node.lod * 120 });
+      if (node.state === "idle") wanted.push({ node, d: this.order(node, d) });
     }
     this.ready = !missingNearby;
+    for (const node of this.prefetch) {
+      if (node.state === "idle") wanted.push({ node, d: PREFETCH_AFTER + this.order(node, node.box.distanceToPoint(at)) });
+    }
     wanted.sort((a, b) => a.d - b.d);
     for (const { node } of wanted) {
       if (!request({ kind: "node", key: node.key, lod: node.lod, ix: node.ix, iy: node.iy, iz: node.iz })) break;
@@ -211,14 +265,27 @@ export class LandStreamer {
     }
   }
 
+  /** A node's place in the request queue: its distance, a little later for coarser levels, later again for decoration */
+  private order(node: Node, d: number): number {
+    return d + node.lod * 30 + (node.lateral > LINE_LATERAL ? DECORATION_PENALTY : 0);
+  }
+
   private visit(node: Node, at: THREE.Vector3) {
     const d = node.box.distanceToPoint(at);
-    if (d > TERRAIN.viewDistance) return;
+    const ahead = d > TERRAIN.viewDistance;
+    // Beyond the view: prefetched (loaded, not shown) out to the prefetch distance, and
+    // only ahead of the camera; the course runs towards +z and you never fly back
+    if (ahead && (d > TERRAIN.prefetchDistance || node.box.max.z < at.z)) return;
     const split = node.lod === 3 ? TERRAIN.lodFar : node.lod === 2 ? TERRAIN.lodNear : TERRAIN.lodDetail;
     const detailDistance = this.predicting ? Math.min(d, node.box.distanceToPoint(this.lookAhead)) : d;
-    node.split = node.lod > 0 && detailDistance < split + (node.split ? TERRAIN.lodHysteresis : 0);
+    // Decoration, off to the side of the racing line, never splits finer than decorationMaxLod
+    const finest = node.lateral > TERRAIN.decorationLateral ? Math.min(Math.max(TERRAIN.decorationMaxLod, 0), ROOT_LOD) : 0;
+    node.split = node.lod > finest && detailDistance < split + (node.split ? TERRAIN.lodHysteresis : 0);
     if (node.split) {
       for (const child of this.childrenOf(node)) this.visit(child, at);
+    } else if (ahead) {
+      node.prefetched = this.stamp;
+      this.prefetch.push(node);
     } else {
       node.desired = this.stamp;
       this.desired.push(node);
@@ -237,7 +304,8 @@ export class LandStreamer {
     if (!node || node.state !== "pending") return;
     // A worker may finish after we have flown away. Avoid uploading obsolete
     // geometry or planting its colliders; it can be requested again if needed.
-    if (node.desired !== this.stamp) {
+    // Prefetched land is kept (loaded, off screen) for when it comes into view
+    if (node.desired !== this.stamp && node.prefetched !== this.stamp) {
       node.state = "idle";
       return;
     }
@@ -269,24 +337,42 @@ export class LandStreamer {
     return out;
   }
 
-  /** Puts arrived nodes on screen once they cover their area, and takes off what they replace */
-  private settle() {
+  /**
+   * Puts arrived nodes on screen once they cover their area, and takes off what they
+   * replace. A change of level (split or merge) whose land is within TERRAIN.freezeRadius
+   * of the camera `at` waits: the land there stays as it is until the camera has moved on
+   */
+  private settle(at: THREE.Vector3) {
     for (const node of this.desired) {
       if (node.state !== "loaded" || node.shown) continue;
       const shownAncestor = this.shownAncestor(node);
       if (shownAncestor) {
         // Splitting: wait until everything wanted under the coarse node has arrived
         if (!this.allLoaded(shownAncestor)) continue;
+        // The whole coarse node would change: frozen while any of it is near
+        if (this.frozen(shownAncestor, at)) continue;
         this.showUnder(shownAncestor);
         // The coarse node comes off in the same frame: the two levels must never be drawn together
         this.hide(shownAncestor);
       } else {
         // Fresh: no finer land stood here either, so this is land arriving, not changing detail
-        this.show(node, !this.anyShown(node));
+        const fresh = !this.anyShown(node);
+        // Merging: the finer land under it would change, frozen while near (fresh land is never held back)
+        if (!fresh && this.frozen(node, at)) continue;
+        this.show(node, fresh);
         // Merging: the finer nodes it replaces come off in the same frame
         if (node.children) for (const child of node.children) this.hideTree(child);
       }
     }
+  }
+
+  /**
+   * Is a change of level over this node's land too close to the camera to show now?
+   * Only once the land around the camera has arrived (`ready`): before that the
+   * right detail as soon as possible beats a frozen coarse start
+   */
+  private frozen(node: Node, at: THREE.Vector3): boolean {
+    return this.ready && node.box.distanceToPoint(at) < TERRAIN.freezeRadius;
   }
 
   private shownAncestor(node: Node): Node | null {
@@ -391,11 +477,12 @@ export class LandStreamer {
   /**
    * Drops what is no longer wanted (left behind as you fly on). Keeps nodes
    * that still stand in for wanted ones: coarse nodes waiting for their finer
-   * replacements, and fine nodes waiting for a coarse one (`covered`).
+   * replacements, and fine nodes waiting for a coarse one (`covered`), and
+   * prefetched nodes held off screen for when they come into view.
    * Returns whether anything in this subtree is wanted.
    */
   private pruneTree(node: Node, covered: boolean): boolean {
-    const here = node.desired === this.stamp;
+    const here = node.desired === this.stamp || node.prefetched === this.stamp;
     let wanted = here;
     if (node.children) for (const child of node.children) wanted = this.pruneTree(child, covered || here) || wanted;
     if (!wanted && !covered && (node.shown || node.state === "loaded")) this.hide(node);

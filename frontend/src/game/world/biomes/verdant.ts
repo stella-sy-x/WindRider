@@ -94,9 +94,9 @@ export const VERDANT: Biome = {
       gates: { arch: 3, pillars: 2, needles: 1, spur: 2, overhang: 2 },
       gateSurface: 1,
       features: [
-        { kind: "pillars", count: 15, radius: [8, 16], rise: [40, 140], lateral: [90, 150], surface: 1 },
-        { kind: "boulders", count: 160, size: [2, 6], lateral: [20, 150], surface: 1 },
-        { kind: "arches", count: 3, radius: [18, 30], lateral: [90, 150], surface: 1 },
+        { kind: "pillars", count: 10, radius: [8, 16], rise: [40, 140], lateral: [60, 100], surface: 1 },
+        { kind: "boulders", count: 100, size: [2, 6], lateral: [20, 100], surface: 1 },
+        { kind: "arches", count: 2, radius: [18, 30], lateral: [60, 100], surface: 1 },
         // Table mountains on the horizon, their sides stepped in ledges
         { kind: "mesas", count: 7, radius: [60, 120], rise: [120, 260], lateral: [520, 1000], step: 22, surface: 1 },
         { kind: "bridges", chance: 0.8, width: 12, surface: 2 },
