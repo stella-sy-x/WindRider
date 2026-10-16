@@ -16,9 +16,10 @@ import type { World } from "./World";
 import { reloadForNewBuild } from "../../staleBuild";
 import { DEEP, TERRAIN } from "../tuning";
 
-// Near enough that the haze is already on the land where detail changes (TERRAIN.lodDetail, lodNear)
-const FOG_NEAR = 120;
-const FOG_FAR = 1300;
+// Fog ramps up quickly so terrain loads behind a thick haze; the sky dome's
+// horizon silhouettes give depth behind the fog instead of a blank wash.
+const FOG_NEAR = 200;
+const FOG_FAR = 900;
 const REQUESTS_PER_WORKER = 4;
 
 export type { RingMode };
