@@ -13,6 +13,10 @@ const START_Z = -80;
 const SLOPE = 0.22;
 const SLOPE_SWING = 0.1;
 const STEP = 2; // metres of z between line samples
+/** `distance` looks at the line this far either side of the point's z */
+const SEARCH = TUBE_RADIUS + 10;
+/** The continuous x(z) strays at most this far from the sampled polyline (measured: 0.02 m) */
+const LINE_SLACK = 0.25;
 
 export interface Ring {
   index: number;
@@ -37,6 +41,8 @@ export class Course {
   private readonly z0: number;
   private readonly xs: Float64Array;
   private readonly ys: Float64Array;
+  /** Per sample, 1/√(1+s²) for the steepest segment `distance` could reach from there: see `minDistance` */
+  private readonly leans: Float64Array;
 
   constructor(seed: number) {
     this.noise = createNoise2D(makeRng(seed, "line"));
@@ -55,6 +61,17 @@ export class Course {
       this.xs[i] = this.x(z);
       this.ys[i] = y;
       y -= (SLOPE + SLOPE_SWING * this.noise(z * 0.003, 3.1)) * STEP;
+    }
+    // How steeply each segment leans away from straight ahead, and the worst of
+    // them among the segments `distance` searches from any point near a sample
+    const slopes = new Float64Array(count - 1);
+    for (let i = 0; i + 1 < count; i++) slopes[i] = ((this.xs[i + 1] - this.xs[i]) ** 2 + (this.ys[i + 1] - this.ys[i]) ** 2) / (STEP * STEP);
+    const span = Math.ceil(SEARCH / STEP) + 2;
+    this.leans = new Float64Array(count);
+    for (let i = 0; i < count; i++) {
+      let worst = 0;
+      for (let j = Math.max(0, i - span); j <= Math.min(count - 2, i + span); j++) if (slopes[j] > worst) worst = slopes[j];
+      this.leans[i] = 1 / Math.sqrt(1 + worst);
     }
 
     this.gates.forEach((z, index) => {
@@ -96,11 +113,25 @@ export class Course {
     return out.set(this.x(z + 2) - this.x(z - 2), this.y(z + 2) - this.y(z - 2), 4).normalize();
   }
 
+  /**
+   * A cheap lower bound on `distance`: the line comes no nearer to the point than
+   * this. From the point's offset to the line at its own z (callers sampling
+   * columns pass the line's x and y there), shrunk by how much the line can lean
+   * towards the point within `distance`'s search: a segment of slope s brings
+   * the line to at least offset/√(1+s²). Beyond the line's sampled stretch, 0
+   */
+  minDistance(px: number, py: number, pz: number, lineX = this.x(pz), lineY = this.y(pz)): number {
+    const f = (pz - this.z0) / STEP;
+    if (!(f >= 0 && f <= this.xs.length - 2)) return 0;
+    const dx = px - lineX;
+    const dy = py - lineY;
+    return Math.max(0, Math.sqrt(dx * dx + dy * dy) - LINE_SLACK) * this.leans[Math.floor(f)];
+  }
+
   /** Distance from a point to the racing line (exact within a few tube radii, else at least that) */
   distance(px: number, py: number, pz: number): number {
-    const reach = TUBE_RADIUS + 10;
-    const first = Math.max(0, Math.floor((pz - reach - this.z0) / STEP));
-    const last = Math.min(this.xs.length - 2, Math.ceil((pz + reach - this.z0) / STEP));
+    const first = Math.max(0, Math.floor((pz - SEARCH - this.z0) / STEP));
+    const last = Math.min(this.xs.length - 2, Math.ceil((pz + SEARCH - this.z0) / STEP));
     let best = Infinity;
     for (let i = first; i <= last; i++) {
       // Point to segment, in 3D

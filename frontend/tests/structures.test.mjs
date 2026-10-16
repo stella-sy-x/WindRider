@@ -27,7 +27,7 @@ test("structures stand in the same spots at every level of detail, clear of the 
   const species = world.biome.vegetation.species.length;
   const built = (box) => {
     const out = [];
-    const { plants } = placeFlora(world, box, false);
+    const { plants } = placeFlora(world, box, 1); // (LOD 1: every kind, no grass)
     for (let o = 0; o < plants.length; o += PLANT_STRIDE) if (plants[o] >= species) out.push(Array.from(plants.slice(o, o + PLANT_STRIDE)));
     return out;
   };
@@ -97,7 +97,7 @@ test("every run biome has a landmark and scattered structures, the same at every
     assert.ok(species + kinds.length <= 16, `${biome}: more kinds than the impostor atlas has cells`);
     assert.ok(kinds[0].landmark, `${biome}: the landmark comes first`);
     const built = (box, out) => {
-      const { plants } = placeFlora(world, box, false);
+      const { plants } = placeFlora(world, box, 1);
       for (let o = 0; o < plants.length; o += PLANT_STRIDE) if (plants[o] >= species) out.push(Array.from(plants.slice(o, o + PLANT_STRIDE)).map((n) => n.toFixed(3)).join(","));
     };
     const coarse = [];
@@ -141,7 +141,7 @@ test("the ETH main building collides along its whole length, and only some level
     for (let iz = 0; iz < 7; iz++) {
       const cx = Math.floor(world.course.x(iz * 384 + 192) / 384), cy = Math.floor(world.course.y(iz * 384 + 192) / 384);
       for (let ix = cx - 2; ix <= cx + 2; ix++) for (let iy = cy - 1; iy <= cy + 1; iy++) {
-        const { plants } = placeFlora(world, { x0: ix * 384, y0: iy * 384, z0: iz * 384, x1: ix * 384 + 384, y1: iy * 384 + 384, z1: iz * 384 + 384 }, false);
+        const { plants } = placeFlora(world, { x0: ix * 384, y0: iy * 384, z0: iz * 384, x1: ix * 384 + 384, y1: iy * 384 + 384, z1: iz * 384 + 384 }, 3);
         for (let o = 0; o < plants.length; o += PLANT_STRIDE) if (plants[o] === species) n++;
       }
     }
@@ -160,7 +160,7 @@ test("the Einstein bust is a rare landmark close to the racing line", () => {
     for (let iz = 0; iz < 7; iz++) {
       const cx = Math.floor(world.course.x(iz * 384 + 192) / 384), cy = Math.floor(world.course.y(iz * 384 + 192) / 384);
       for (let ix = cx - 1; ix <= cx + 1; ix++) for (let iy = cy - 1; iy <= cy + 1; iy++) {
-        const { plants } = placeFlora(world, { x0: ix * 384, y0: iy * 384, z0: iz * 384, x1: ix * 384 + 384, y1: iy * 384 + 384, z1: iz * 384 + 384 }, false);
+        const { plants } = placeFlora(world, { x0: ix * 384, y0: iy * 384, z0: iz * 384, x1: ix * 384 + 384, y1: iy * 384 + 384, z1: iz * 384 + 384 }, 3);
         for (let o = 0; o < plants.length; o += PLANT_STRIDE) if (plants[o] === kind) out.push(Math.abs(plants[o + 1] - world.course.x(plants[o + 3])));
       }
     }
