@@ -115,8 +115,8 @@ export const TERRAIN = {
   lodFar: 700, // closer than this at half detail (12 m), further at quarter (24 m)
   lodHysteresis: 48, // extra distance before merging fine detail again
   cacheMiB: 48, // bounded cache of hidden terrain (estimated CPU + GPU buffers)
-  viewDistance: 1000, // metres: the default fog ends at 900 (WorldView FOG_FAR), so nothing is built much beyond it
-  prefetchDistance: 2000, // metres: the workers generate land ahead out to here, held off screen until it comes within viewDistance
+  viewDistance: 700, // metres: LOD 2 ceiling; LOD 3 (24 m) is skipped — sky silhouettes fill the far distance
+  prefetchDistance: 1200, // metres: the workers generate land ahead out to here, held off screen until it comes within viewDistance
   decorationLateral: 80, // metres from the racing line beyond which land is decoration: never finer than decorationMaxLod
   decorationMaxLod: 2, // the finest level decoration land reaches (2: 12 m cells)
   readyRadius: 260, // the start waits until the land this close has arrived
