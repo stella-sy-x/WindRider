@@ -3,18 +3,17 @@
 // fly or what you hit: the flight model (FLIGHT in flight.ts) does that.
 // Tweaks made in the panel are remembered in this browser.
 
-/** How the pilot moves on top of the flight model: rolls, flaps, bobbing, cloth */
+/** How the pilot moves on top of the flight model: rolls, the arm spread, bobbing, membranes, cloth */
 export const ANIM = {
-  boostSweep: 0.25,
-  brakeSweep: 0.7,
+  armSpread: 1.15, // radians the arms open from the body while cruising
+  spreadBrake: 0.45, // extra spread at full brake (arms out, membranes taut)
+  tuckSpeed: 0.4, // how far the arms tuck in at full speed
+  tuckBoost: 0.3, // extra tuck at full boost
   bankLead: 0.55, // limb/pelvis lean response to the bank rate
   bankSpring: 14, // stiffness of the lean spring; lower = floatier
   bankDamping: 0.42, // 1 = no overshoot, lower = a little wobble after a turn
-  flapRate: 1.6, // flaps per second while gliding slowly
-  flapBoost: 2.6, // extra flaps per second when climbing, turning or rolling
-  flapAngle: 0.5, // radians of wing travel at full effort
-  glideFlutter: 0.06, // tiny wing flutter while cruising
-  sweepAtSpeed: 0.75, // how far the wings fold back in a fast dive (radians)
+  membraneFlutter: 0.02, // metres the membranes ripple at speed
+  flutterRate: 8, // ripple cycles per second
   bobAmount: 0.12, // metres of gentle up-and-down drift
   bobRate: 0.85, // cycles per second
   headLook: 0.5, // how much the head turns into a turn
@@ -244,8 +243,10 @@ export const RANGES: Record<string, [number, number, number?]> = {
   wingbeat: [0, 2],
   tailSway: [0, 2],
   sparkle: [0, 3],
-  boostSweep: [0, 0.6],
-  brakeSweep: [0, 1.2],
+  armSpread: [0.3, 1.6],
+  spreadBrake: [0, 0.8],
+  tuckSpeed: [0, 1],
+  tuckBoost: [0, 0.8],
   boostTrailGlow: [0, 2],
   brakeWisps: [0, 60],
   boostFov: [0, 8],
@@ -255,11 +256,8 @@ export const RANGES: Record<string, [number, number, number?]> = {
   bankLead: [0, 1.5],
   bankSpring: [2, 40],
   bankDamping: [0.1, 1],
-  flapRate: [0, 4],
-  flapBoost: [0, 6],
-  flapAngle: [0, 1.2],
-  glideFlutter: [0, 0.3],
-  sweepAtSpeed: [0, 1.3],
+  membraneFlutter: [0, 0.1],
+  flutterRate: [0, 20],
   bobAmount: [0, 0.6],
   bobRate: [0, 3],
   headLook: [0, 1.5],

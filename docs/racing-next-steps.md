@@ -38,15 +38,40 @@ Pure browser wingsuit racer: solo time trials, multiplayer race rooms, 8 biomes 
 - Spread/tuck animation maps to decelerate/accelerate (no flapping)
 - Cosmetics become: helmet styles, suit patterns, goggle types
 
-### Flight model: remove jetpack, add environment
-- Delete rechargeable boost (feels like a jetpack, not a wingsuit)
-- Speed comes from environment interaction:
+### Flight model: electric wingsuit with boost
+- Keep boost (re-themed as electric ducted fans, not a jetpack)
+- Boost animation: fans glow, membranes tuck, acceleration particles
+- Speed sources:
+  - Boost (electric fans, keep current mechanic)
   - Diving (already works: pitch down = accelerate)
-  - Proximity boost (already exists, strengthen it)
-  - Wind currents / thermals (visible columns in the world, fly through for lift/speed)
+  - Proximity boost (already exists — key tradeoff: risky but fast)
+  - Wind currents / thermals (visible columns, fly through for lift/speed)
   - Gate boost (brief speed pulse on clean ring pass)
-- Default state is always descending; gaining height requires skill
-  (flare from a dive, catch a thermal)
+
+### Race format: free-route to finish
+- Remove mandatory sequential gate checkpoints
+- Terminal light pillar (finish line) is the permanent navigation beacon
+- Gates become OPTIONAL acceleration rings — pass through for a speed
+  boost, skip if your route doesn't cross them
+- Route choice IS the gameplay: tight canyon with gates+proximity vs
+  open sky that's safe but slow
+- Proximity boost is the cost/reward mechanic that prevents players
+  from always picking the easiest wide-open route
+- Add environmental obstacles and acceleration zones (wind currents,
+  thermals) to create distinct route options through the terrain
+
+### Boundary and navigation clarity
+- Visible boundary markers along the racing corridor (glowing pillars
+  every 50-100m, or energy-field particle wall near the air wall)
+- Current soft air wall (60m) is invisible — players don't know if
+  they're out of bounds or about to crash
+- Strengthen proximity boost feedback: visual punch (color shift,
+  speed line burst, camera pull), sound cue, HUD bar more prominent
+
+### Segment timing
+- Split the course into 3-4 timed segments
+- Show per-segment times so players know which sections to improve
+- Compare against ghost/personal best per segment
 
 ### Per-biome physics (biggest gameplay differentiator)
 - Each biome defines optional physics overrides:

@@ -2,24 +2,24 @@ import * as THREE from "three";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import { flatMaterial } from "./toon";
 import { ATMOSPHERE } from "./world/atmosphere";
-import { ANIM, FX, COSMETIC_FX } from "./tuning";
+import { ANIM, FX } from "./tuning";
 import { clamp, smoothstep } from "./math";
 import { DISSOLVE_AT, type DeathKind, WING_POINTS } from "./death";
 import type { ItemSlot } from "./items/models";
-import { capeSpec, type CapeId, type WingId } from "./cosmetics/catalog";
-import { buildWing } from "./cosmetics/wings";
+import { capeSpec, wingSpec, type WingId } from "./cosmetics/catalog";
 import type { Appearance } from "./cosmetics/storage";
 import { buildHat, buildShoe, disposeModel } from "./cosmetics/models";
 
-// The pilot: a small low-poly flyer with chibi proportions (a big
-// head, slim limbs), a flowing cape, a scarf, and a pair of chunky glider
-// wings on the back (cosmetics/wings.ts, hung on the animated wing joints).
-// Everything is built from primitives at runtime.
+// The pilot: a small low-poly wingsuit flyer with chibi proportions (a big
+// helmeted head, slim limbs) in a high-tech flight suit. Fabric membranes
+// stretch between each arm and the torso and between the legs, and two small
+// electric ducted fans on the upper back light up under boost. A scarf
+// streams behind. Everything is built from primitives at runtime.
 //
 // The body is modelled standing (up +y, facing -z, right +x) and then laid
 // prone, so the head points along the flight direction (-z) and the back faces
 // up. The caller places `group` at the flight model's position and rotation;
-// everything the animation adds (rolls, bobbing, flaps) happens inside it.
+// everything the animation adds (rolls, bobbing, the arm spread) happens inside it.
 
 const SCALE = 1.55;
 const TAU = Math.PI * 2;
@@ -29,21 +29,28 @@ const TAU = Math.PI * 2;
 interface Tones {
   skin: THREE.Color;
   blush: THREE.Color;
-  hair: THREE.Color;
-  hairShine: THREE.Color;
   cloth: THREE.Color;
   clothLight: THREE.Color;
   clothDark: THREE.Color;
   trim: THREE.Color;
   dark: THREE.Color;
   white: THREE.Color;
-  eye: THREE.Color;
-  tip: THREE.Color;
+  /** The suit's electric accent: membrane edges, the helmet fin, the fan cores under boost */
+  accent: THREE.Color;
+  /** Tinted visor glass and its glint */
+  visor: THREE.Color;
+  visorShine: THREE.Color;
+  /** Gunmetal for the fan shells */
+  metal: THREE.Color;
 }
 
 type ToneName = keyof Tones;
-/** A flat tone, or a function of the vertex position (in the part's space) and its index */
-type Paint = ToneName | ((p: THREE.Vector3, tones: Tones, out: THREE.Color, index: number) => void);
+/**
+ * A flat tone, or a function of the vertex position (in the part's space) and its
+ * index. A function may return a glow (0..1) for the vertices it paints; otherwise
+ * the glow follows how close the color is to the gold trim or the accent.
+ */
+type Paint = ToneName | ((p: THREE.Vector3, tones: Tones, out: THREE.Color, index: number) => number | void);
 
 function tonesFor(color: string): Tones {
   const cloth = new THREE.Color(color);
@@ -53,16 +60,16 @@ function tonesFor(color: string): Tones {
   return {
     skin: new THREE.Color("#ffe1cf"),
     blush: new THREE.Color("#ffa9a4"),
-    hair: new THREE.Color("#3d2c4f").lerp(cloth, 0.12),
-    hairShine: new THREE.Color("#7a5d8f").lerp(cloth, 0.2),
     cloth,
     clothLight: cloth.clone().lerp(white, 0.55),
     clothDark: new THREE.Color().setHSL(hsl.h, Math.min(1, hsl.s * 0.9), hsl.l * 0.5),
     trim: new THREE.Color("#f3c869"),
     dark: new THREE.Color("#3a3245"),
     white,
-    eye: new THREE.Color("#2b2140"),
-    tip: new THREE.Color().setHSL((hsl.h + 0.08) % 1, 0.75, 0.72),
+    accent: new THREE.Color().setHSL((hsl.h + 0.08) % 1, 0.9, 0.72),
+    visor: new THREE.Color("#1c2233").lerp(cloth, 0.12),
+    visorShine: new THREE.Color("#e4edff"),
+    metal: new THREE.Color("#4b505e"),
   };
 }
 
@@ -133,8 +140,17 @@ function likeness(a: THREE.Color, b: THREE.Color): number {
   return 1 - smoothstep(0.03, 0.22, d);
 }
 
+/** Runs a paint at `paintPoint` into `paintColor`, and returns the glow for it */
+function paintAt(paint: Paint, tones: Tones, index: number): number {
+  let glow: number | void = undefined;
+  if (typeof paint === "string") paintColor.copy(tones[paint]);
+  else glow = paint(paintPoint, tones, paintColor, index);
+  if (typeof glow === "number") return glow;
+  return Math.max(likeness(paintColor, tones.trim), likeness(paintColor, tones.accent) * 0.8);
+}
+
 /**
- * Writes vertex colors, and a glow for the gold trims and the wingtips (they light up at night).
+ * Writes vertex colors, and a glow for the gold trims and the accent edges (they light up at night).
  *
  * Non-indexed geometry (the body parts, three vertices per triangle) is painted once per
  * face at the triangle's centroid, and all three corners get that color, so the parts
@@ -151,16 +167,12 @@ function applyPaint({ geometry, ranges }: Painted, tones: Tones) {
     const facesEnd = perFace ? start + count - (count % 3) : start;
     // Whole triangles: one paint call at the centroid, written to all three corners
     for (let i = start; i < facesEnd; i += 3) {
-      if (typeof paint === "string") paintColor.copy(tones[paint]);
-      else {
-        paintPoint.set(
-          (position.getX(i) + position.getX(i + 1) + position.getX(i + 2)) / 3,
-          (position.getY(i) + position.getY(i + 1) + position.getY(i + 2)) / 3,
-          (position.getZ(i) + position.getZ(i + 1) + position.getZ(i + 2)) / 3,
-        );
-        paint(paintPoint, tones, paintColor, i - start);
-      }
-      const g = Math.max(likeness(paintColor, tones.trim), likeness(paintColor, tones.tip) * 0.8);
+      paintPoint.set(
+        (position.getX(i) + position.getX(i + 1) + position.getX(i + 2)) / 3,
+        (position.getY(i) + position.getY(i + 1) + position.getY(i + 2)) / 3,
+        (position.getZ(i) + position.getZ(i + 1) + position.getZ(i + 2)) / 3,
+      );
+      const g = paintAt(paint, tones, i - start);
       for (let k = 0; k < 3; k++) {
         color.setXYZ(i + k, paintColor.r, paintColor.g, paintColor.b);
         glow.setX(i + k, g);
@@ -168,10 +180,10 @@ function applyPaint({ geometry, ranges }: Painted, tones: Tones) {
     }
     // Leftover vertices (indexed geometry, or a count that is not a multiple of 3): per vertex
     for (let i = facesEnd; i < end; i++) {
-      if (typeof paint === "string") paintColor.copy(tones[paint]);
-      else paint(paintPoint.fromBufferAttribute(position, i), tones, paintColor, i - start);
+      paintPoint.fromBufferAttribute(position, i);
+      const g = paintAt(paint, tones, i - start);
       color.setXYZ(i, paintColor.r, paintColor.g, paintColor.b);
-      glow.setX(i, Math.max(likeness(paintColor, tones.trim), likeness(paintColor, tones.tip) * 0.8));
+      glow.setX(i, g);
     }
   }
   color.needsUpdate = true;
@@ -181,6 +193,8 @@ function applyPaint({ geometry, ranges }: Painted, tones: Tones) {
 const sphere = (r: number, w = 6, h = 4) => new THREE.SphereGeometry(r, w, h);
 const capsule = (r: number, length: number) => new THREE.CapsuleGeometry(r, length, 3, 5, 1);
 const cyl = (top: number, bottom: number, h: number, n = 6) => new THREE.CylinderGeometry(top, bottom, h, n, 1);
+/** An open tube (no caps); `from`/`arc` in radians around +y, 0 at +z */
+const tube = (r: number, h: number, n: number, from = 0, arc = TAU) => new THREE.CylinderGeometry(r, r, h, n, 1, true, from, arc);
 const lathe = (profile: [number, number][], n = 8) =>
   new THREE.LatheGeometry(
     profile.map(([r, y]) => new THREE.Vector2(r, y)),
@@ -190,36 +204,19 @@ const lathe = (profile: [number, number][], n = 8) =>
 // --- cloth -------------------------------------------------------------------------
 
 type ClothShape = (u: number, v: number, out: THREE.Vector3) => void;
+type ClothPaint = (u: number, v: number, tones: Tones, out: THREE.Color) => number | void;
 
-/** Height on a triangle projected into cloth's (x, y) plane. */
-function clothHeight(triangle: THREE.Triangle, x: number, y: number, inside = false): number {
-  const { a, b, c } = triangle;
-  const determinant = (b.y - c.y) * (a.x - c.x) + (c.x - b.x) * (a.y - c.y);
-  if (Math.abs(determinant) < 1e-10) return -Infinity;
-  const u = ((b.y - c.y) * (x - c.x) + (c.x - b.x) * (y - c.y)) / determinant;
-  const v = ((c.y - a.y) * (x - c.x) + (a.x - c.x) * (y - c.y)) / determinant;
-  if (inside && (u < -1e-7 || v < -1e-7 || u + v > 1 + 1e-7)) return -Infinity;
-  return u * a.z + v * b.z + (1 - u - v) * c.z;
-}
-
-/** A grid of vertices moved procedurally every frame: the cape and the scarf tails */
+/** A grid of vertices moved procedurally every frame: the membranes and the scarf tails */
 class Cloth {
   readonly mesh: THREE.Mesh;
   readonly painted: Painted;
   private readonly cols: number;
   private readonly rows: number;
   private readonly point = new THREE.Vector3();
-  private readonly clearance: Float32Array;
-  private bounds: Float32Array | null = null;
-  private readonly ribbonTriangle = new THREE.Triangle();
-  private readonly surfaceTriangle = new THREE.Triangle();
-  private readonly ribbonCorners = [this.ribbonTriangle.a, this.ribbonTriangle.b, this.ribbonTriangle.c];
-  private readonly surfaceCorners = [this.surfaceTriangle.a, this.surfaceTriangle.b, this.surfaceTriangle.c];
 
-  constructor(cols: number, rows: number, paint: (u: number, v: number, tones: Tones, out: THREE.Color) => void, material: THREE.Material) {
+  constructor(cols: number, rows: number, paint: ClothPaint, material: THREE.Material) {
     this.cols = cols;
     this.rows = rows;
-    this.clearance = new Float32Array((cols + 1) * (rows + 1));
     const geometry = new THREE.PlaneGeometry(1, 1, cols, rows);
     geometry.deleteAttribute("uv");
     // Keep (u, v) per vertex so the paint can use them
@@ -258,85 +255,21 @@ class Cloth {
     this.mesh.geometry.computeVertexNormals();
   }
 
-  /** Each triangle's bounds projected into (x, y): min x, max x, min y, max y */
-  private projectedBounds(): Float32Array {
-    const p = this.mesh.geometry.getAttribute("position").array as Float32Array;
-    const index = this.mesh.geometry.index!.array;
-    const bounds = (this.bounds ??= new Float32Array((index.length / 3) * 4));
-    for (let j = 0, o = 0; j < index.length; j += 3, o += 4) {
-      const d = index[j] * 3, e = index[j + 1] * 3, f = index[j + 2] * 3;
-      bounds[o] = Math.min(p[d], p[e], p[f]);
-      bounds[o + 1] = Math.max(p[d], p[e], p[f]);
-      bounds[o + 2] = Math.min(p[d + 1], p[e + 1], p[f + 1]);
-      bounds[o + 3] = Math.max(p[d + 1], p[e + 1], p[f + 1]);
-    }
-    return bounds;
-  }
-
-  /** Lift ribbons above another cloth mesh, including crossings between vertices. */
-  keepAbove(surface: Cloth, gap: number) {
-    const position = this.mesh.geometry.getAttribute("position") as THREE.BufferAttribute;
-    // Straight from the buffers: this runs for every pair of triangles, every frame
-    const p = position.array as Float32Array;
-    const sp = surface.mesh.geometry.getAttribute("position").array as Float32Array;
-    const index = this.mesh.geometry.index!.array;
-    const surfaceIndex = surface.mesh.geometry.index!.array;
-    const surfaceBounds = surface.projectedBounds();
-    this.clearance.fill(0);
-    for (let i = 0; i < index.length; i += 3) {
-      for (let k = 0; k < 3; k++) this.ribbonCorners[k].fromArray(p, index[i + k] * 3);
-      const [a, b, c] = this.ribbonCorners;
-      const minX = Math.min(a.x, b.x, c.x), maxX = Math.max(a.x, b.x, c.x);
-      const minY = Math.min(a.y, b.y, c.y), maxY = Math.max(a.y, b.y, c.y);
-      let lift = 0;
-      for (let j = 0, o = 0; j < surfaceIndex.length; j += 3, o += 4) {
-        if (surfaceBounds[o + 1] < minX || surfaceBounds[o] > maxX || surfaceBounds[o + 3] < minY || surfaceBounds[o + 2] > maxY) continue;
-        for (let k = 0; k < 3; k++) this.surfaceCorners[k].fromArray(sp, surfaceIndex[j + k] * 3);
-
-        // The height difference is linear on each triangle. Its maximum lies
-        // at a vertex of their projected intersection: an enclosed corner or
-        // an edge crossing. Checking both covers the whole ribbon triangle.
-        for (const p of this.ribbonCorners) {
-          lift = Math.max(lift, clothHeight(this.surfaceTriangle, p.x, p.y, true) + gap - p.z);
-        }
-        for (const p of this.surfaceCorners) {
-          const height = clothHeight(this.ribbonTriangle, p.x, p.y, true);
-          if (height !== -Infinity) lift = Math.max(lift, p.z + gap - height);
-        }
-        for (let k = 0; k < 3; k++) {
-          const p = this.ribbonCorners[k], q = this.ribbonCorners[(k + 1) % 3];
-          const rx = q.x - p.x, ry = q.y - p.y;
-          for (let l = 0; l < 3; l++) {
-            const s = this.surfaceCorners[l], t = this.surfaceCorners[(l + 1) % 3];
-            const sx = t.x - s.x, sy = t.y - s.y;
-            const determinant = rx * sy - ry * sx;
-            if (Math.abs(determinant) < 1e-10) continue;
-            const dx = s.x - p.x, dy = s.y - p.y;
-            const along = (dx * sy - dy * sx) / determinant;
-            const across = (dx * ry - dy * rx) / determinant;
-            if (along < 0 || along > 1 || across < 0 || across > 1) continue;
-            const x = p.x + along * rx, y = p.y + along * ry;
-            lift = Math.max(lift, clothHeight(this.surfaceTriangle, x, y) + gap - clothHeight(this.ribbonTriangle, x, y));
-          }
-        }
-      }
-      // Accumulate first: all three corners must move by at least this lift,
-      // and neighboring triangles share the larger correction without seams.
-      for (let k = 0; k < 3; k++) {
-        const vertex = index[i + k];
-        this.clearance[vertex] = Math.max(this.clearance[vertex], lift);
-      }
-    }
-    for (let i = 0; i < position.count; i++) p[i * 3 + 2] += this.clearance[i];
-    position.needsUpdate = true;
-    this.mesh.geometry.computeVertexNormals();
-  }
-
   /** The middle of the hem, in the cloth's space */
   tip(shape: ClothShape, out: THREE.Vector3): THREE.Vector3 {
     shape(0, 1, out);
     return out;
   }
+}
+
+/** A point `t` (0..1, by length) along the two-segment limb a → b → c */
+function alongLimb(a: THREE.Vector3, b: THREE.Vector3, c: THREE.Vector3, t: number, out: THREE.Vector3): THREE.Vector3 {
+  const ab = a.distanceTo(b), bc = b.distanceTo(c), total = ab + bc;
+  if (total < 1e-6) return out.copy(a);
+  const split = ab / total;
+  if (split > 1 - 1e-6) return out.lerpVectors(a, b, t);
+  if (t < split) return out.lerpVectors(a, b, split > 1e-6 ? t / split : 0);
+  return out.lerpVectors(b, c, (t - split) / (1 - split));
 }
 
 // --- the avatar --------------------------------------------------------------------
@@ -345,24 +278,49 @@ export interface AvatarOptions {
   ghost?: boolean;
 }
 
+/** Joints of the arm and its membrane's anchors on the torso, in chest space this frame */
+interface ArmJoints {
+  shoulder: THREE.Vector3;
+  elbow: THREE.Vector3;
+  hand: THREE.Vector3;
+  /** Where the membrane's root meets the torso, under the arm */
+  root: THREE.Vector3;
+  /** The membrane's trailing corner on the torso side, at the hip */
+  hip: THREE.Vector3;
+}
+
+/** Joints of the leg, in chest space this frame; the ankle reaches a little past the foot */
+interface LegJoints {
+  hip: THREE.Vector3;
+  knee: THREE.Vector3;
+  ankle: THREE.Vector3;
+}
+
 interface Side {
   boot: THREE.Mesh;
   shoulder: THREE.Object3D;
   elbow: THREE.Object3D;
+  /** The palm: the trails stream from here */
+  hand: THREE.Object3D;
   hip: THREE.Object3D;
   knee: THREE.Object3D;
-  wing: THREE.Object3D;
-  wingOuter: THREE.Object3D;
-  tip: THREE.Object3D;
-  /** The tip of the last (innermost) primary, the wing's trailing corner */
-  trail: THREE.Object3D;
+  /** The ankle, where boots go */
+  ankle: THREE.Object3D;
+  /** The fabric between the arm and the torso */
+  membrane: Cloth;
+  arm: ArmJoints;
+  leg: LegJoints;
+  shape: ClothShape;
 }
 
 const localOmega = new THREE.Vector3();
 const dq = new THREE.Quaternion();
 const prevInverse = new THREE.Quaternion();
 const forwardTmp = new THREE.Vector3();
-const elbowTmp = new THREE.Vector3();
+const jointTmp = new THREE.Vector3();
+const shapeTmp = new THREE.Vector3();
+const leftTmp = new THREE.Vector3();
+const rightTmp = new THREE.Vector3();
 
 function springStep(value: number, velocity: number, target: number, stiffness: number, damping: number, dt: number) {
   const c = 2 * damping * Math.sqrt(stiffness);
@@ -373,10 +331,15 @@ function springStep(value: number, velocity: number, target: number, stiffness: 
 
 const smoother = (t: number) => t * t * t * (t * (t * 6 - 15) + 10);
 
+const vec = () => new THREE.Vector3();
+
 export class Avatar {
   /** Place this at the flight model's position and rotation */
   readonly group = new THREE.Group();
-  /** Fires on each downstroke of the wings, with how hard it was (0..1) */
+  /**
+   * Legacy hook from the bird-wing pilot (Game.ts and pilotfx.ts still assign it).
+   * The wingsuit has no wingbeats, so it never fires.
+   */
   onDownstroke?: (strength: number) => void;
 
   private readonly rig = new THREE.Group();
@@ -384,20 +347,15 @@ export class Avatar {
   private readonly pelvis = new THREE.Object3D();
   private readonly chest = new THREE.Object3D();
   private readonly head = new THREE.Object3D();
-  private readonly pony: THREE.Object3D[] = [];
-  /** The two hair-and-eyes styles under the head; one is shown */
-  private readonly styles: THREE.Object3D[] = [];
-  private style: 1 | 2 = 1;
   private readonly left: Side;
   private readonly right: Side;
-  private readonly cape: Cloth;
-  private capeId: CapeId = "classic";
+  /** The fabric between the legs, a tail fin */
+  private readonly fin: Cloth;
+  private finShape: ClothShape = () => {};
   private hat: THREE.Group | null = null;
   private shoes: THREE.Group[] = [];
   private appearance: Appearance = { cape: "classic", hat: "none", shoes: "classic", wings: "classic", pet: "none" };
-  private wingModels: ReturnType<typeof buildWing>[] = [];
-  /** The wings' material on a ghost (faded with the body); solid pilots keep the cosmetics' shared one */
-  private readonly wingMat: THREE.Material;
+  /** The arm membranes' style (the `wings` wardrobe slot); pilotfx tints its wingtip particles from it */
   get wingStyle(): WingId { return this.appearance.wings; }
   private readonly scarf: Cloth[];
   // Conservative bounds of the animated legs, reused for cloth self-collision.
@@ -406,6 +364,12 @@ export class Avatar {
   private readonly clothMatrix = new THREE.Matrix4();
   private readonly painted: Painted[] = [];
   private readonly materials: THREE.Material[] = [];
+  /** The ducted fans' cores: repainted as the boost glow changes */
+  private readonly fanCores: Painted;
+  /** The fan cores' current glow, 0..1 (see `setBoostGlow`) */
+  private fanGlow = 0;
+  /** The glow eased towards the boost input */
+  private fanLevel = 0;
   /** A soft round glow behind the body that silhouettes it against the scenery; looks only */
   private readonly aura: THREE.Sprite;
   private readonly auraMaterial: THREE.SpriteMaterial;
@@ -422,18 +386,12 @@ export class Avatar {
   private rollRate = 0;
   private lean = 0;
   private leanVelocity = 0;
-  private effort = 0.3;
-  private flapPhase = 0;
-  private lastFlap = 0;
   private barrel = { t: -1, dir: 1 };
   private speed = 30;
   boost = 0;
   brake = 0;
-  private boostOn = false;
 
   setSpeedControls(boost: number, brake: number) {
-    if (boost > 0.1 && !this.boostOn) { this.flapPhase = 0; this.beat(); }
-    this.boostOn = boost > 0.1;
     this.boost = boost;
     this.brake = brake;
   }
@@ -445,17 +403,19 @@ export class Avatar {
     this.barrel.t = -1;
     this.barrelProgress = -1;
     this.boost = this.brake = 0;
-    this.boostOn = false;
+    this.fanLevel = 0;
   }
   private climb = 0;
   private time = 0;
   private clothTime = 0;
+  /** The membranes' ripple amplitude this frame (metres) */
+  private flutter = 0;
   private detailed = true;
   /** 0..1 while a barrel roll is under way */
   barrelProgress = -1;
   /** Where carried items go: on the back (the firework), on the head (helmets), in the right hand */
   readonly slots: Record<ItemSlot, THREE.Object3D>;
-  /** The right and left shin, for boots */
+  /** The right and left ankle, for boots */
   readonly feet: [THREE.Object3D, THREE.Object3D];
   /**
    * Blends the right arm towards a pose, for item animations (items/equip.ts):
@@ -463,8 +423,6 @@ export class Avatar {
    * head, x swings it to the back), `elbow` bends the forearm
    */
   readonly armPose = { amount: 0, x: 0, y: 0, z: 0, elbow: 0 };
-  /** How far each wing (left, right) is folded in during a crash, to keep it out of rock it is wedged against (0..1) */
-  private readonly folded = [0, 0];
   /** A crash playing out: the body flails, then goes limp (Game moves `group`) */
   private death: { kind: DeathKind; t: number; side: number } | null = null;
 
@@ -474,7 +432,6 @@ export class Avatar {
     const ghost = this.ghost;
     const skinMat = this.material(flatMaterial({ ghost }));
     const clothMat = this.material(flatMaterial({ ghost, side: THREE.DoubleSide }));
-    this.wingMat = this.material(flatMaterial({ ghost, side: THREE.DoubleSide }));
 
     this.group.add(this.rig);
     this.rig.add(this.body);
@@ -485,20 +442,21 @@ export class Avatar {
     skeleton.position.y = -0.74;
     this.body.add(skeleton);
 
-    const part = (joint: THREE.Object3D, builder: PartBuilder, material = skinMat) => {
+    const build = (joint: THREE.Object3D, builder: PartBuilder, material = skinMat) => {
       const painted = builder.build();
       this.painted.push(painted);
       const mesh = new THREE.Mesh(painted.geometry, material);
       joint.add(mesh);
-      return mesh;
+      return { mesh, painted };
     };
+    const part = (joint: THREE.Object3D, builder: PartBuilder, material = skinMat) => build(joint, builder, material).mesh;
     const clothObstacle = (mesh: THREE.Mesh) => {
       mesh.geometry.computeBoundingBox();
       this.clothObstacles.push({ mesh, local: mesh.geometry.boundingBox!.clone(), bounds: new THREE.Box3() });
       return mesh;
     };
 
-    // Pelvis: a flared tunic hem, belt and buckle
+    // Pelvis: the suit's hip panel with a gold waist band, belt and buckle
     this.pelvis.position.set(0, 0.74, 0);
     skeleton.add(this.pelvis);
     part(
@@ -508,12 +466,12 @@ export class Avatar {
           lathe([
             [0.001, 0.07],
             [0.095, 0.07],
-            [0.112, -0.02],
-            [0.135, -0.1],
-            [0.138, -0.12],
+            [0.108, -0.02],
+            [0.118, -0.1],
+            [0.12, -0.12],
             [0.001, -0.12],
           ]),
-          (p, t, out) => out.copy(p.y < -0.085 ? t.trim : t.clothDark),
+          (p, t, out) => { out.copy(p.y < -0.085 ? t.trim : t.clothDark); },
           [0, 0, 0],
           [0, 0, 0],
           [1, 1, 0.8],
@@ -522,7 +480,7 @@ export class Avatar {
         .add(new THREE.OctahedronGeometry(0.026, 0), "trim", [0, 0.06, -0.082]),
     );
 
-    // Chest: torso, collar, neck, a little sash
+    // Chest: the flight suit's torso, a lit seam down the front, dark side panels, collar, neck, sleek shoulder pads
     this.chest.position.set(0, 0.06, 0);
     this.pelvis.add(this.chest);
     part(
@@ -538,111 +496,78 @@ export class Avatar {
             [0.078, 0.26],
             [0.03, 0.285],
             [0.001, 0.285],
-          ]),
+          ], 12),
           (p, t, out) => {
-            // A white shirt panel down the front, cloth everywhere else
-            out.copy(p.z < -0.04 && Math.abs(p.x) < 0.045 + p.y * 0.12 ? t.white : t.cloth);
+            if (p.z < -0.03 && Math.abs(p.x) < 0.03 && p.y < 0.24) { out.copy(t.accent).lerp(t.cloth, 0.25); return 0.25; }
+            if (Math.abs(p.x) > 0.06 && p.y > 0.03 && p.y < 0.2) { out.copy(t.clothDark); return; }
+            out.copy(t.cloth);
           },
           [0, 0, 0],
           [0, 0, 0],
           [1, 1, 0.78],
         )
-        .add(new THREE.TorusGeometry(0.05, 0.02, 5, 6), "trim", [0, 0.27, 0], [Math.PI / 2, 0, 0], [1, 1, 0.9])
+        .add(new THREE.TorusGeometry(0.05, 0.02, 5, 6), "clothDark", [0, 0.27, 0], [Math.PI / 2, 0, 0], [1, 1, 0.9])
         .add(cyl(0.034, 0.038, 0.07, 6), "skin", [0, 0.3, 0])
-        .add(sphere(0.055, 6, 4), "clothLight", [0.1, 0.22, 0], [0, 0, 0], [1, 0.85, 0.85])
-        .add(sphere(0.055, 6, 4), "clothLight", [-0.1, 0.22, 0], [0, 0, 0], [1, 0.85, 0.85]),
+        .add(sphere(0.048, 6, 4), "clothDark", [0.1, 0.22, 0], [0, 0, 0], [1, 0.8, 0.85])
+        .add(sphere(0.048, 6, 4), "clothDark", [-0.1, 0.22, 0], [0, 0, 0], [1, 0.8, 0.85]),
     );
+
+    // Ducted fans on the upper back: gunmetal shells with gold rims on a power pack, their cores lit by boost
+    const fans = new PartBuilder()
+      .add(new THREE.BoxGeometry(0.19, 0.07, 0.035), "dark", [0, 0.12, 0.08])
+      .add(new THREE.BoxGeometry(0.03, 0.012, 0.012), "accent", [0, 0.12, 0.1]);
+    const cores = new PartBuilder();
+    for (const s of [1, -1]) {
+      const at: Vec = [0.07 * s, 0.12, 0.115];
+      fans
+        .add(tube(0.038, 0.075, 6), "metal", at)
+        .add(new THREE.TorusGeometry(0.038, 0.008, 4, 6), "trim", [at[0], at[1] + 0.0375, at[2]], [Math.PI / 2, 0, 0])
+        .add(new THREE.TorusGeometry(0.038, 0.008, 4, 6), "trim", [at[0], at[1] - 0.0375, at[2]], [Math.PI / 2, 0, 0]);
+      cores.add(cyl(0.03, 0.03, 0.082, 6), (_p, t, out) => {
+        const k = this.fanGlow;
+        out.copy(t.dark).lerp(t.accent, k * 0.7).lerp(t.white, k * k * 0.5);
+        return 0.1 + k * 0.9;
+      }, at);
+    }
+    part(this.chest, fans);
+    this.fanCores = build(this.chest, cores).painted;
 
     // Head: big and round, a soft jaw and cheeks under it, and the face drawn on in layers
     this.head.position.set(0, 0.32, 0);
     this.chest.add(this.head);
-    const hair: Paint = (p, t, out) => out.copy(p.y > 0.12 && p.z < 0.02 ? t.hairShine : t.hair);
-    const iris: Paint = (_p, t, out) => out.copy(t.eye).lerp(t.cloth, 0.5);
-    const lip: Paint = (_p, t, out) => out.copy(t.blush).lerp(t.eye, 0.35);
-    const nose: Paint = (_p, t, out) => out.copy(t.skin).lerp(t.blush, 0.3);
+    const lip: Paint = (_p, t, out) => { out.copy(t.blush).lerp(t.dark, 0.35); };
+    const nose: Paint = (_p, t, out) => { out.copy(t.skin).lerp(t.blush, 0.3); };
     part(this.head, new PartBuilder()
       .add(sphere(0.165, 8, 6), "skin", [0, 0.15, 0], [0, 0, 0], [1, 0.97, 0.98])
       // Cheeks and a small rounded chin give the face its front, so it takes light like a sculpted shape
       .add(sphere(0.13, 8, 6), "skin", [0, 0.09, -0.04], [0, 0, 0], [1.04, 0.84, 0.95])
       .add(sphere(0.045, 6, 4), "skin", [0.075, 0.085, -0.115], [0, 0, 0], [1, 0.85, 0.7])
       .add(sphere(0.045, 6, 4), "skin", [-0.075, 0.085, -0.115], [0, 0, 0], [1, 0.85, 0.7]));
-    // Small features without ink, which would swallow them
+    // Small features under the visor
     part(this.head, new PartBuilder()
-      .add(sphere(0.013, 6, 4), nose, [0, 0.102, -0.166], [0, 0, 0], [0.85, 0.8, 1.25])
-      .add(new THREE.TorusGeometry(0.017, 0.004, 4, 6, Math.PI * 0.75), lip, [0, 0.066, -0.158], [0.35, 0, Math.PI * 1.125])
-      .add(sphere(0.02, 6, 4), "blush", [0.08, 0.09, -0.143], [0, 0.5, 0], [1.2, 0.6, 0.3])
-      .add(sphere(0.02, 6, 4), "blush", [-0.08, 0.09, -0.143], [0, -0.5, 0], [1.2, 0.6, 0.3]), skinMat);
+      .add(sphere(0.013, 6, 4), nose, [0, 0.09, -0.166], [0, 0, 0], [0.85, 0.8, 1.25])
+      .add(new THREE.TorusGeometry(0.017, 0.004, 4, 6, Math.PI * 0.75), lip, [0, 0.062, -0.158], [0.35, 0, Math.PI * 1.125])
+      .add(sphere(0.02, 6, 4), "blush", [0.08, 0.088, -0.143], [0, 0.5, 0], [1.2, 0.6, 0.3])
+      .add(sphere(0.02, 6, 4), "blush", [-0.08, 0.088, -0.143], [0, -0.5, 0], [1.2, 0.6, 0.3]), skinMat);
 
-    // Two styles, swapped by `setStyle`: 1 has the ponytail, bangs and big lashed eyes; 2 short tousled hair and straighter brows
-    for (const style of [1, 2] as const) {
-      const look = new THREE.Object3D();
-      look.visible = style === 1;
-      this.head.add(look);
-      this.styles.push(look);
-      const one = style === 1;
-      const hairBuilder = new PartBuilder()
-        .add(new THREE.SphereGeometry(0.178, 6, 4, 0, TAU, 0, Math.PI * 0.58), hair, [0, 0.165, 0.008], [0.35, 0, 0]);
-      if (one) {
-        hairBuilder
-          .add(sphere(0.12, 6, 4), hair, [0, 0.17, 0.07], [0, 0, 0], [1.3, 1.25, 1.1])
-          // Side locks and bangs hang down (cones point up, so flip them)
-          .add(new THREE.ConeGeometry(0.045, 0.17, 5), hair, [0.14, 0.06, -0.035], [Math.PI + 0.1, 0, -0.12])
-          .add(new THREE.ConeGeometry(0.045, 0.17, 5), hair, [-0.14, 0.06, -0.035], [Math.PI + 0.1, 0, 0.12])
-          .add(new THREE.ConeGeometry(0.038, 0.12, 5), hair, [0.065, 0.205, -0.125], [Math.PI + 0.45, 0, 0.3])
-          .add(new THREE.ConeGeometry(0.04, 0.13, 5), hair, [-0.01, 0.21, -0.135], [Math.PI + 0.4, 0, -0.05])
-          .add(new THREE.ConeGeometry(0.034, 0.11, 5), hair, [-0.085, 0.2, -0.12], [Math.PI + 0.45, 0, -0.35])
-          .add(new THREE.ConeGeometry(0.018, 0.14, 5), hair, [0.02, 0.36, -0.01], [-0.7, 0, 0.2])
-          // A tiny hair clip
-          .add(new THREE.OctahedronGeometry(0.03, 0), "trim", [0.15, 0.22, -0.04], [0, 0, 0.6], [1, 1.4, 0.6]);
-      } else {
-        hairBuilder
-          .add(sphere(0.115, 6, 4), hair, [0, 0.16, 0.06], [0, 0, 0], [1.32, 1.18, 1.08])
-          // Short side burns and a tousled fringe swept to one side
-          .add(new THREE.ConeGeometry(0.038, 0.1, 5), hair, [0.145, 0.1, -0.03], [Math.PI + 0.1, 0, -0.1])
-          .add(new THREE.ConeGeometry(0.038, 0.1, 5), hair, [-0.145, 0.1, -0.03], [Math.PI + 0.1, 0, 0.1])
-          .add(new THREE.ConeGeometry(0.042, 0.11, 5), hair, [0.075, 0.225, -0.12], [Math.PI + 0.75, 0, 0.55])
-          .add(new THREE.ConeGeometry(0.044, 0.12, 5), hair, [0.005, 0.235, -0.13], [Math.PI + 0.7, 0, 0.35])
-          .add(new THREE.ConeGeometry(0.04, 0.1, 5), hair, [-0.075, 0.225, -0.12], [Math.PI + 0.75, 0, 0.1])
-          // Spikes on the crown and the nape, swept back by the wind
-          .add(new THREE.ConeGeometry(0.04, 0.12, 5), hair, [0.03, 0.33, 0.02], [-0.9, 0, -0.25])
-          .add(new THREE.ConeGeometry(0.04, 0.12, 5), hair, [-0.05, 0.31, 0.06], [-1.2, 0, 0.3])
-          .add(new THREE.ConeGeometry(0.045, 0.11, 5), hair, [0.05, 0.12, 0.15], [-2.4, 0, -0.2])
-          .add(new THREE.ConeGeometry(0.045, 0.11, 5), hair, [-0.05, 0.12, 0.15], [-2.4, 0, 0.2]);
-      }
-      part(look, hairBuilder);
-      // Eyes: a dark almond, a lit iris in its lower half and a highlight (lash lines and brows to be redone chunky)
-      const eyes = new PartBuilder();
-      for (const s of [1, -1]) {
-        const x = 0.058 * s, y = one ? 0.13 : 0.128, turn = 0.38 * s;
-        eyes
-          .add(sphere(one ? 0.027 : 0.025, 6, 4), "eye", [x, y, -0.149], [0, turn, 0], one ? [0.85, 1.25, 0.5] : [0.92, 1.02, 0.5])
-          .add(sphere(0.018, 6, 4), iris, [x, y - 0.012, -0.158], [0, turn, 0], [0.85, 0.85, 0.35])
-          .add(sphere(0.008, 6, 4), "white", [x + 0.007 * s, y + 0.013, -0.166]);
-        // Style 1's lashes flick up at the outer corner
-        if (one) eyes.add(new THREE.ConeGeometry(0.006, 0.022, 5), "eye", [x + 0.026 * s, y + 0.03, -0.148], [0, turn, -1.1 * s]);
-      }
-      part(look, eyes, skinMat);
-    }
+    // Helmet: a shell tilted back off the brow with a gold rim, a dorsal fin, ear pods and a chin strap
+    const helmetTilt = 0.25;
+    part(this.head, new PartBuilder()
+      .add(new THREE.SphereGeometry(0.19, 8, 6, 0, TAU, 0, Math.PI * 0.55), "cloth", [0, 0.15, 0.005], [helmetTilt, 0, 0])
+      .add(new THREE.TorusGeometry(0.188, 0.009, 4, 10), "trim", [0, 0.15 - 0.03 * Math.cos(helmetTilt), 0.005 - 0.03 * Math.sin(helmetTilt)], [Math.PI / 2 + helmetTilt, 0, 0])
+      .add(new THREE.BoxGeometry(0.016, 0.075, 0.15), (_p, t, out) => { out.copy(t.accent); return 0.3; }, [0, 0.355, 0.045], [0.3, 0, 0])
+      .add(sphere(0.03, 6, 4), "dark", [0.165, 0.14, -0.01], [0, 0, 0], [0.6, 1, 1])
+      .add(sphere(0.03, 6, 4), "dark", [-0.165, 0.14, -0.01], [0, 0, 0], [0.6, 1, 1])
+      .add(new THREE.TorusGeometry(0.16, 0.011, 4, 8, Math.PI), "dark", [0, 0.135, -0.03], [0, 0, Math.PI], [1.1, 1, 1]));
 
-    // A ponytail in two links that swing (style 1)
-    let parent: THREE.Object3D = this.styles[0];
-    const ponyAt: Vec[] = [
-      [0, 0.24, 0.13],
-      [0, -0.13, 0],
-    ];
-    for (let i = 0; i < 2; i++) {
-      const joint = new THREE.Object3D();
-      joint.position.set(...ponyAt[i]);
-      parent.add(joint);
-      const builder = new PartBuilder();
-      if (i === 0) builder.add(new THREE.TorusGeometry(0.03, 0.012, 5, 6), "trim", [0, 0, 0], [Math.PI / 2, 0, 0]);
-      builder.add(sphere(0.06 - i * 0.012, 6, 4), "hair", [0, -0.07, 0], [0, 0, 0], [1, 1.6, 0.9]);
-      part(joint, builder);
-      this.pony.push(joint);
-      parent = joint;
-    }
+    // Visor: one wide tinted band wrapped around the face, a gold brow frame and a glint
+    const visorArc = Math.PI * 0.62;
+    part(this.head, new PartBuilder()
+      .add(tube(0.17, 0.058, 8, Math.PI - visorArc / 2, visorArc), (_p, t, out) => { out.copy(t.visor); return 0.2; }, [0, 0.13, 0])
+      .add(tube(0.173, 0.012, 8, Math.PI - visorArc / 2, visorArc), "trim", [0, 0.164, 0])
+      .add(sphere(0.012, 6, 4), "visorShine", [0.055, 0.147, -0.163], [0, -0.33, 0], [2, 0.5, 0.4]));
 
-    // Arms, legs and wings, mirrored
+    // Arms and legs, mirrored
     const makeSide = (s: 1 | -1): Side => {
       const shoulder = new THREE.Object3D();
       shoulder.position.set(0.125 * s, 0.215, 0);
@@ -650,9 +575,9 @@ export class Avatar {
       part(
         shoulder,
         new PartBuilder()
-          .add(sphere(0.05, 6, 4), "clothLight", [0, -0.02, 0])
-          .add(capsule(0.036, 0.13), "clothLight", [0, -0.1, 0])
-          .add(new THREE.TorusGeometry(0.037, 0.01, 5, 6), "trim", [0, -0.17, 0], [Math.PI / 2, 0, 0]),
+          .add(sphere(0.05, 6, 4), "clothDark", [0, -0.02, 0])
+          .add(capsule(0.036, 0.13), "cloth", [0, -0.1, 0])
+          .add(new THREE.TorusGeometry(0.037, 0.01, 5, 6), "dark", [0, -0.17, 0], [Math.PI / 2, 0, 0]),
       );
       const elbow = new THREE.Object3D();
       elbow.position.set(0, -0.19, 0);
@@ -660,15 +585,18 @@ export class Avatar {
       part(
         elbow,
         new PartBuilder()
-          .add(capsule(0.03, 0.13), "skin", [0, -0.08, 0])
-          .add(cyl(0.036, 0.033, 0.05, 6), "white", [0, -0.12, 0])
+          .add(capsule(0.03, 0.13), "clothDark", [0, -0.08, 0])
+          .add(cyl(0.036, 0.033, 0.05, 6), "trim", [0, -0.12, 0])
           .add(sphere(0.036, 6, 4), "skin", [0, -0.19, 0], [0, 0, 0], [0.75, 1.15, 0.45]),
       );
+      const hand = new THREE.Object3D();
+      hand.position.set(0, -0.215, -0.02);
+      elbow.add(hand);
 
       const hip = new THREE.Object3D();
       hip.position.set(0.062 * s, -0.04, 0);
       this.pelvis.add(hip);
-      clothObstacle(part(hip, new PartBuilder().add(capsule(0.05, 0.2), "white", [0, -0.14, 0])));
+      clothObstacle(part(hip, new PartBuilder().add(capsule(0.05, 0.2), "cloth", [0, -0.14, 0])));
       const knee = new THREE.Object3D();
       knee.position.set(0, -0.29, 0);
       hip.add(knee);
@@ -680,82 +608,71 @@ export class Avatar {
           // Pointed toes, like a dancer's
           .add(capsule(0.034, 0.08), "dark", [0, -0.3, -0.012], [0.25, 0, 0]),
       ));
+      const ankle = new THREE.Object3D();
+      ankle.position.set(0, -0.2, -0.005);
+      knee.add(ankle);
 
-      // Wing joints: an inner arm-wing and an outer hand-wing. The geometry hangs off them
-      // (`mountWings`); the tip and trail markers sit where the longest and shortest primaries end
-      const wing = new THREE.Object3D();
-      wing.position.set(0.05 * s, 0.17, 0.12);
-      wing.rotation.order = "YZX";
-      this.chest.add(wing);
-      const wingOuter = new THREE.Object3D();
-      wingOuter.position.set(0.54 * s, 0.07, 0);
-      wingOuter.rotation.order = "YZX";
-      wing.add(wingOuter);
-      const tip = new THREE.Object3D();
-      tip.position.set((0.05 + 0.98 * Math.cos(0.12)) * s, 0.98 * Math.sin(0.12), 0);
-      wingOuter.add(tip);
-      const primaries = 5;
-      const last = 0.12 - (primaries - 1) * 0.3;
-      const lastLength = 0.98 - (primaries - 1) * 0.1;
-      const trail = new THREE.Object3D();
-      trail.position.set((0.05 + (primaries - 1) * 0.045 + lastLength * Math.cos(last)) * s, -0.02 * (primaries - 1) + lastLength * Math.sin(last), 0);
-      wingOuter.add(trail);
+      // The arm membrane: u runs along the arm (shoulder -1 → hand +1), v from the arm (0) to the torso (1).
+      // Its shape is read from the joints every frame (`updateCloth`), so it stretches as the arms spread
+      const membrane = new Cloth(6, 4, (u, v, t, out) => {
+        const a = (u + 1) / 2;
+        if (v < 0.01) { out.copy(t.accent).lerp(t.cloth, 0.25); return 0.3; }
+        if (a > 0.99) { out.copy(t.accent).lerp(t.cloth, 0.45); return 0.15; }
+        if (Math.abs(v - 0.5) < 0.01) { out.copy(t.clothDark); return 0; }
+        out.copy(t.cloth).lerp(t.clothDark, v * 0.35);
+      }, clothMat);
+      this.painted.push(membrane.painted);
+      this.chest.add(membrane.mesh);
+      const arm: ArmJoints = { shoulder: vec(), elbow: vec(), hand: vec(), root: vec(), hip: vec() };
+      const leg: LegJoints = { hip: vec(), knee: vec(), ankle: vec() };
+      const shape: ClothShape = (u, v, out) => {
+        const a = (u + 1) / 2;
+        alongLimb(arm.shoulder, arm.elbow, arm.hand, a, out);
+        shapeTmp.lerpVectors(arm.root, arm.hip, a);
+        out.lerp(shapeTmp, v);
+        // A soft bow between arm and body, and a ripple that fades out at the attached edges
+        const slack = Math.sin(Math.PI * v);
+        out.z += slack * (0.012 * a + this.flutter * (0.35 + 0.65 * a) * Math.sin(this.time * ANIM.flutterRate + u * 3 + s * 0.8));
+      };
 
-      return { shoulder, elbow, hip, knee, wing, wingOuter, tip, trail, boot };
+      return { shoulder, elbow, hand, hip, knee, ankle, boot, membrane, arm, leg, shape };
     };
     this.right = makeSide(1);
     this.left = makeSide(-1);
-    this.mountWings(this.appearance.wings);
 
-    // Item slots: between the shoulder blades over the cape, the middle of the head, the right palm
+    // The tail fin between the legs: u runs left (-1) to right (+1), v from the hips (0) to past the ankles (1)
+    this.fin = new Cloth(6, 4, (u, v, t, out) => {
+      if (v > 0.99) { out.copy(t.accent).lerp(t.cloth, 0.25); return 0.3; }
+      if (Math.abs(u) < 0.01) { out.copy(t.accent).lerp(t.cloth, 0.5); return 0.15; }
+      out.copy(t.cloth).lerp(t.clothDark, 0.2 + v * 0.3);
+    }, clothMat);
+    this.painted.push(this.fin.painted);
+    this.chest.add(this.fin.mesh);
+    const legL = this.left.leg, legR = this.right.leg;
+    this.finShape = (u, v, out) => {
+      alongLimb(legL.hip, legL.knee, legL.ankle, v, leftTmp);
+      alongLimb(legR.hip, legR.knee, legR.ankle, v, rightTmp);
+      out.lerpVectors(leftTmp, rightTmp, (u + 1) / 2);
+      out.z += (1 - u * u) * v * (0.01 + this.flutter * 0.8 * Math.sin(this.time * ANIM.flutterRate * 0.9 + v * 4));
+    };
+
+    // Item slots: between the shoulder blades below the fans, the middle of the head, the right palm
     const back = new THREE.Object3D();
     back.position.set(0, -0.12, 0.25);
     this.chest.add(back);
     const crown = new THREE.Object3D();
     crown.position.set(0, 0.15, 0);
     this.head.add(crown);
-    const hand = new THREE.Object3D();
-    hand.position.set(0, -0.215, -0.02);
-    this.right.elbow.add(hand);
-    // Boots go on both shins (items/equip.ts mirrors the left one)
-    const foot = (side: Side) => {
-      const anchor = new THREE.Object3D();
-      anchor.position.set(0, -0.2, -0.005);
-      side.knee.add(anchor);
-      return anchor;
-    };
-    this.feet = [foot(this.right), foot(this.left)];
-    this.slots = { back, head: crown, hand, feet: this.feet[0] };
+    // Boots go on both ankles (items/equip.ts mirrors the left one)
+    this.feet = [this.right.ankle, this.left.ankle];
+    this.slots = { back, head: crown, hand: this.right.hand, feet: this.feet[0] };
 
-    // The cape: wide, long and rippling, with a golden hem and an emblem
-    this.cape = new Cloth(
-      18,
-      24,
-      (u, v, t, out) => {
-        const spec = capeSpec(this.capeId), pattern = spec.pattern;
-        const diamond = Math.abs(u) * 1.25 + Math.abs(v - 0.42) * 3.2 < 0.42;
-        const sun = Math.hypot(u * 0.7, (v - 0.4) * 2) < 0.19 || (v > 0.22 && v < 0.58 && Math.abs(Math.sin(Math.atan2(v - 0.4, u * 0.35) * 8)) < 0.17 && Math.hypot(u * 0.7, (v - 0.4) * 2) < 0.3);
-        const leaf = Math.abs(u) < 0.05 || Math.abs(Math.abs(u) - (v * 3 % 1) * 0.8) < 0.06;
-        const stars = (Math.abs(u - 0.42) + Math.abs(v - 0.3) * 4 < 0.18) || (Math.abs(u + 0.35) + Math.abs(v - 0.58) * 4 < 0.18) || diamond;
-        const feathers = Math.abs((u * 3 + v * 4) % 1) < 0.12;
-        const emblem = pattern === "sun" ? sun : pattern === "leaf" ? leaf : pattern === "stars" ? stars : pattern === "feathers" ? feathers : diamond;
-        const hem = v > 0.95 || (v > 0.86 && v < 0.89) || (pattern === "border" && Math.abs(u) > 0.84);
-        const embroidery = pattern !== "diamond" && Math.abs(Math.abs(u) - (.73 + .06 * Math.sin(v * 24))) < .045;
-        const panel = pattern === "stars" ? .28 * Math.sin(u * 5 + v * 9) : pattern === "feathers" ? .22 * Math.cos(u * 12 - v * 8) : .08 * Math.cos(u * 9);
-        out.copy(hem || emblem || embroidery ? t.trim : t.cloth).lerp(t.clothLight, hem || emblem || embroidery ? 0 : Math.max(0, panel))
-          .lerp(t.clothDark, hem || emblem || embroidery ? 0 : smoothstep(0.2, 1, v) * 0.35);
-      },
-      clothMat,
-    );
-    this.painted.push(this.cape.painted);
-    this.chest.add(this.cape.mesh);
-
-    // Two scarf tails that stream over the cape
+    // Two scarf tails that stream over the back, above the fans
     this.scarf = [0, 1].map(() => {
       const tail = new Cloth(
         1,
         12,
-        (u, v, t, out) => out.copy(v > 0.86 ? t.trim : t.white).lerp(t.clothLight, (u + 1) * 0.15),
+        (u, v, t, out) => { out.copy(v > 0.86 ? t.trim : t.white).lerp(t.clothLight, (u + 1) * 0.15); },
         clothMat,
       );
       this.painted.push(tail.painted);
@@ -785,13 +702,31 @@ export class Avatar {
     return material;
   }
 
+  /** The arm membranes' tones: the `wings` wardrobe slot, or the suit's own on "classic" */
+  private membraneTones(): Tones {
+    const id = this.appearance.wings;
+    if (id === "classic") return this.tones;
+    const spec = wingSpec(id), tones = tonesFor(spec.color);
+    tones.accent.set(spec.accent);
+    return tones;
+  }
+
+  /** The tail fin's tones: the `cape` wardrobe slot, or the suit's own on "classic" */
+  private finTones(): Tones {
+    const spec = capeSpec(this.appearance.cape);
+    if (!spec.color) return this.tones;
+    const tones = tonesFor(spec.color);
+    tones.trim.set(spec.trim);
+    tones.accent.set(spec.trim);
+    return tones;
+  }
+
   private repaint() {
+    const membranes = this.membraneTones(), fin = this.finTones();
     for (const painted of this.painted) {
-      if (painted === this.cape.painted && this.capeId !== "classic") {
-        const spec = capeSpec(this.capeId), capeTones = tonesFor(spec.color!);
-        capeTones.trim.set(spec.trim);
-        applyPaint(painted, capeTones);
-      } else applyPaint(painted, this.tones);
+      if (painted === this.fin.painted) applyPaint(painted, fin);
+      else if (painted === this.left.membrane.painted || painted === this.right.membrane.painted) applyPaint(painted, membranes);
+      else applyPaint(painted, this.tones);
     }
     this.auraMaterial.color.copy(this.tones.clothLight);
   }
@@ -808,28 +743,27 @@ export class Avatar {
     this.repaint();
   }
 
+  /**
+   * Legacy from the two hair-and-eyes styles (Game.ts still calls it from the
+   * settings): the helmet and visor replaced them, so there is nothing to switch.
+   */
+  readonly setStyle: (style: 1 | 2) => void = () => {};
+
+  /**
+   * How brightly the ducted fans' cores burn, 0..1: dark metal when idle, the
+   * accent color going white-hot at full boost. `applyPose` eases it towards the
+   * boost input each frame. Repaints the cores only when it changes noticeably.
+   */
+  setBoostGlow(amount: number) {
+    const k = clamp(amount, 0, 1);
+    if (Math.abs(k - this.fanGlow) < 0.015 && !(k === 0 && this.fanGlow !== 0)) return;
+    this.fanGlow = k;
+    applyPaint(this.fanCores, this.tones);
+  }
+
   /** Cosmetic meshes live on the animated joints; the flight hitbox never reads them. */
-  /** Style 1 or 2 (hair and eyes); looks only */
-  setStyle(style: 1 | 2) {
-    if (style === this.style) return;
-    this.style = style;
-    this.styles.forEach((look, i) => (look.visible = i + 1 === style));
-  }
-
-  /** Hangs a wing style's chunky paddles on both sides' wing joints, replacing the last pair */
-  private mountWings(id: WingId) {
-    this.wingModels.forEach(model => model.dispose()); this.wingModels = [];
-    for (const [side, sign] of [[this.left, -1], [this.right, 1]] as const) {
-      const model = buildWing(id, sign);
-      // Ghosts fade as a whole: their wings take the avatar's translucent material
-      if (this.ghost) for (const piece of [model.inner, model.outer]) piece.traverse(o => { if (o instanceof THREE.Mesh) o.material = this.wingMat; });
-      side.wing.add(model.inner); side.wingOuter.add(model.outer); this.wingModels.push(model);
-    }
-  }
-
   setAppearance(appearance: Appearance) {
     if (this.ghost) return;
-    if (appearance.wings !== this.appearance.wings) this.mountWings(appearance.wings);
     if (appearance.hat !== this.appearance.hat) {
       if (this.hat) disposeModel(this.hat);
       this.hat = appearance.hat === "none" ? null : buildHat(appearance.hat);
@@ -846,7 +780,7 @@ export class Avatar {
         }
       }
     }
-    this.capeId = appearance.cape;
+    // The wings and cape slots color the arm membranes and the tail fin
     this.appearance = { ...appearance };
     this.repaint();
     this.applyPose(0);
@@ -855,47 +789,41 @@ export class Avatar {
   /** A carried helmet takes priority over the wardrobe hat. */
   showCosmeticHat(visible: boolean) { if (this.hat) this.hat.visible = visible; }
 
-  /** Wingtip positions in world space (call after update) */
+  /** The hands in world space, where the wingtip trails stream from (call after update) */
   wingtips(left: THREE.Vector3, right: THREE.Vector3) {
-    this.left.tip.getWorldPosition(left);
-    this.right.tip.getWorldPosition(right);
+    this.left.hand.getWorldPosition(left);
+    this.right.hand.getWorldPosition(right);
   }
 
   /**
-   * Points along both wings in the pilot's own frame (the group's), left wing
-   * then right, five each: the wrist, the leading edge, the tip, the trailing
-   * corner and the middle of the outer edge. The crash tumble keeps them out
-   * of the rock (call after update)
+   * Contact points along both arm membranes in the pilot's own frame (the
+   * group's), left then right, five each: the hand, the wrist, the elbow, the
+   * membrane's trailing corner at the hip and the shoulder. The crash tumble
+   * keeps them out of the rock (call after update)
    */
   wingPoints(out: THREE.Vector3[]) {
-    this.sidePoints(this.left, out, 0);
-    this.sidePoints(this.right, out, WING_POINTS);
+    this.sidePoints(this.left, -1, out, 0);
+    this.sidePoints(this.right, 1, out, WING_POINTS);
   }
 
-  private sidePoints(side: Side, out: THREE.Vector3[], k: number) {
+  private sidePoints(side: Side, s: 1 | -1, out: THREE.Vector3[], k: number) {
     const g = this.group;
-    const elbow = g.worldToLocal(side.wingOuter.getWorldPosition(elbowTmp));
-    const tip = g.worldToLocal(side.tip.getWorldPosition(out[k + 2]));
-    const trail = g.worldToLocal(side.trail.getWorldPosition(out[k + 3]));
-    out[k].copy(elbow);
-    out[k + 1].lerpVectors(elbow, tip, 0.5);
-    out[k + 4].lerpVectors(tip, trail, 0.5);
+    const hand = g.worldToLocal(side.hand.getWorldPosition(out[k]));
+    const elbow = g.worldToLocal(side.elbow.getWorldPosition(out[k + 2]));
+    out[k + 1].lerpVectors(elbow, hand, 0.7);
+    g.worldToLocal(this.chest.localToWorld(out[k + 3].set(0.1 * s, -0.02, 0.01)));
+    g.worldToLocal(side.shoulder.getWorldPosition(out[k + 4]));
   }
 
-  /** The middle of the cape's hem in world space (call after update) */
+  /** The middle of the tail fin's trailing edge in world space, where the body trail streams from (call after update) */
   capeTip(out: THREE.Vector3): THREE.Vector3 {
-    this.cape.tip(this.capeShape, out);
-    return this.cape.mesh.localToWorld(out);
+    this.fin.tip(this.finShape, out);
+    return this.fin.mesh.localToWorld(out);
   }
 
-  /** The direction the wings span, in world space: trails use it as their width */
+  /** The direction the arms span, in world space: trails use it as their width */
   span(out: THREE.Vector3): THREE.Vector3 {
     return out.setFromMatrixColumn(this.rig.matrixWorld, 1).normalize();
-  }
-
-  /** A wingbeat on demand (a run's flap ability): the wings at full effort for a moment */
-  beat() {
-    this.effort = 1;
   }
 
   /** The roll is visual; flight physics supplies its timing and displacement. */
@@ -941,20 +869,8 @@ export class Avatar {
     const target = clamp(this.rollRate * ANIM.bankLead + this.yawRate * 0.35, -1.1, 1.1);
     [this.lean, this.leanVelocity] = springStep(this.lean, this.leanVelocity, target, ANIM.bankSpring, ANIM.bankDamping, dt);
 
-    // Effort decides how hard the wings flap: climbing, turning, rolling or slow
-    const slow = clamp((32 - speed) / 18, 0, 1);
-    const diving = smoothstep(-0.15, -0.6, this.climb);
-    let effort =
-      0.18 + clamp(this.climb, 0, 1) * 0.9 + Math.abs(this.yawRate) * 0.35 + Math.abs(this.rollRate) * 0.08 + slow * 0.7;
-    effort = clamp(effort * (1 - diving * 0.75), 0, 1);
-    this.effort += (effort - this.effort) * (1 - Math.exp(-dt * 3));
-    const before = Math.sin(this.flapPhase);
-    this.flapPhase += TAU * (ANIM.flapRate + ANIM.flapBoost * this.effort) * dt * (this.barrel.t >= 0 ? 1.6 : 1);
-    const after = Math.sin(this.flapPhase);
-    if (before > 0 && after <= 0 && this.time - this.lastFlap > 0.15) {
-      this.lastFlap = this.time;
-      this.onDownstroke?.(this.effort);
-    }
+    // The fans spool up and down with the boost input
+    this.fanLevel += (this.boost - this.fanLevel) * (1 - Math.exp(-dt * 6));
 
     const far = distance > 110;
     if (far !== !this.detailed) {
@@ -962,8 +878,6 @@ export class Avatar {
     }
     this.applyPose(dt, proximity);
   }
-
-  private capeShape: ClothShape = () => {};
 
   private applyPose(dt: number, proximity = 0) {
     const t = this.time;
@@ -980,8 +894,7 @@ export class Avatar {
     }
     const calm = 1 - speedK * 0.65;
     const bob = Math.sin(t * TAU * A.bobRate) * A.bobAmount * calm;
-    const flapLift = Math.sin(this.flapPhase + Math.PI / 2) * 0.05 * this.effort;
-    this.rig.position.set(Math.sin(t * TAU * A.bobRate * 0.5) * A.bobAmount * 0.4 * calm, bob + flapLift, 0);
+    this.rig.position.set(Math.sin(t * TAU * A.bobRate * 0.5) * A.bobAmount * 0.4 * calm, bob, 0);
     this.rig.rotation.set(
       Math.cos(t * TAU * A.bobRate) * 0.04 * calm - this.pitchRate * 0.05,
       0,
@@ -995,30 +908,22 @@ export class Avatar {
     this.head.rotation.set(0.85 - this.pitchRate * 0.08, -turn * 0.35 * A.headLook, turn * 0.25 * A.headLook);
     this.pelvis.rotation.set(0, turn * 0.06 * A.limbSwing, -this.lean * 0.15);
 
-    // Wings
-    const amp = (A.flapAngle * this.effort + A.glideFlutter * (1 - this.effort)) * (1 - this.brake * 0.85) * (1 - this.boost * 0.5);
-    const stroke = Math.sin(this.flapPhase) + 0.22 * Math.sin(this.flapPhase * 2);
-    const strokeOuter = Math.sin(this.flapPhase - 0.7) + 0.22 * Math.sin(this.flapPhase * 2 - 1.4);
+    // Arms: spread wide to brake, tucked to the body at speed and under boost; the membranes follow
     const barrelTuck = this.barrel.t >= 0 ? Math.sin(Math.PI * this.barrel.t) : 0;
-    const sweep = A.sweepAtSpeed * speedK + barrelTuck * 0.45 - slow01(this.speed) * 0.1 + this.boost * A.boostSweep - this.brake * A.brakeSweep;
-    // Positive lift raises the wing (towards the back)
-    const lift = (s: 1 | -1) => 0.12 + amp * stroke + turn * 0.12 * s * A.limbSwing;
+    const glide = clamp(A.armSpread - speedK * A.tuckSpeed - barrelTuck * 0.45 + this.brake * A.spreadBrake - this.boost * A.tuckBoost, 0.3, 1.6);
+    const tucked = 1 - glide / 1.6;
     for (const [side, s] of [
       [this.right, 1],
       [this.left, -1],
     ] as [Side, 1 | -1][]) {
-      side.wing.rotation.set(-0.15 * Math.cos(this.flapPhase) * amp, -lift(s) * s, (-0.18 - sweep) * s);
-      side.wingOuter.rotation.set(0, -(amp * 0.8 * strokeOuter + 0.05) * s, (-0.1 - sweep * 0.7) * s);
-
-      // Arms reach out in a glide pose and follow the wings a little
-      const glide = 1.3 - speedK * 0.35 - barrelTuck * 0.5 + this.brake * 0.25 - this.boost * 0.15;
-      const armLift = 0.25 + stroke * amp * 0.35 + turn * 0.25 * s * A.limbSwing;
+      // Arms sit a little above the body plane, flatter under boost, and lead into turns
+      const armLift = 0.22 - this.boost * 0.1 + turn * 0.25 * s * A.limbSwing;
       side.shoulder.rotation.set(0, -armLift * s, glide * s);
-      side.elbow.rotation.set(0, 0, 0.25 * s);
+      side.elbow.rotation.set(0, 0, (0.25 + tucked * 0.2) * s);
 
-      // Legs together, knees soft, toes pointed; they swing like a rudder in turns
+      // Legs together at speed, apart to brake so the fin fans out; knees soft, toes pointed; they swing like a rudder in turns
       const kick = Math.sin(t * 2.4 + (s > 0 ? 0 : 1.6)) * 0.06 * calm;
-      side.hip.rotation.set(0.06 + kick, 0, 0.05 * s - turn * 0.12 * A.limbSwing);
+      side.hip.rotation.set(0.06 + kick, 0, (0.05 + this.brake * 0.4 - this.boost * 0.03) * s - turn * 0.12 * A.limbSwing);
       side.knee.rotation.set(-this.brake * 0.3 - 0.32 - clamp(this.climb, 0, 1) * 0.35 - kick * 1.4 - barrelTuck * 0.4, 0, 0);
     }
 
@@ -1032,10 +937,8 @@ export class Avatar {
       el.z += (arm.elbow - el.z) * k;
     }
 
-    // Ponytail trails the head and swings
-    const sway = Math.sin(t * 5 * A.clothSpeed + 0.5) * 0.12 * A.clothWave;
-    this.pony[0].rotation.set(-1.25 + this.pitchRate * 0.1 + sway * 0.5, 0, -turn * 0.4 + sway);
-    this.pony[1].rotation.set(0.25 + sway * 0.4, 0, sway * 1.2);
+    // The fans glow with the boost
+    this.setBoostGlow(this.fanLevel);
 
     // Aura: a faint halo when cruising, a touch brighter with speed and skimming the ground...
     this.setAuraOpacity(0.4 + speedK * 0.6 + proximity * 0.3);
@@ -1044,6 +947,8 @@ export class Avatar {
 
     if (!this.detailed && dt > 0) return;
     this.clothTime += dt * (4.5 + this.speed * 0.11) * A.clothSpeed;
+    // The membranes ripple at speed, less when boost pulls them taut
+    this.flutter = A.membraneFlutter * speedK * (1 - this.boost * 0.5);
     this.updateCloth(
       A.clothWave * (0.075 + slow01(this.speed) * 0.05),
       -this.lean * 0.3 - turn * 0.15,
@@ -1051,34 +956,44 @@ export class Avatar {
     );
   }
 
-  /** Moves the cape and scarf: `wave` ripple size, `leanX` sideways swing, `pitch` lift of the hem, `spread` how wide it fans */
-  private updateCloth(wave: number, leanX: number, pitch: number, spread = 1) {
+  /** The joint's position in chest space, where the cloth lives */
+  private toChest(joint: THREE.Object3D, out: THREE.Vector3): THREE.Vector3 {
+    return out.setFromMatrixPosition(joint.matrixWorld).applyMatrix4(this.clothInverse);
+  }
+
+  /** Moves the membranes and the scarf: `wave` ripple size, `leanX` sideways swing, `pitch` lift of the scarf */
+  private updateCloth(wave: number, leanX: number, pitch: number) {
     const A = ANIM;
     const ct = this.clothTime;
     // Cloth is in chest space, whereas the legs follow the pelvis. Resolve
     // their current pose before shaping it, including knees bent by climbing,
-    // braking, abilities or a crash. Never alter the limbs or flight hitbox.
+    // braking, items or a crash. Never alter the limbs or flight hitbox.
     this.body.updateWorldMatrix(true, true);
     this.clothInverse.copy(this.chest.matrixWorld).invert();
     for (const obstacle of this.clothObstacles) {
       this.clothMatrix.multiplyMatrices(this.clothInverse, obstacle.mesh.matrixWorld);
       obstacle.bounds.copy(obstacle.local).applyMatrix4(this.clothMatrix);
     }
-    this.capeShape = (u, v, out) => {
-      const spec = capeSpec(this.capeId);
-      const width = (0.11 + 0.2 * Math.pow(v, 0.8) * spread) * spec.width;
-      const scallop = (spec.pattern === "leaf" ? .075 * Math.cos(u * Math.PI * 3) : spec.pattern === "feathers" ? .085 * Math.cos(u * Math.PI * 5) : spec.pattern === "sun" ? .18 * (1 - Math.abs(u)) : spec.pattern === "stars" ? .08 * Math.cos(u * Math.PI * 2) : spec.pattern === "border" ? -.065 * (1 - u * u) : 0) * COSMETIC_FX.capeDetail;
-      const w =
-        wave * Math.pow(v, 1.3) * Math.sin(TAU * 1.3 * v - ct + u * 0.7) +
-        wave * 0.35 * v * Math.sin(TAU * 2.4 * v - ct * 1.7 + u * 2.1);
-      out.set(
-        u * width + leanX * v * v + Math.sin(ct * 0.6 + v * 3) * 0.03 * v * v * A.clothWave,
-        0.245 - v * 1.18 * spec.length + scallop * Math.pow(v, 6),
-        0.085 + 0.06 * v + 0.12 * v * v + 0.05 * (1 - u * u) * v + w - pitch * v * v,
-      );
-      this.clearCloth(out);
-    };
-    this.cape.update(this.capeShape);
+
+    // Membranes: stretched between the arm joints and the torso side, and between the legs
+    for (const [side, s] of [[this.right, 1], [this.left, -1]] as [Side, 1 | -1][]) {
+      const { arm, leg } = side;
+      this.toChest(side.shoulder, arm.shoulder);
+      this.toChest(side.elbow, arm.elbow);
+      this.toChest(side.hand, arm.hand);
+      arm.root.set(0.1 * s, 0.16, 0);
+      arm.hip.set(0.1 * s, -0.02, 0.01);
+      this.toChest(side.hip, leg.hip);
+      this.toChest(side.knee, leg.knee);
+      this.toChest(side.ankle, leg.ankle);
+      // The fin reaches a little past the ankle
+      jointTmp.subVectors(leg.ankle, leg.knee).normalize();
+      leg.ankle.addScaledVector(jointTmp, 0.05);
+      side.membrane.update(side.shape);
+    }
+    this.fin.update(this.finShape);
+
+    // Scarf tails stream back over the fans
     this.scarf.forEach((cloth, i) => {
       const tail = i === 0 ? -1 : 1;
       const length = i === 0 ? 0.78 : 0.66;
@@ -1087,11 +1002,10 @@ export class Avatar {
         out.set(
           tail * (0.035 + 0.1 * v) + u * 0.03 + leanX * v * 1.2 + Math.sin(phase * 0.7) * 0.05 * v * A.clothWave,
           0.27 - v * length,
-          0.13 + 0.08 * v + 0.16 * v * v + wave * 1.4 * v * Math.sin(phase) - pitch * v,
+          0.175 + 0.08 * v + 0.16 * v * v + wave * 1.4 * v * Math.sin(phase) - pitch * v,
         );
         this.clearCloth(out);
       });
-      cloth.keepAbove(this.cape, 0.02);
     });
   }
 
@@ -1107,7 +1021,7 @@ export class Avatar {
     }
   }
 
-  /** Starts the crash animation of this kind; `side` is the wing that hit (1 right, -1 left) */
+  /** Starts the crash animation of this kind; `side` is the arm that hit (1 right, -1 left) */
   die(kind: DeathKind, side: 1 | -1) {
     this.death = { kind, t: 0, side };
     this.barrel.t = -1;
@@ -1115,28 +1029,15 @@ export class Avatar {
   }
 
   /**
-   * During a crash: fold the wings in where they are stuck in the rock by
-   * `left` and `right` metres (DeathFall.wedged), so the wing that can't get
-   * free crumples against the rock instead of going through it; unfolds
-   * slowly once free
+   * Legacy from the rigid bird wings (Game.ts still calls it during a crash):
+   * the membranes are fabric on the arms, so there is nothing to fold; they
+   * follow wherever the flailing arms go.
    */
-  foldWings(left: number, right: number, dt: number) {
-    for (let i = 0; i < 2; i++) {
-      const depth = i === 0 ? left : right;
-      // The wing reaches about 2.4 m: fold it in by the share it is stuck
-      if (depth > 0.01) this.folded[i] = Math.min(0.8, this.folded[i] + (depth / 2.4) * 1.2);
-      else this.folded[i] = Math.max(0, this.folded[i] - dt * 0.8);
-    }
-    this.left.wing.scale.setScalar(1 - this.folded[0]);
-    this.right.wing.scale.setScalar(1 - this.folded[1]);
-  }
+  readonly foldWings: (left: number, right: number, dt: number) => void = () => {};
 
   /** Back to flying (on respawn) */
   revive() {
     this.death = null;
-    this.folded[0] = this.folded[1] = 0;
-    this.left.wing.scale.setScalar(1);
-    this.right.wing.scale.setScalar(1);
     this.hasLast = false;
     this.lean = this.leanVelocity = 0;
     this.pitchRate = this.yawRate = this.rollRate = 0;
@@ -1148,8 +1049,8 @@ export class Avatar {
 
   /**
    * The crash pose: limbs windmill in panic, then flop as the pilot goes limp;
-   * the wings crumple back (or stay spread when spinning); a headfirst hit
-   * squashes the body for a moment. At the end the pilot shrinks into light.
+   * the membranes follow the arms; a headfirst hit squashes the body for a
+   * moment. At the end the pilot shrinks into light.
    */
   private applyDeathPose(dt: number) {
     const d = this.death!;
@@ -1176,23 +1077,18 @@ export class Avatar {
       [this.right, 1],
       [this.left, -1],
     ] as [Side, 1 | -1][]) {
-      // Arms windmill, or stretch out while spinning; legs kick, then fold
-      const reach = spinning ? 1.5 : 1.15;
-      side.shoulder.rotation.set(wave(13 + s, s) * 1.3 * panic, wave(10, s * 2) * 0.6 * panic, (reach + wave(12, s) * 0.6 * panic) * s);
-      side.elbow.rotation.set(0, 0, (0.55 + 0.45 * wave(9, s)) * s);
-      side.hip.rotation.set(-curl * 0.8 + wave(11, s * 1.7) * 0.55 * panic, 0, 0.15 * s);
-      side.knee.rotation.set(-0.6 - curl * 0.8 - Math.abs(wave(10, s)) * 0.45 * panic, 0, 0);
-
-      // Wings crumple back and flutter; when spinning they stay out, the one that hit bent
+      // Arms windmill, or stretch out while spinning (the one that hit bent back); legs kick, then fold
       const broken = spinning && s === d.side;
-      const fold = spinning ? (broken ? 0.9 : 0.15) : 0.85 + 0.35 * (1 - panic);
-      side.wing.rotation.set(wave(17, s) * 0.3 * panic, -(0.15 + wave(15, s * 3) * 0.6 * panic) * s, (-0.18 - fold) * s);
-      side.wingOuter.rotation.set(0, -(0.45 + wave(19, s) * 0.5 * panic + (broken ? 0.8 : 0)) * s, (-0.1 - fold * 0.9) * s);
+      const reach = spinning ? (broken ? 1.0 : 1.5) : 1.15;
+      side.shoulder.rotation.set(wave(13 + s, s) * 1.3 * panic + (broken ? 0.6 : 0), wave(10, s * 2) * 0.6 * panic, (reach + wave(12, s) * 0.6 * panic) * s);
+      side.elbow.rotation.set(0, 0, (0.55 + 0.45 * wave(9, s) + (broken ? 0.5 : 0)) * s);
+      side.hip.rotation.set(-curl * 0.8 + wave(11, s * 1.7) * 0.55 * panic, 0, (0.15 + 0.2 * (1 - panic)) * s);
+      side.knee.rotation.set(-0.6 - curl * 0.8 - Math.abs(wave(10, s)) * 0.45 * panic, 0, 0);
     }
 
-    const flop = wave(7, 0.5);
-    this.pony[0].rotation.set(-1.25 + flop * 0.6, 0, wave(9, 1) * 0.6);
-    this.pony[1].rotation.set(0.25 + flop * 0.4, 0, wave(11, 2) * 0.8);
+    // The fans wind down
+    this.fanLevel *= Math.exp(-dt * 4);
+    this.setBoostGlow(this.fanLevel);
 
     // The aura fades out with the dissolve
     this.setAuraOpacity(0.6 * vanish);
@@ -1201,6 +1097,7 @@ export class Avatar {
     if (!this.detailed) return;
     // Cloth whips around hard
     this.clothTime += dt * 14 * A.clothSpeed;
+    this.flutter = A.membraneFlutter * 1.5;
     this.updateCloth(A.clothWave * 0.16, wave(3, 0) * 0.35, -0.3 + wave(4, 1) * 0.3);
   }
 
@@ -1223,7 +1120,6 @@ export class Avatar {
   }
 
   dispose() {
-    this.wingModels.forEach(model => model.dispose());
     if (this.hat) disposeModel(this.hat);
     this.shoes.forEach(disposeModel);
     this.painted.forEach((p) => p.geometry.dispose());
