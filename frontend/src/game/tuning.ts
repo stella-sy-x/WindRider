@@ -115,12 +115,10 @@ export const TERRAIN = {
   lodFar: 700, // closer than this at half detail (12 m), further at quarter (24 m)
   lodHysteresis: 48, // extra distance before merging fine detail again
   cacheMiB: 48, // bounded cache of hidden terrain (estimated CPU + GPU buffers)
-  viewDistance: 1400, // metres: the default fog ends at 1300 (WorldView FOG_FAR), so nothing is built much beyond it
+  viewDistance: 1000, // metres: the default fog ends at 900 (WorldView FOG_FAR), so nothing is built much beyond it
   readyRadius: 260, // the start waits until the land this close has arrived
   arrivalsPerFrame: 12, // arrived land meshes taken in per frame once you're flying (each costs about 0.04 ms)
   fadeIn: 1.8, // seconds for land that has just arrived to fade in out of the haze and its plants to grow in (a change of detail is instant)
-  curtainDistance: 800, // metres ahead along the racing line of the haze curtain that hides land arriving behind it (0 hides the curtain)
-  curtainOpacity: 0.85, // how much of the arriving land the curtain veils; the sky's silhouettes still show faintly through
   snowLine: 0, // metres added to the biome's snow line
   coverSlope: 0, // added to the slope where grass (moss, sand…) gives way to rock
   texture: 1, // strength of the painted noise on cliffs
