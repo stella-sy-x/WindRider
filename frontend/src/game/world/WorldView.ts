@@ -16,10 +16,8 @@ import type { World } from "./World";
 import { reloadForNewBuild } from "../../staleBuild";
 import { DEEP, TERRAIN } from "../tuning";
 
-// Fog ramps up quickly so terrain loads behind a thick haze; the sky dome's
-// horizon silhouettes give depth behind the fog instead of a blank wash.
-const FOG_NEAR = 200;
-const FOG_FAR = 900;
+const FOG_NEAR = 120;
+const FOG_FAR = 1300;
 const REQUESTS_PER_WORKER = 4;
 
 export type { RingMode };
@@ -54,6 +52,13 @@ export class WorldView {
   private readonly geometries: THREE.BufferGeometry[] = [];
   readonly gates: CrystalGates;
   private readonly sky: THREE.Mesh;
+  /**
+   * A haze-coloured veil held across the racing line well ahead of the camera, so the land
+   * streams in behind it instead of popping into clear view. Looks only: no collider
+   */
+  private readonly curtain: THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMaterial>;
+  private readonly curtainPoint = new THREE.Vector3();
+  private readonly curtainTangent = new THREE.Vector3();
   private disposed = false;
 
   constructor(world: World, scene: THREE.Scene) {
@@ -79,6 +84,25 @@ export class WorldView {
     // and stars are only worked out for the pixels where the sky actually shows
     this.sky.renderOrder = 0.5;
     this.group.add(this.sky);
+    // Wide enough to fill the view either side of the line, tall enough for floating islands above it.
+    // The fog has already taken it most of the way to the horizon colour it is painted, so it reads as haze
+    this.curtain = new THREE.Mesh(
+      this.geometry(new THREE.PlaneGeometry(2000, 800)),
+      this.material(
+        new THREE.MeshBasicMaterial({
+          color: palette.horizon,
+          transparent: true,
+          opacity: TERRAIN.curtainOpacity,
+          side: THREE.DoubleSide,
+          depthWrite: false,
+          fog: true,
+        }),
+      ),
+    );
+    // After the sky (so it veils the sky's silhouettes too), before the water and clouds
+    this.curtain.renderOrder = 0.75;
+    this.curtain.frustumCulled = false;
+    this.group.add(this.curtain);
     const { cloudSea, puffs, puffLift, banks } = world.biome.sky;
     if (cloudSea) this.buildCloudSea(cloudSea.depth);
     if (puffs > 0 || banks) {
@@ -138,6 +162,9 @@ export class WorldView {
     scene.background = new THREE.Color(palette.horizon);
     const [fogNear, fogFar] = world.biome.sky.fog ?? [FOG_NEAR, FOG_FAR];
     scene.fog = new THREE.Fog(palette.horizon, fogNear, fogFar);
+    // The curtain is the same colour as the fog it sits in, so it passes for distance
+    // (not yet built on the constructor's first call; it is painted at creation then)
+    this.curtain?.material.color.set(palette.horizon);
   }
 
   /**
@@ -288,7 +315,23 @@ export class WorldView {
     this.flora?.update(camera);
     this.water?.update();
     this.sky.position.copy(camera.position);
+    this.updateCurtain(camera);
     this.gates.update(dt, camera);
+  }
+
+  /** The curtain keeps its distance ahead along the racing line (the course runs along +z), square to it */
+  private updateCurtain(camera: THREE.Camera) {
+    const distance = TERRAIN.curtainDistance;
+    const { curtain } = this;
+    curtain.visible = distance > 0;
+    if (!curtain.visible) return;
+    curtain.material.opacity = TERRAIN.curtainOpacity;
+    const { course } = this.world;
+    const z = camera.position.z + distance;
+    const point = course.pointAt(z, this.curtainPoint);
+    const tangent = course.tangentAt(z, this.curtainTangent);
+    curtain.position.copy(point);
+    curtain.lookAt(point.x + tangent.x, point.y + tangent.y, point.z + tangent.z);
   }
 
   dispose() {
