@@ -107,8 +107,9 @@ export const MESH_CLEANUP = {
 
 /** Generator-v2 terrain streaming and appearance. Collisions follow the visible meshes. */
 export const TERRAIN = {
-  lodLookAheadSeconds: 2, // prepare approaching terrain two seconds ahead of current velocity
+  lodLookAheadSeconds: 3, // prepare approaching terrain three seconds ahead of current velocity
   lodLookAheadMax: 240, // cap extra detail extent during fast dives (m)
+  freezeRadius: 80, // metres from the camera within which land already on screen keeps its level of detail (no split/merge, no plants popping)
   lodDetail: 140, // metres from any terrain node: finest 3 m cells, including side mountains
   lodNear: 300, // metres: 6 m cells before the finest approach tier
   lodFar: 700, // closer than this at half detail (12 m), further at quarter (24 m)
@@ -308,8 +309,9 @@ export const RANGES: Record<string, [number, number, number?]> = {
   fallTrack: [1, 20],
   lodHysteresis: [0, 120, 4],
   cacheMiB: [0, 128, 8],
-  lodLookAheadSeconds: [0, 3, 0.25],
+  lodLookAheadSeconds: [0, 5, 0.25],
   lodLookAheadMax: [0, 360, 20],
+  freezeRadius: [0, 240, 10],
   lodDetail: [60, 240, 10],
   lodNear: [120, 600, 10],
   lodFar: [300, 1400, 10],

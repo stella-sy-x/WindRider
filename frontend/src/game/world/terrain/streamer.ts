@@ -21,6 +21,17 @@ import { NODE_SIZE, type TerrainMesh, VOXEL, nodeKey } from "./mesh";
 // interpenetrate, so drawing both at once (as an earlier cross-fade did) mottled
 // the land with faces of each. Only land that comes on screen where none was
 // shown before fades in out of the haze over TERRAIN.fadeIn.
+//
+// Land within TERRAIN.freezeRadius of the camera is frozen: a node already on
+// screen there keeps its level (no split, no merge, so no trees popping in or
+// detail changing right in front of you). Levels change while the land is still
+// far off, in the haze, so by the time you reach it it is already at its final
+// detail; you only ever fly forward, so what is frozen stays as it is until it
+// is behind you and out of frame, where it is discarded like any land left
+// behind (merged back into coarse land, then dropped past the view distance).
+// The freeze never holds back land arriving where none was shown (that would
+// leave holes), and it never stops the workers: the finer replacements still
+// load ahead of you, so the land is complete before it enters the radius.
 
 export const LOD_LEVELS = 4;
 const ROOT_LOD = LOD_LEVELS - 1;
@@ -181,8 +192,10 @@ export class LandStreamer {
     if (this.arrived.length) {
       const budget = this.ready ? TERRAIN.arrivalsPerFrame : this.arrived.length;
       for (const result of this.arrived.splice(0, budget)) this.take(result);
-      this.settle();
+      this.settle(at);
     }
+    // Every 8 m of travel: which nodes are wanted now, and (settle) frozen changes of
+    // level go on once the camera has left the freeze radius
     if (this.lastUpdate.distanceToSquared(at) > 8 * 8 || this.lastLookAhead.distanceToSquared(this.lookAhead) > 8 * 8 || this.stamp === 0) {
       this.lastUpdate.copy(at);
       this.lastLookAhead.copy(this.lookAhead);
@@ -190,10 +203,12 @@ export class LandStreamer {
       this.desired.length = 0;
       for (const root of this.roots) this.visit(root, at);
       for (const root of this.roots) this.pruneTree(root, false);
-      this.settle();
+      this.settle(at);
     }
 
-    // Ask for missing nodes, nearest first
+    // Ask for missing nodes, nearest first. A small preference for finer nodes at
+    // like distances only: the near land must always come before the far, whatever
+    // its level, so it is at its final detail before it enters the freeze radius
     const wanted = this.wanted;
     wanted.length = 0;
     let missingNearby = false;
@@ -201,7 +216,7 @@ export class LandStreamer {
       if (node.shown) continue;
       const d = node.box.distanceToPoint(at);
       if (d < TERRAIN.readyRadius && !this.shownAncestor(node) && !this.visibleCoverage(node)) missingNearby = true;
-      if (node.state === "idle") wanted.push({ node, d: d + node.lod * 120 });
+      if (node.state === "idle") wanted.push({ node, d: d + node.lod * 30 });
     }
     this.ready = !missingNearby;
     wanted.sort((a, b) => a.d - b.d);
@@ -269,24 +284,42 @@ export class LandStreamer {
     return out;
   }
 
-  /** Puts arrived nodes on screen once they cover their area, and takes off what they replace */
-  private settle() {
+  /**
+   * Puts arrived nodes on screen once they cover their area, and takes off what they
+   * replace. A change of level (split or merge) whose land is within TERRAIN.freezeRadius
+   * of the camera `at` waits: the land there stays as it is until the camera has moved on
+   */
+  private settle(at: THREE.Vector3) {
     for (const node of this.desired) {
       if (node.state !== "loaded" || node.shown) continue;
       const shownAncestor = this.shownAncestor(node);
       if (shownAncestor) {
         // Splitting: wait until everything wanted under the coarse node has arrived
         if (!this.allLoaded(shownAncestor)) continue;
+        // The whole coarse node would change: frozen while any of it is near
+        if (this.frozen(shownAncestor, at)) continue;
         this.showUnder(shownAncestor);
         // The coarse node comes off in the same frame: the two levels must never be drawn together
         this.hide(shownAncestor);
       } else {
         // Fresh: no finer land stood here either, so this is land arriving, not changing detail
-        this.show(node, !this.anyShown(node));
+        const fresh = !this.anyShown(node);
+        // Merging: the finer land under it would change, frozen while near (fresh land is never held back)
+        if (!fresh && this.frozen(node, at)) continue;
+        this.show(node, fresh);
         // Merging: the finer nodes it replaces come off in the same frame
         if (node.children) for (const child of node.children) this.hideTree(child);
       }
     }
+  }
+
+  /**
+   * Is a change of level over this node's land too close to the camera to show now?
+   * Only once the land around the camera has arrived (`ready`): before that the
+   * right detail as soon as possible beats a frozen coarse start
+   */
+  private frozen(node: Node, at: THREE.Vector3): boolean {
+    return this.ready && node.box.distanceToPoint(at) < TERRAIN.freezeRadius;
   }
 
   private shownAncestor(node: Node): Node | null {
