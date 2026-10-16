@@ -131,6 +131,8 @@ export class WorldView {
     const underwater = world.biome.sky.underwater;
     ATMOSPHERE.underwater.value = underwater ? 1 : 0;
     if (underwater) ATMOSPHERE.surface.value = world.course.start.y + underwater.surface;
+    // Distant land painted along the horizon for the real land to arrive into; none under the sea
+    ATMOSPHERE.silhouettes.value = underwater ? 0 : 1;
 
     scene.background = new THREE.Color(palette.horizon);
     const [fogNear, fogFar] = world.biome.sky.fog ?? [FOG_NEAR, FOG_FAR];
