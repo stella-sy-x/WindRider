@@ -13,9 +13,14 @@ import { buildHat, buildShoe, disposeModel } from "./cosmetics/models";
 // The pilot: a small low-poly wingsuit flyer with chibi proportions (a big
 // helmeted head, slim limbs) in a high-tech flight suit. Fabric membranes
 // stretch between each arm and the torso and between the legs, and two small
-// electric ducted fans on the upper back light up under boost. The suit is a
-// dark base with the pilot's color as racing stripes and panel edges.
-// Everything is built from primitives at runtime.
+// electric ducted fans on the upper back light up under boost.
+//
+// The livery is built for the chase camera, which only ever sees the pilot
+// from behind and above, ten metres away: a warm cream suit so the body stands
+// out against dark terrain and bright sky alike, the pilot's color on the big
+// shapes that face the camera (the helmet shell, the shoulder yoke, the arm
+// membranes and the tail fin), charcoal for the hardware (boots, gloves, fans,
+// visor) and gold trims. Everything is built from primitives at runtime.
 //
 // The body is modelled standing (up +y, facing -z, right +x) and then laid
 // prone, so the head points along the flight direction (-z) and the back faces
@@ -33,12 +38,13 @@ interface Tones {
   cloth: THREE.Color;
   clothLight: THREE.Color;
   clothDark: THREE.Color;
-  /** The suit's base: charcoal pulled towards the player's hue, so the color shows only as stripes */
+  /** The suit's base: a warm cream tinted a little towards the player's hue; the color sits on panels over it */
   suit: THREE.Color;
   trim: THREE.Color;
+  /** Charcoal for the hardware: boots, gloves, the power pack, the helmet's pods and strap */
   dark: THREE.Color;
   white: THREE.Color;
-  /** The suit's electric accent: membrane edges, the helmet fin, the fan cores under boost */
+  /** The suit's electric accent: the membranes' lit edges, the helmet's comm lights, the fan cores under boost */
   accent: THREE.Color;
   /** Tinted visor glass and its glint */
   visor: THREE.Color;
@@ -66,7 +72,7 @@ function tonesFor(color: string): Tones {
     cloth,
     clothLight: cloth.clone().lerp(white, 0.55),
     clothDark: new THREE.Color().setHSL(hsl.h, Math.min(1, hsl.s * 0.9), hsl.l * 0.5),
-    suit: new THREE.Color().setHSL(hsl.h, Math.min(1, hsl.s * 0.45), 0.09 + hsl.l * 0.1),
+    suit: new THREE.Color("#f3ebdf").lerp(cloth, 0.1),
     trim: new THREE.Color("#f3c869"),
     dark: new THREE.Color("#3a3245"),
     white,
@@ -451,7 +457,7 @@ export class Avatar {
     };
     const part = (joint: THREE.Object3D, builder: PartBuilder, material = skinMat) => build(joint, builder, material).mesh;
 
-    // Pelvis: the dark hip panel with a gold waist band and a belt in the pilot's color
+    // Pelvis: the cream hip panel with a gold waist band and a belt in the pilot's color
     this.pelvis.position.set(0, 0.74, 0);
     skeleton.add(this.pelvis);
     part(
@@ -475,7 +481,8 @@ export class Avatar {
         .add(new THREE.OctahedronGeometry(0.026, 0), "trim", [0, 0.06, -0.082]),
     );
 
-    // Chest: the dark flight suit's torso, a racing stripe down the front in the pilot's color, collar, neck, shoulder pads
+    // Chest: the cream flight suit's torso under a yoke in the pilot's color across the shoulders and
+    // upper back (the part the camera sees above the power pack), collar, neck, shoulder pads
     this.chest.position.set(0, 0.06, 0);
     this.pelvis.add(this.chest);
     part(
@@ -492,22 +499,20 @@ export class Avatar {
             [0.03, 0.285],
             [0.001, 0.285],
           ], 12),
-          (p, t, out) => {
-            if (p.z < -0.03 && Math.abs(p.x) < 0.03 && p.y < 0.24) { out.copy(t.cloth).lerp(t.accent, 0.3); return 0.25; }
-            if (Math.abs(p.x) > 0.06 && p.y > 0.03 && p.y < 0.2) { out.copy(t.clothDark); return; }
-            out.copy(t.suit);
-          },
+          (p, t, out) => { out.copy(p.y > 0.165 ? t.cloth : t.suit); },
           [0, 0, 0],
           [0, 0, 0],
           [1, 1, 0.78],
         )
-        .add(new THREE.TorusGeometry(0.05, 0.02, 5, 6), "suit", [0, 0.27, 0], [Math.PI / 2, 0, 0], [1, 1, 0.9])
+        .add(new THREE.TorusGeometry(0.05, 0.02, 5, 6), "clothDark", [0, 0.27, 0], [Math.PI / 2, 0, 0], [1, 1, 0.9])
         .add(cyl(0.034, 0.038, 0.07, 6), "skin", [0, 0.3, 0])
-        .add(sphere(0.048, 6, 4), "clothDark", [0.1, 0.22, 0], [0, 0, 0], [1, 0.8, 0.85])
-        .add(sphere(0.048, 6, 4), "clothDark", [-0.1, 0.22, 0], [0, 0, 0], [1, 0.8, 0.85]),
+        .add(sphere(0.048, 6, 4), "cloth", [0.1, 0.22, 0], [0, 0, 0], [1, 0.8, 0.85])
+        .add(sphere(0.048, 6, 4), "cloth", [-0.1, 0.22, 0], [0, 0, 0], [1, 0.8, 0.85]),
     );
 
-    // Ducted fans on the upper back: gunmetal shells with rims in the pilot's color on a power pack, their cores lit by boost
+    // Ducted fans on the upper back: gunmetal shells with gold rims on a charcoal power pack, their cores lit by boost.
+    // The camera looks straight down the ducts, so the idle cores are gunmetal too (dark hollows next
+    // to each other under the helmet read as a pair of eyes)
     const fans = new PartBuilder()
       .add(new THREE.BoxGeometry(0.19, 0.07, 0.035), "dark", [0, 0.12, 0.08])
       .add(new THREE.BoxGeometry(0.03, 0.012, 0.012), "accent", [0, 0.12, 0.1]);
@@ -516,11 +521,11 @@ export class Avatar {
       const at: Vec = [0.07 * s, 0.12, 0.115];
       fans
         .add(tube(0.038, 0.075, 6), "metal", at)
-        .add(new THREE.TorusGeometry(0.038, 0.008, 4, 6), "cloth", [at[0], at[1] + 0.0375, at[2]], [Math.PI / 2, 0, 0])
-        .add(new THREE.TorusGeometry(0.038, 0.008, 4, 6), "cloth", [at[0], at[1] - 0.0375, at[2]], [Math.PI / 2, 0, 0]);
+        .add(new THREE.TorusGeometry(0.038, 0.008, 4, 6), "trim", [at[0], at[1] + 0.0375, at[2]], [Math.PI / 2, 0, 0])
+        .add(new THREE.TorusGeometry(0.038, 0.008, 4, 6), "trim", [at[0], at[1] - 0.0375, at[2]], [Math.PI / 2, 0, 0]);
       cores.add(cyl(0.03, 0.03, 0.082, 6), (_p, t, out) => {
         const k = this.fanGlow;
-        out.copy(t.dark).lerp(t.accent, k * 0.7).lerp(t.white, k * k * 0.5);
+        out.copy(t.metal).lerp(t.accent, k * 0.7).lerp(t.white, k * k * 0.5);
         return 0.1 + k * 0.9;
       }, at);
     }
@@ -545,19 +550,37 @@ export class Avatar {
       .add(sphere(0.02, 6, 4), "blush", [0.08, 0.088, -0.143], [0, 0.5, 0], [1.2, 0.6, 0.3])
       .add(sphere(0.02, 6, 4), "blush", [-0.08, 0.088, -0.143], [0, -0.5, 0], [1.2, 0.6, 0.3]), skinMat);
 
-    // Helmet: a dark racing shell, flattened on top and drawn out into a tail at the back, tilted back off
-    // the brow with a gold rim, a tall dorsal fin in the pilot's color, a visor brim, ear pods and a chin strap
+    // Helmet: a chunky racing shell in the pilot's color, wider than the head and flattened on top,
+    // tilted back off the brow. A broad cream crest runs from the brow over the crown to the nape
+    // (the classic racing-helmet stripe), a gold rim circles the shell, a neck guard hangs from the
+    // rim around the back, hexagonal ear pods carry a comm light, and a peak shades the visor.
+    // From the chase camera the shell's back, the crest, the rim and the guard are what reads.
     const helmetTilt = 0.25;
+    const helmetAt: Vec = [0, 0.155, 0.025];
+    const helmetRot: Vec = [helmetTilt, 0, 0];
+    const helmetScale: Vec = [1.08, 0.88, 1.1];
+    // The crest: a ring the shell's size, its tube flattened into a wide low band, stood up to run
+    // front to back and turned so it starts just above the brow and ends at the nape
+    const crest = new THREE.TorusGeometry(0.19, 0.022, 4, 10, Math.PI * 0.86)
+      .scale(1, 1, 1.8)
+      .rotateY(Math.PI / 2)
+      .rotateX(Math.PI * 0.12);
     part(this.head, new PartBuilder()
-      .add(new THREE.SphereGeometry(0.19, 8, 6, 0, TAU, 0, Math.PI * 0.55), "clothDark", [0, 0.155, 0.025], [helmetTilt, 0, 0], [1, 0.9, 1.15])
-      .add(new THREE.TorusGeometry(0.188, 0.009, 4, 10), "trim", [0, 0.155 - 0.03 * Math.cos(helmetTilt), 0.025 - 0.03 * Math.sin(helmetTilt)], [Math.PI / 2 + helmetTilt, 0, 0], [1, 1.15, 1])
-      // The dorsal fin: a ridge from the brow over the crown and down the tail
-      .add(new THREE.BoxGeometry(0.018, 0.11, 0.26), (_p, t, out) => { out.copy(t.cloth); return 0.3; }, [0, 0.34, 0.07], [0.42, 0, 0])
-      // The brim: a thin wedge jutting forward over the visor, gold underneath
-      .add(new THREE.BoxGeometry(0.2, 0.014, 0.07), "clothDark", [0, 0.19, -0.165], [-0.12, 0, 0])
-      .add(new THREE.BoxGeometry(0.2, 0.006, 0.07), "trim", [0, 0.182, -0.168], [-0.12, 0, 0], [0.98, 1, 0.96])
-      .add(sphere(0.03, 6, 4), "dark", [0.165, 0.14, -0.01], [0, 0, 0], [0.6, 1, 1])
-      .add(sphere(0.03, 6, 4), "dark", [-0.165, 0.14, -0.01], [0, 0, 0], [0.6, 1, 1])
+      .add(new THREE.SphereGeometry(0.19, 8, 6, 0, TAU, 0, Math.PI * 0.55), "cloth", helmetAt, helmetRot, helmetScale)
+      .add(crest, "suit", helmetAt, helmetRot, helmetScale)
+      // The rim, sitting where the shell ends
+      .add(new THREE.TorusGeometry(0.188, 0.01, 4, 10).rotateX(Math.PI / 2).translate(0, -0.025, 0), "trim", helmetAt, helmetRot, [1.08, 1, 1.1])
+      // The neck guard: the back half of a ring hanging from the rim
+      .add(tube(0.185, 0.05, 8, -Math.PI / 2, Math.PI).translate(0, -0.05, 0), "cloth", helmetAt, helmetRot, [1.08, 1, 1.1])
+      // The peak: a wide thin wedge jutting forward over the visor, gold underneath
+      .add(new THREE.BoxGeometry(0.22, 0.014, 0.07), "cloth", [0, 0.19, -0.165], [-0.12, 0, 0])
+      .add(new THREE.BoxGeometry(0.22, 0.006, 0.07), "trim", [0, 0.182, -0.168], [-0.12, 0, 0], [0.98, 1, 0.96])
+      // Ear pods: thick hexagonal discs on the sides, each with a small accent light
+      .add(cyl(0.05, 0.05, 0.035, 6), "dark", [0.2, 0.13, -0.005], [0, 0, Math.PI / 2])
+      .add(cyl(0.05, 0.05, 0.035, 6), "dark", [-0.2, 0.13, -0.005], [0, 0, Math.PI / 2])
+      .add(new THREE.OctahedronGeometry(0.014, 0), "accent", [0.222, 0.13, -0.005], [0, 0, 0], [0.5, 1, 1])
+      .add(new THREE.OctahedronGeometry(0.014, 0), "accent", [-0.222, 0.13, -0.005], [0, 0, 0], [0.5, 1, 1])
+      // The chin strap
       .add(new THREE.TorusGeometry(0.16, 0.011, 4, 8, Math.PI), "dark", [0, 0.135, -0.03], [0, 0, Math.PI], [1.1, 1, 1]));
 
     // Visor: one wide tinted band wrapped around the face, a gold brow frame and a glint
@@ -572,10 +595,11 @@ export class Avatar {
       const shoulder = new THREE.Object3D();
       shoulder.position.set(0.125 * s, 0.215, 0);
       this.chest.add(shoulder);
+      // The arm: a shoulder cap in the pilot's color joining the yoke, cream sleeves, an elbow band, a gold cuff and a charcoal glove
       part(
         shoulder,
         new PartBuilder()
-          .add(sphere(0.05, 6, 4), "clothDark", [0, -0.02, 0])
+          .add(sphere(0.05, 6, 4), "cloth", [0, -0.02, 0])
           .add(capsule(0.036, 0.13), "suit", [0, -0.1, 0])
           .add(new THREE.TorusGeometry(0.037, 0.01, 5, 6), "cloth", [0, -0.17, 0], [Math.PI / 2, 0, 0]),
       );
@@ -587,7 +611,7 @@ export class Avatar {
         new PartBuilder()
           .add(capsule(0.03, 0.13), "suit", [0, -0.08, 0])
           .add(cyl(0.036, 0.033, 0.05, 6), "trim", [0, -0.12, 0])
-          .add(sphere(0.036, 6, 4), "skin", [0, -0.19, 0], [0, 0, 0], [0.75, 1.15, 0.45]),
+          .add(sphere(0.036, 6, 4), "dark", [0, -0.19, 0], [0, 0, 0], [0.75, 1.15, 0.45]),
       );
       const hand = new THREE.Object3D();
       hand.position.set(0, -0.215, -0.02);
@@ -596,6 +620,7 @@ export class Avatar {
       const hip = new THREE.Object3D();
       hip.position.set(0.062 * s, -0.04, 0);
       this.pelvis.add(hip);
+      // The leg: a cream thigh, then charcoal boots with a gold cuff
       part(hip, new PartBuilder().add(capsule(0.05, 0.2), "suit", [0, -0.14, 0]));
       const knee = new THREE.Object3D();
       knee.position.set(0, -0.29, 0);
@@ -614,13 +639,13 @@ export class Avatar {
 
       // The arm membrane: u runs along the arm (shoulder -1 → hand +1), v from the arm (0) to the torso (1).
       // Its shape is read from the joints every frame (`updateCloth`), so it stretches as the arms spread.
-      // Dark fabric; the leading edge along the arm and the outer edge carry the pilot's color
+      // Fabric in the pilot's color, deepening towards the body, with a pale leading edge along the
+      // arm and the accent lit at the wingtip: the widest surfaces the camera sees carry the identity
       const membrane = new Cloth(6, 4, (u, v, t, out) => {
         const a = (u + 1) / 2;
-        if (v < 0.01) { out.copy(t.cloth).lerp(t.accent, 0.3); return 0.3; }
-        if (a > 0.99) { out.copy(t.cloth).lerp(t.accent, 0.2); return 0.15; }
-        if (Math.abs(v - 0.5) < 0.01) { out.copy(t.clothDark); return 0; }
-        out.copy(t.suit).lerp(t.clothDark, 0.5 - v * 0.35);
+        if (v < 0.01) { out.copy(t.clothLight); return 0.2; }
+        if (a > 0.99) { out.copy(t.cloth).lerp(t.accent, 0.5); return 0.3; }
+        out.copy(t.cloth).lerp(t.clothDark, v * 0.4);
       }, clothMat);
       this.painted.push(membrane.painted);
       this.chest.add(membrane.mesh);
@@ -641,11 +666,11 @@ export class Avatar {
     this.right = makeSide(1);
     this.left = makeSide(-1);
 
-    // The tail fin between the legs: u runs left (-1) to right (+1), v from the hips (0) to past the ankles (1)
-    this.fin = new Cloth(6, 4, (u, v, t, out) => {
-      if (v > 0.99) { out.copy(t.cloth).lerp(t.accent, 0.3); return 0.3; }
-      if (Math.abs(u) < 0.01) { out.copy(t.cloth).lerp(t.accent, 0.15); return 0.15; }
-      out.copy(t.suit).lerp(t.clothDark, 0.45 - v * 0.3);
+    // The tail fin between the legs: u runs left (-1) to right (+1), v from the hips (0) to past the ankles (1).
+    // The same fabric as the membranes, deepest at the hips, the hem lit in the accent
+    this.fin = new Cloth(6, 4, (_u, v, t, out) => {
+      if (v > 0.99) { out.copy(t.cloth).lerp(t.accent, 0.5); return 0.3; }
+      out.copy(t.cloth).lerp(t.clothDark, (1 - v) * 0.4);
     }, clothMat);
     this.painted.push(this.fin.painted);
     this.chest.add(this.fin.mesh);
