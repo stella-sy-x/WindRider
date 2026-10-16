@@ -389,7 +389,7 @@ const RoomScreen = ({ code, seed, settings, onSettings, onExit, tutorial, onTuto
           {lastPlace !== null && <p>You finished <strong>{ordinal(lastPlace)}</strong>. Waiting for the others…</p>}
           <p>{host ? "You're the host: restart whenever you like." : "The race is called a minute after the first finish, or when the host restarts."}</p>
           <h3>Race standings</h3>
-          <ol className="race-results-standings">{hud?.standings.map(s => <li key={s.id} className={s.me ? "me" : undefined}>{s.name} · {s.finishMs !== null ? formatTime(s.finishMs) : `${s.checkpoints}/${hud.totalCheckpoints} gates`}</li>)}</ol>
+          <ol className="race-results-standings">{hud?.standings.map(s => <li key={s.id} className={s.me ? "me" : undefined}>{s.name} · {s.finishMs !== null ? formatTime(s.finishMs) : `${s.checkpoints} gate${s.checkpoints === 1 ? "" : "s"}`}</li>)}</ol>
         </RaceResults>
       )}
     </div>

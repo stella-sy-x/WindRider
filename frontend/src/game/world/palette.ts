@@ -10,7 +10,7 @@ export interface Palette {
   rock: string; // steep faces and the bare slopes below the snow
   snow: string;
   cloud: string;
-  accent: string; // the next ring
+  accent: string; // the gates' glow (the finish is gold)
   sun: string;
   sunIntensity: number;
   ambient: number;

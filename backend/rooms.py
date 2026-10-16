@@ -107,7 +107,7 @@ class Player:
     name: str
     color: str
     last_seen: int
-    # [x, y, z, qx, qy, qz, qw, speed, checkpoints, t]
+    # [x, y, z, qx, qy, qz, qw, speed, gates passed, t, boost, brake, dodge]
     state: list[float] | None = None
     moved: bool = False
     listeners: set[Listener] = field(default_factory=set)

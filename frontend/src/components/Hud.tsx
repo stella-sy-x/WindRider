@@ -23,9 +23,9 @@ function skimLabel(hud: HudState, points: boolean): string {
   return rate >= 1 ? `Gaining ${rate} km/h per second` : "Skim the rock for speed";
 }
 
-/** Where a crash puts you back: the last ring in a race, else the start */
+/** Where a crash puts you back: the furthest gate you passed in a race, else the start */
 function respawnLabel(hud: HudState): string {
-  return hud.raceState !== "free" && hud.checkpoints > 0 ? `Back to ring ${hud.checkpoints}` : "Back to the start";
+  return hud.raceState !== "free" && hud.respawnRing > 0 ? `Back to gate ${hud.respawnRing}` : "Back to the start";
 }
 
 /** A labelled meter in the flight panel, 0..1 */
@@ -38,7 +38,7 @@ const Bar = ({ kind, label, value }: { kind: "boost" | "skim"; label: string; va
   </div>
 );
 
-/** Speed, timer, rings and standings over the game view; style points only where they score (runs) */
+/** Speed, timer, gates taken and standings over the game view; style points only where they score (runs) */
 const Hud = ({ hud, settings, showStyle = false }: { hud: HudState; settings: Settings; showStyle?: boolean }) => {
   const racing = hud.raceState === "racing" || hud.raceState === "countdown";
   const go = hud.raceState === "racing" && hud.raceTimeMs !== null && hud.raceTimeMs < 1000;
@@ -47,10 +47,11 @@ const Hud = ({ hud, settings, showStyle = false }: { hud: HudState; settings: Se
       {hud.raceState !== "free" && (
         <div className="hud-race glass">
           <div className="hud-timer">{formatTime(hud.raceTimeMs ?? 0)}</div>
+          {/* Gates are optional speed boosts: this counts the ones taken, not the way to the finish */}
           <div className="hud-rings">
             {hud.raceState === "finished"
               ? "Finished"
-              : `Ring ${Math.min(hud.checkpoints + 1, hud.totalCheckpoints)} / ${hud.totalCheckpoints}`}
+              : `Gates ${hud.checkpoints} / ${hud.totalCheckpoints}`}
           </div>
         </div>
       )}

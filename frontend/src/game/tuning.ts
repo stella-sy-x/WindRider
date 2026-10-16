@@ -58,12 +58,23 @@ export const RINGS = {
   driftRate: 0.55,
   spin: 0.08, // how fast the cohort turns around the gate (rad/s)
   selfSpin: 0.6, // how fast each crystal turns on its own axis
-  glow: 1, // inner glow of the next gate
+  glow: 1, // inner glow of the lit gates (every gate still to take in a race)
+  gateGlow: 0.35, // 0..1, how brightly a gate you haven't taken yet glows in a race; the finish glows fully
   motes: 28, // glowing motes that trace each gate's ring; applies to the next map
   moteSize: 0.7, // metres across, for a 13 m ring (smaller gates get smaller motes)
   moteDrift: 0.25, // metres each mote wanders from its place on the ring
   shatter: 1, // particles when you pass through
   passTime: 1.4, // seconds of the pass animation
+  finishBeam: 1.6, // brightness of the finish gate's gold pillar (the other gates' is 0.55 × gateGlow)
+  finishBeamHeight: 2, // the finish pillar's height, as a multiple of the other gates' 700 m; applies to the next map
+};
+
+/** The corridor markers: faint posts either side of the racing line, just inside the air wall. Looks only */
+export const CORRIDOR = {
+  postSpacing: 90, // metres of z between posts
+  postLateral: 55, // metres from the racing line (the wind starts at FLIGHT.lateralLimit, 60)
+  postOpacity: 0.3, // 0 hides them
+  postHeight: 4, // metres
 };
 
 /** The chase camera */
@@ -182,7 +193,7 @@ export const AUDIO = {
   nightMuffle: 0.55, // how much the highs are rolled off at night
 };
 
-const GROUPS = { ANIM, FX, RINGS, CAMERA, TERRAIN, FLORA, STRUCTURES, WATER, DEEP, AUTOPILOT, PET_LOOKS, COSMETIC_FX, AUDIO } as const;
+const GROUPS = { ANIM, FX, RINGS, CORRIDOR, CAMERA, TERRAIN, FLORA, STRUCTURES, WATER, DEEP, AUTOPILOT, PET_LOOKS, COSMETIC_FX, AUDIO } as const;
 const DEFAULTS = JSON.parse(JSON.stringify(GROUPS)) as typeof GROUPS;
 const STORAGE_KEY = "windrider.tuning.speed-control-v1";
 
@@ -291,8 +302,15 @@ export const RANGES: Record<string, [number, number, number?]> = {
   spin: [-1, 1],
   selfSpin: [0, 4],
   glow: [0, 3],
+  gateGlow: [0, 1, 0.05],
   shatter: [0, 4],
   passTime: [0.4, 3],
+  finishBeam: [0, 4],
+  finishBeamHeight: [1, 4, 0.25],
+  postSpacing: [40, 200, 10],
+  postLateral: [20, 90],
+  postOpacity: [0, 1, 0.05],
+  postHeight: [1, 12, 0.5],
   distance: [3, 20],
   distancePerSpeed: [0, 0.1],
   height: [0, 8],
@@ -356,6 +374,7 @@ export const TUNING_GROUPS: [string, Group][] = [
   ["Pilot animation", ANIM],
   ["Trails & particles", FX],
   ["Crystal gates", RINGS],
+  ["Corridor markers", CORRIDOR],
   ["Camera", CAMERA],
   ["Terrain", TERRAIN],
   ["Plants", FLORA],

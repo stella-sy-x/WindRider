@@ -7,18 +7,23 @@ import type { Ring } from "./course";
 // The gates: a cohort of floating crystals around every ring, each bobbing and
 // turning on its own, orbiting a ring of glowing motes that trace the gate.
 // Passing a gate makes its crystals flare white, burst outward and dissolve,
-// and the motes flash and scatter. All gates share three draw calls (crystals,
-// motes, beams); the motion runs in the vertex shader from a few numbers per gate.
+// and the motes flash and scatter. In a race every gate is an optional speed
+// boost: all the gates still to take glow a little, the finish (the one goal)
+// glows fully, and taken ones stay gone. All gates share three draw calls
+// (crystals, motes, beams); the motion runs in the vertex shader from a few
+// numbers per gate.
 
 export type RingMode = "race" | "free" | "hidden";
 
 const GOLD = new THREE.Color("#ffd23f");
+const clamp01 = (x: number) => Math.min(1, Math.max(0, x));
 
 /** Per-gate state on the CPU; uploaded as one vec4 per gate */
 interface GateState {
   visible: number; // 0..1, crystals grow in and out
-  highlight: number; // 0..1, the next gate glows
+  highlight: number; // 0..1, how brightly it glows: a little for a gate still to take, fully for the finish
   passedAt: number; // fxTime of the last pass, or -1e3
+  passed: boolean; // taken this race: it stays gone until the next one
 }
 
 const crystalVertex = /* glsl */ `
@@ -116,7 +121,7 @@ const crystalFragment = /* glsl */ `
 // The gate ring: a circle of glowing motes, one point each, drawn as a single
 // THREE.Points for every gate. Each mote sits at its place on the ring in world
 // space and wanders a little in the vertex shader: in and out along the ring
-// (`radial`) and through it (`axis`). The next gate's motes breathe together and
+// (`radial`) and through it (`axis`). A lit gate's motes breathe together and
 // glow; a pass flashes them white and scatters them outward as they fade.
 const moteVertex = /* glsl */ `
   attribute float gate;
@@ -144,7 +149,7 @@ const moteVertex = /* glsl */ `
     // Smaller gates get smaller motes, and shorter wanders
     float fit = min(1.0, mote.y / 13.0);
 
-    // Each mote drifts on its own; the next gate's motes also breathe as one
+    // Each mote drifts on its own; a lit gate's motes also breathe as one
     float wander = moteLook.y * fit;
     float outward = sin(time * 1.1 + phase) * wander + vGate.y * 0.18 * fit * sin(time * 2.0 + angle);
     float through = sin(time * 0.8 + phase * 1.7) * wander * 1.6;
@@ -189,7 +194,7 @@ const moteFragment = /* glsl */ `
     float a = exp(-r2 * 4.0) * 0.7 + exp(-r2 * 16.0) * 0.5;
 
     vec3 base = mix(mix(ice, accent, vGate.y), gold, vGate.w);
-    // Quiet when idle, lit up for the next gate and the finish
+    // Quiet when idle, lit up for the gates still to take and most for the finish
     float lit = 0.4 + vGate.y * 1.1 * glow + vGate.w * 0.4;
     vec3 color = mix(base, vec3(1.0), 0.2 + vGate.y * 0.2) * lit;
     if (vK >= 0.0) {
@@ -205,7 +210,7 @@ const moteFragment = /* glsl */ `
   }
 `;
 
-// A pillar of light rising from the next gate and the finish, visible from afar
+// A pillar of light rising from every gate still to take, tallest and brightest from the finish, visible from afar
 const beamVertex = /* glsl */ `
   attribute float gate;
   uniform vec4 gates[GATE_COUNT];
@@ -237,6 +242,7 @@ const beamFragment = /* glsl */ `
   uniform vec3 gold;
   uniform float glow;
   uniform float time;
+  uniform float finishBeam;
   varying float vHeight;
   varying float vFacing;
   varying float vAngle;
@@ -244,13 +250,16 @@ const beamFragment = /* glsl */ `
   varying float vK;
   varying float vDepth;
   void main() {
-    // Strongest for the finish, then the next gate; a flare runs up it on a pass
-    float strength = vGate.x * max(vGate.y * 0.55, vGate.w * 0.8);
+    // Strongest for the finish (the race's landmark, gold, slowly breathing), faint for the gates still
+    // to take; a flare runs up it on a pass
+    float breathe = 1.0 + 0.12 * sin(time * 1.3);
+    float strength = vGate.x * max(vGate.y * 0.55, vGate.w * finishBeam * breathe);
     if (vK >= 0.0) strength += (1.0 - vK) * 1.5 * step(abs(vHeight - vK * 1.2), 0.25);
     if (strength < 0.002) discard;
     float streaks = 0.65 + 0.35 * sin(vHeight * 60.0 - time * 2.5 + vAngle * 3.0);
-    // pow() of a negative number is NaN, and bloom would smear one NaN pixel over the whole screen
-    float fade = pow(clamp(1.0 - vHeight, 0.0, 1.0), 2.2) * smoothstep(0.0, 0.03, vHeight);
+    // pow() of a negative number is NaN, and bloom would smear one NaN pixel over the whole screen.
+    // The finish pillar fades more slowly up its (taller) length, so it reads from the start line
+    float fade = pow(clamp(1.0 - vHeight, 0.0, 1.0), mix(2.2, 1.6, vGate.w)) * smoothstep(0.0, 0.03, vHeight);
     float soft = pow(clamp(vFacing, 0.0, 1.0), 1.5);
     // Close up it would fill the screen: fade it out near the camera
     float near = smoothstep(20.0, 120.0, vDepth);
@@ -292,7 +301,6 @@ export class CrystalGates {
   /** Per gate: the crystals' angle and distance from the center, for particle bursts */
   private readonly layout: { angle: number; radius: number }[][] = [];
   private mode: RingMode = "free";
-  private next = 0;
   private readonly crystals: THREE.InstancedMesh;
   /** The ring motes of every gate, `motesPerGate` each in gate order */
   private readonly motes: THREE.Points;
@@ -305,7 +313,7 @@ export class CrystalGates {
   constructor(seed: number, rings: Ring[], colors: { ice: THREE.Color; accent: THREE.Color }, sunDirection: THREE.Vector3) {
     this.rings = rings;
     this.sunDirection = sunDirection;
-    this.states = rings.map(() => ({ visible: 1, highlight: 0, passedAt: -1e3 }));
+    this.states = rings.map(() => ({ visible: 1, highlight: 0, passedAt: -1e3, passed: false }));
     this.facing = rings.map((r) => r.normal.clone());
     this.gateUniform = rings.map((r) => new THREE.Vector4(1, 0, -1e3, r.finish ? 1 : 0));
     const defines = { GATE_COUNT: Math.max(1, rings.length) };
@@ -317,6 +325,7 @@ export class CrystalGates {
       accent: { value: colors.accent },
       gold: { value: GOLD },
       glow: { value: RINGS.glow },
+      finishBeam: { value: RINGS.finishBeam },
     };
 
     // Crystals: per gate, a main circle of big ones and a scatter of small satellites
@@ -417,7 +426,8 @@ export class CrystalGates {
     this.motes = motes;
     rings.forEach((_, g) => this.placeMotes(g));
 
-    // Light pillars: an open cylinder per gate, 700 m tall
+    // Light pillars: an open cylinder per gate, 700 m tall; the finish's is wider and taller still,
+    // the one landmark that shows from the start line
     const tube = this.geometry(new THREE.CylinderGeometry(1, 1, 1, 20, 1, true));
     tube.translate(0, 0.5, 0);
     tube.setAttribute("gate", new THREE.InstancedBufferAttribute(new Float32Array(rings.map((_, i) => i)), 1));
@@ -435,11 +445,13 @@ export class CrystalGates {
     );
     const beams = new THREE.InstancedMesh(tube, beamMaterial, Math.max(1, rings.length));
     beams.count = rings.length;
+    const finishHeight = Math.max(1, RINGS.finishBeamHeight);
     rings.forEach((ring, i) => {
+      const width = ring.radius * (ring.finish ? 0.5 : 0.35);
       tmpMatrix.compose(
         tmpScale.copy(ring.position).setY(ring.position.y - ring.radius),
         tmpQuaternion.identity(),
-        new THREE.Vector3(ring.radius * 0.35, 700, ring.radius * 0.35),
+        new THREE.Vector3(width, 700 * (ring.finish ? finishHeight : 1), width),
       );
       beams.setMatrixAt(i, tmpMatrix);
     });
@@ -504,23 +516,28 @@ export class CrystalGates {
     return tmpMatrix.compose(ring.position, tmpQuaternion, tmpScale.setScalar(scale));
   }
 
-  /** "race": the next gate glows, passed ones are gone. "free": all shown quietly. */
-  setMode(mode: RingMode, next: number) {
-    const restart = mode !== this.mode || next < this.next;
+  /**
+   * "race": every gate still to take glows (the finish most), taken ones are gone. "free": all shown
+   * quietly. `restart` (or a change of mode) forgets which gates were taken: they all grow back
+   */
+  setMode(mode: RingMode, restart = false) {
+    restart ||= mode !== this.mode;
     this.mode = mode;
-    this.next = next;
     if (restart) {
       for (const state of this.states) {
         state.passedAt = -1e3;
+        state.passed = false;
         if (mode !== "hidden") state.visible = 0; // grow back in
       }
     }
   }
 
-  /** Plays the pass animation on a gate */
+  /** Plays the pass animation on a gate; in a race it then stays gone */
   pass(index: number) {
     const state = this.states[index];
-    if (state) state.passedAt = fxTime.value;
+    if (!state) return;
+    state.passedAt = fxTime.value;
+    state.passed = true;
   }
 
   /** Are a gate's crystals (mostly) showing? */
@@ -558,7 +575,9 @@ export class CrystalGates {
     for (let i = 0; i < this.rings.length; i++) {
       const state = this.states[i];
       const passing = now - state.passedAt < RINGS.passTime && now >= state.passedAt;
-      const wanted = this.mode === "hidden" ? 0 : this.mode === "free" || i >= this.next ? 1 : 0;
+      // In a race a taken gate stays gone; in free flight it grows back
+      const open = this.mode !== "race" || !state.passed;
+      const wanted = this.mode === "hidden" || !open ? 0 : 1;
       if (passing) {
         state.visible = 1;
       } else if (state.passedAt > -1e3) {
@@ -568,9 +587,11 @@ export class CrystalGates {
       } else {
         state.visible += (wanted - state.visible) * k;
       }
-      const highlight = this.mode === "race" && i === this.next ? 1 : 0;
+      // Every gate still to take glows a little (they are all speed boosts); the finish, the one goal, fully
+      const finish = this.rings[i].finish;
+      const highlight = this.mode === "race" && open ? (finish ? 1 : clamp01(RINGS.gateGlow)) : 0;
       state.highlight += (highlight - state.highlight) * k * 2;
-      this.gateUniform[i].set(state.visible, state.highlight, state.passedAt, this.rings[i].finish ? 1 : 0);
+      this.gateUniform[i].set(state.visible, state.highlight, state.passedAt, finish ? 1 : 0);
     }
     const material = this.materials[0];
     material.uniforms.motion.value.set(RINGS.drift, RINGS.driftRate, RINGS.spin, RINGS.selfSpin);
@@ -578,6 +599,7 @@ export class CrystalGates {
     for (const m of this.materials) {
       m.uniforms.passDuration.value = RINGS.passTime;
       m.uniforms.glow.value = RINGS.glow;
+      m.uniforms.finishBeam.value = RINGS.finishBeam;
     }
     this.sunView.copy(this.sunDirection).transformDirection(camera.matrixWorldInverse);
   }

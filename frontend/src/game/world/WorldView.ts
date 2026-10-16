@@ -2,6 +2,7 @@ import * as THREE from "three";
 import { hash3 } from "../rng";
 import { ATMOSPHERE, skyMaterial } from "./atmosphere";
 import { CrystalGates, type RingMode } from "./crystals";
+import { CorridorMarkers } from "./corridor";
 import { LandCollider } from "./landCollider";
 import type { MeshRequest } from "./mesher.worker";
 import { levelId } from "./biomes";
@@ -53,6 +54,8 @@ export class WorldView {
   private readonly materials: THREE.Material[] = [];
   private readonly geometries: THREE.BufferGeometry[] = [];
   readonly gates: CrystalGates;
+  /** Faint posts along both edges of the corridor, where the air wall begins */
+  private readonly corridor: CorridorMarkers;
   private readonly sky: THREE.Mesh;
   private disposed = false;
 
@@ -97,7 +100,9 @@ export class WorldView {
       sun,
     );
     this.group.add(this.gates.group);
-    this.setRings("free", 0);
+    this.setRings("free");
+    this.corridor = new CorridorMarkers(world.course, accent);
+    this.group.add(this.corridor.mesh);
 
     const { material, uniforms } = terrainMaterial(world.biome.terrain.layers);
     this.material(material);
@@ -255,9 +260,12 @@ export class WorldView {
     this.flora?.bake(renderer);
   }
 
-  /** "race": the next gate glows, passed ones are gone. "free": all shown quietly. */
-  setRings(mode: RingMode, next: number) {
-    this.gates.setMode(mode, next);
+  /**
+   * "race": every gate still to take glows, the finish most, and passed ones are gone. "free": all shown
+   * quietly. `restart` brings every gate back (a new race); a change of mode does too
+   */
+  setRings(mode: RingMode, restart = false) {
+    this.gates.setMode(mode, restart);
   }
 
   /** Plays a gate's pass animation: the crystals flare, burst and dissolve */
@@ -289,6 +297,7 @@ export class WorldView {
     this.water?.update();
     this.sky.position.copy(camera.position);
     this.gates.update(dt, camera);
+    this.corridor.update(camera);
   }
 
   dispose() {
@@ -304,6 +313,7 @@ export class WorldView {
     this.geometries.forEach((g) => g.dispose());
     this.materials.forEach((m) => m.dispose());
     this.gates.dispose();
+    this.corridor.dispose();
     this.group.clear();
   }
 }

@@ -51,7 +51,7 @@ export interface RoomInfo {
   server_time: number;
 }
 
-/** Positions of everyone in the room: [id, x, y, z, qx, qy, qz, qw, speed, checkpoints, t, boost, brake, dodge] */
+/** Positions of everyone in the room: [id, x, y, z, qx, qy, qz, qw, speed, gates passed, t, boost, brake, dodge] */
 export interface Snapshot {
   type: "snap";
   t: number;
