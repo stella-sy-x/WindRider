@@ -15,10 +15,10 @@ import { buildHat, buildShoe, disposeModel } from "./cosmetics/models";
 // stretch between each arm and the torso and between the legs, and two small
 // electric ducted fans on the upper back light up under boost.
 //
-// The livery is built for the chase camera, which only ever sees the pilot
-// from behind and above, ten metres away: a warm cream suit so the body stands
-// out against dark terrain and bright sky alike, the pilot's color on the big
-// shapes that face the camera (the helmet shell, the shoulder yoke, the arm
+// The livery is one fixed scheme built for the chase camera, which only ever
+// sees the pilot from behind and above, ten metres away: a warm cream suit so
+// the body stands out against dark terrain and bright sky alike, coral on the
+// big shapes that face the camera (the helmet shell, the shoulder yoke, the arm
 // membranes and the tail fin), charcoal for the hardware (boots, gloves, fans,
 // visor) and gold trims. Everything is built from primitives at runtime.
 //
@@ -29,6 +29,14 @@ import { buildHat, buildShoe, disposeModel } from "./cosmetics/models";
 
 const SCALE = 1.65;
 const TAU = Math.PI * 2;
+
+// The ducted fans, in chest space (standing body: up +y, facing -z). Also where the trails stream from
+/** The right fan's center; the left mirrors x */
+const FAN_AT: Vec = [0.09, 0.1, 0.12];
+const FAN_RADIUS = 0.065;
+const FAN_LENGTH = 0.08;
+/** How far each fan tilts outward from the spine (radians around z) */
+const FAN_CANT = 0.15;
 
 // --- colors ----------------------------------------------------------------------
 
@@ -61,26 +69,42 @@ type ToneName = keyof Tones;
  */
 type Paint = ToneName | ((p: THREE.Vector3, tones: Tones, out: THREE.Color, index: number) => number | void);
 
-function tonesFor(color: string): Tones {
-  const cloth = new THREE.Color(color);
-  const white = new THREE.Color("#fbf6ec");
-  const hsl = { h: 0, s: 0, l: 0 };
-  cloth.getHSL(hsl);
+/**
+ * The suit's one fixed livery: warm cream over coral panels with charcoal hardware
+ * and gold trims. There is no player color; every pilot wears the same scheme
+ * (multiplayer tells them apart by the name label, see `createLabel`).
+ */
+function tonesFor(): Tones {
   return {
-    skin: new THREE.Color("#ffe1cf"),
+    skin: new THREE.Color("#f5d0b0"),
     blush: new THREE.Color("#ffa9a4"),
-    cloth,
-    clothLight: cloth.clone().lerp(white, 0.55),
-    clothDark: new THREE.Color().setHSL(hsl.h, Math.min(1, hsl.s * 0.9), hsl.l * 0.5),
-    suit: new THREE.Color("#f3ebdf").lerp(cloth, 0.1),
+    cloth: new THREE.Color("#ff5d73"),
+    clothLight: new THREE.Color("#ffb0a0"),
+    clothDark: new THREE.Color("#2a2530"),
+    suit: new THREE.Color("#f3ebdf"),
     trim: new THREE.Color("#f3c869"),
-    dark: new THREE.Color("#3a3245"),
-    white,
-    accent: new THREE.Color().setHSL((hsl.h + 0.08) % 1, 0.9, 0.72),
-    visor: new THREE.Color("#1c2233").lerp(cloth, 0.12),
+    dark: new THREE.Color("#2a2530"),
+    white: new THREE.Color("#ffffff"),
+    accent: new THREE.Color("#ff4f6d"),
+    visor: new THREE.Color("#1c2233").lerp(new THREE.Color("#ff5d73"), 0.12),
     visorShine: new THREE.Color("#e4edff"),
     metal: new THREE.Color("#4b505e"),
   };
+}
+
+/**
+ * The fixed livery with its fabric recolored for a wardrobe item (the `wings` and
+ * `cape` slots): the cloth family follows the item's color, everything else stays.
+ */
+function fabricTones(color: string): Tones {
+  const tones = tonesFor();
+  const cloth = new THREE.Color(color);
+  const hsl = { h: 0, s: 0, l: 0 };
+  cloth.getHSL(hsl);
+  tones.cloth.copy(cloth);
+  tones.clothLight.copy(cloth).lerp(tones.white, 0.55);
+  tones.clothDark.setHSL(hsl.h, Math.min(1, hsl.s * 0.9), hsl.l * 0.5);
+  return tones;
 }
 
 // --- geometry helpers --------------------------------------------------------------
@@ -310,7 +334,7 @@ interface Side {
   boot: THREE.Mesh;
   shoulder: THREE.Object3D;
   elbow: THREE.Object3D;
-  /** The palm: the trails stream from here */
+  /** The palm: carried items and the crash contact points live here (the trails stream from the fans) */
   hand: THREE.Object3D;
   hip: THREE.Object3D;
   knee: THREE.Object3D;
@@ -432,9 +456,10 @@ export class Avatar {
   /** A crash playing out: the body flails, then goes limp (Game moves `group`) */
   private death: { kind: DeathKind; t: number; side: number } | null = null;
 
-  constructor(color: string, options: AvatarOptions = {}) {
+  /** `color` is kept for the callers' sake (multiplayer rosters); the suit's livery is fixed */
+  constructor(_color: string, options: AvatarOptions = {}) {
     this.ghost = !!options.ghost;
-    this.tones = tonesFor(color);
+    this.tones = tonesFor();
     const ghost = this.ghost;
     const skinMat = this.material(flatMaterial({ ghost }));
     const clothMat = this.material(flatMaterial({ ghost, side: THREE.DoubleSide }));
@@ -510,25 +535,34 @@ export class Avatar {
         .add(sphere(0.048, 6, 4), "cloth", [-0.1, 0.22, 0], [0, 0, 0], [1, 0.8, 0.85]),
     );
 
-    // Ducted fans on the upper back: gunmetal shells with gold rims on a charcoal power pack, their cores lit by boost.
-    // The camera looks straight down the ducts, so the idle cores are gunmetal too (dark hollows next
-    // to each other under the helmet read as a pair of eyes)
+    // Ducted fans on the upper back: the suit's signature. Two big gunmetal jet intakes with gold
+    // rims, canted a little outward, on a wide charcoal power pack; their cores light up under
+    // boost. They are sized to read as engines from the chase camera, not as a pair of goggles.
+    // The camera looks straight down the ducts, so the idle cores are gunmetal too (dark hollows
+    // next to each other under the helmet read as a pair of eyes)
+    const fanRim = new THREE.TorusGeometry(FAN_RADIUS, 0.012, 3, 8);
     const fans = new PartBuilder()
-      .add(new THREE.BoxGeometry(0.19, 0.07, 0.035), "dark", [0, 0.12, 0.08])
-      .add(new THREE.BoxGeometry(0.03, 0.012, 0.012), "accent", [0, 0.12, 0.1]);
+      .add(new THREE.BoxGeometry(0.27, 0.09, 0.04), "dark", [0, FAN_AT[1], 0.085])
+      .add(new THREE.BoxGeometry(0.04, 0.014, 0.014), "accent", [0, FAN_AT[1], 0.108]);
     const cores = new PartBuilder();
     for (const s of [1, -1]) {
-      const at: Vec = [0.07 * s, 0.12, 0.115];
+      const at: Vec = [FAN_AT[0] * s, FAN_AT[1], FAN_AT[2]];
+      // Each fan cants around z so its exhaust (the -y end; the body lies prone, so that is aft)
+      // flares away from the spine and the pair reads as a V of jets from behind
+      const rot: Vec = [0, 0, FAN_CANT * s];
+      const rim = (dy: number) =>
+        fanRim.clone().rotateX(Math.PI / 2).translate(0, dy, 0);
       fans
-        .add(tube(0.038, 0.075, 6), "metal", at)
-        .add(new THREE.TorusGeometry(0.038, 0.008, 4, 6), "trim", [at[0], at[1] + 0.0375, at[2]], [Math.PI / 2, 0, 0])
-        .add(new THREE.TorusGeometry(0.038, 0.008, 4, 6), "trim", [at[0], at[1] - 0.0375, at[2]], [Math.PI / 2, 0, 0]);
-      cores.add(cyl(0.03, 0.03, 0.082, 6), (_p, t, out) => {
+        .add(tube(FAN_RADIUS, FAN_LENGTH, 8), "metal", at, rot)
+        .add(rim(FAN_LENGTH / 2), "trim", at, rot)
+        .add(rim(-FAN_LENGTH / 2), "trim", at, rot);
+      cores.add(cyl(FAN_RADIUS * 0.82, FAN_RADIUS * 0.82, FAN_LENGTH + 0.008, 8), (_p, t, out) => {
         const k = this.fanGlow;
         out.copy(t.metal).lerp(t.accent, k * 0.7).lerp(t.white, k * k * 0.5);
         return 0.1 + k * 0.9;
-      }, at);
+      }, at, rot);
     }
+    fanRim.dispose();
     part(this.chest, fans);
     this.fanCores = build(this.chest, cores).painted;
 
@@ -719,7 +753,7 @@ export class Avatar {
   private membraneTones(): Tones {
     const id = this.appearance.wings;
     if (id === "classic") return this.tones;
-    const spec = wingSpec(id), tones = tonesFor(spec.color);
+    const spec = wingSpec(id), tones = fabricTones(spec.color);
     tones.accent.set(spec.accent);
     return tones;
   }
@@ -728,7 +762,7 @@ export class Avatar {
   private finTones(): Tones {
     const spec = capeSpec(this.appearance.cape);
     if (!spec.color) return this.tones;
-    const tones = tonesFor(spec.color);
+    const tones = fabricTones(spec.color);
     tones.trim.set(spec.trim);
     tones.accent.set(spec.trim);
     return tones;
@@ -751,10 +785,12 @@ export class Avatar {
     this.aura.visible = value > 0.01;
   }
 
-  setColor(color: string) {
-    this.tones = tonesFor(color);
-    this.repaint();
-  }
+  /**
+   * Legacy from the per-player liveries (Game.setSelf still calls it): the suit's
+   * colors are fixed now, so the pilot's color only reaches the name label and the
+   * trail/debris effects, never the body.
+   */
+  readonly setColor: (color: string) => void = () => {};
 
   /**
    * Legacy from the two hair-and-eyes styles (Game.ts still calls it from the
@@ -802,10 +838,24 @@ export class Avatar {
   /** A carried helmet takes priority over the wardrobe hat. */
   showCosmeticHat(visible: boolean) { if (this.hat) this.hat.visible = visible; }
 
-  /** The hands in world space, where the wingtip trails stream from (call after update) */
+  /**
+   * The two fans' exhausts in world space, where the wingtip trails stream from
+   * (call after update): the back end of each duct, so the ribbons leave the
+   * propulsion, not the pilot's hands
+   */
   wingtips(left: THREE.Vector3, right: THREE.Vector3) {
-    this.left.hand.getWorldPosition(left);
-    this.right.hand.getWorldPosition(right);
+    this.fanExhaust(-1, left);
+    this.fanExhaust(1, right);
+  }
+
+  /** The back end of one fan's duct (`s` 1 right, -1 left) in world space */
+  private fanExhaust(s: 1 | -1, out: THREE.Vector3): THREE.Vector3 {
+    // The duct's axis is y in chest space (the body lies prone, so chest -y points aft along the
+    // flight direction); its exhaust sits half the tube's length down the axis from the center,
+    // swung outward by the cant
+    const half = FAN_LENGTH / 2;
+    out.set(FAN_AT[0] * s + Math.sin(FAN_CANT) * half * s, FAN_AT[1] - Math.cos(FAN_CANT) * half, FAN_AT[2]);
+    return this.chest.localToWorld(out);
   }
 
   /**
@@ -828,10 +878,14 @@ export class Avatar {
     g.worldToLocal(side.shoulder.getWorldPosition(out[k + 4]));
   }
 
-  /** The middle of the tail fin's trailing edge in world space, where the body trail streams from (call after update) */
+  /**
+   * The point between the two fans' exhausts in world space, where the body trail
+   * streams from (call after update), so every ribbon leaves the propulsion
+   */
   capeTip(out: THREE.Vector3): THREE.Vector3 {
-    this.fin.tip(this.finShape, out);
-    return this.fin.mesh.localToWorld(out);
+    this.fanExhaust(-1, leftTmp);
+    this.fanExhaust(1, out);
+    return out.lerp(leftTmp, 0.5);
   }
 
   /** The direction the arms span, in world space: trails use it as their width */
