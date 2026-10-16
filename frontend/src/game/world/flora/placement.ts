@@ -291,11 +291,12 @@ export function placeFlora(world: World, box: Box, lod: number): { plants: Float
   // --- plants ---------------------------------------------------------------------
   const spacing = veg.spacing;
   const gx0 = Math.ceil(box.x0 / spacing - 0.5);
-  const gx1 = lod <= PLANT_MAX_LOD ? Math.floor(box.x1 / spacing - 0.5) : gx0 - 3; // (no plants at all in the coarsest nodes)
+  const gx1 = Math.floor(box.x1 / spacing - 0.5);
   const gz0 = Math.ceil(box.z0 / spacing - 0.5);
   const gz1 = Math.floor(box.z1 / spacing - 0.5);
   const totalWeight = veg.species.reduce((a, s) => a + s.weight, 0);
-  for (let gi = gx0 - 1; gi <= gx1 + 1; gi++) {
+  const plantsHere = lod <= PLANT_MAX_LOD;
+  for (let gi = gx0 - 1; plantsHere && gi <= gx1 + 1; gi++) {
     for (let gk = gz0 - 1; gk <= gz1 + 1; gk++) {
       const x = (gi + 0.5 + (hash3(gi, gk, salt) - 0.5) * 0.9) * spacing;
       const z = (gk + 0.5 + (hash3(gi, gk, salt + 1) - 0.5) * 0.9) * spacing;
