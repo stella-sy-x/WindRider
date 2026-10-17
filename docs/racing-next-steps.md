@@ -32,15 +32,17 @@ Pure browser wingsuit racer: solo time trials, multiplayer race rooms, 8 biomes 
 
 ## Future: Wingsuit Identity Overhaul (new branch)
 
-### Avatar redesign
-- Replace bird-wing avatar with wingsuit motif: membrane between arms and
-  torso (flying squirrel style), leg membrane, helmet/goggles
-- Spread/tuck animation maps to decelerate/accelerate (no flapping)
-- Cosmetics become: helmet styles, suit patterns, goggle types
+### Avatar redesign (in progress)
+- Kenney Mini Characters base model (CC0) + OpenGameArt jetpack (CC0)
+- Arms removed; thick rigid wings cover the arm area
+- Big wings are the dominant silhouette from the chase camera
+- Jetpack on back with exhaust nozzles (boost glow)
+- Fixed livery: cream wings, charcoal hardware, gold accents
+- No player color customization (cosmetics system deleted)
 
 ### Flight model: electric wingsuit with boost
-- Keep boost (re-themed as electric ducted fans, not a jetpack)
-- Boost animation: fans glow, membranes tuck, acceleration particles
+- Keep boost (re-themed as jetpack exhaust, not a button)
+- Boost animation: exhaust nozzles glow, acceleration particles
 - Speed sources:
   - Boost (electric fans, keep current mechanic)
   - Diving (already works: pitch down = accelerate)
@@ -60,6 +62,25 @@ Pure browser wingsuit racer: solo time trials, multiplayer race rooms, 8 biomes 
 - Add environmental obstacles and acceleration zones (wind currents,
   thermals) to create distinct route options through the terrain
 
+### Effects overhaul (TODO)
+- **Wingtip trails → wingtip particles**: the two wing-tip trails are
+  currently flat ribbon strips (Trail class). Replace with particle
+  streams — small bubbles/wisps that scatter from the wing tips like
+  cutting through air/water. NOT a solid ribbon trail.
+- **Exhaust trails**: two cylindrical/conical trail ribbons from the
+  jetpack exhaust nozzles (one per nozzle). These ARE solid trails,
+  shaped like round exhaust plumes, not flat strips. Brighter/longer
+  on boost.
+- **Trail colors**: currently using PLAYER_COLOR (#ff5d73 neon pink),
+  completely wrong. Change to:
+  - Exhaust trails: gold→white (matching gold accent trim)
+  - Wingtip particles: pale white/transparent wisps
+- **PLAYER_COLOR cleanup**: `fx.setColor()` and `debris.setColor()`
+  still pass neon pink to pilotfx and effects. Update to use the
+  fixed livery accent color (gold `#f3c869`).
+- **Gate colors**: already muted (commit da0b12c). Verify they look
+  natural across all biomes; adjust per-biome tinting if needed.
+
 ### Boundary and navigation clarity
 - Visible boundary markers along the racing corridor (glowing pillars
   every 50-100m, or energy-field particle wall near the air wall)
@@ -68,8 +89,11 @@ Pure browser wingsuit racer: solo time trials, multiplayer race rooms, 8 biomes 
 - Strengthen proximity boost feedback: visual punch (color shift,
   speed line burst, camera pull), sound cue, HUD bar more prominent
 
-### Segment timing
-- Split the course into 3-4 timed segments
+### Dropped ideas
+- ~~Segment timing~~ — not needed; real-time leaderboard is enough
+- ~~Player color customization~~ — deleted; fixed livery is cleaner
+- ~~Cloth membrane wings~~ — too complex, poor readability; rigid slabs
+- ~~Dorsal fin on helmet~~ — looked like an antenna
 - Show per-segment times so players know which sections to improve
 - Compare against ghost/personal best per segment
 
