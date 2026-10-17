@@ -279,8 +279,6 @@ function jellyGeometry(): THREE.InstancedBufferGeometry {
 /** Schools of fish and drifting jellyfish along a level's course, placed from its seed */
 export class SeaLife {
   readonly meshes: THREE.Mesh<THREE.InstancedBufferGeometry, THREE.ShaderMaterial>[] = [];
-  /** Jellyfish positions and sizes: [x, y, z, radius, ...] groups of 4 */
-  readonly jellyfish: Float32Array;
   private readonly glow = { value: 0 };
 
   constructor(world: World, spec: UnderwaterSpec) {
@@ -348,7 +346,6 @@ export class SeaLife {
       color.set(hue);
       hues.push(color.r, color.g, color.b, phase);
     }
-    this.jellyfish = new Float32Array(home);
     if (home.length) {
       const geometry = jellyGeometry();
       geometry.setAttribute("home", new THREE.InstancedBufferAttribute(new Float32Array(home), 4));

@@ -63,11 +63,6 @@ export class Pilot {
     return this.fx.meshes;
   }
 
-  /** The bubble shield pilots wear under the sea (Avatar.setBubble); looks only */
-  setBubble(visible: boolean) {
-    this.avatar.setBubble(visible);
-  }
-
   push(sample: PilotSample) {
     const last = this.samples[this.samples.length - 1];
     if (last && sample.t <= last.t) return; // out of order or duplicate

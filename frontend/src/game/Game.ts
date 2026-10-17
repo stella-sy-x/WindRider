@@ -26,7 +26,6 @@ import { FX_LIGHT as GLOW_LIGHT, WHITE } from "./toon";
 import { FX, RANGES, RINGS, TUNING_GROUPS, WATER, loadTuning, resetTuning, saveTuning } from "./tuning";
 import { type Level, levelId, seedLevel } from "./world/biomes";
 import type { WaterKind } from "./world/terrain/river";
-import { ReefFlows, currentStrength, geyserStrength } from "./world/geysers";
 import { type WaterHit, World } from "./world/World";
 import { WorldView } from "./world/WorldView";
 import type { Palette } from "./world/palette";
@@ -162,7 +161,6 @@ const rightWing = wings.slice(0, 4);
 const leftWing = wings.slice(4, 8);
 const landHit = { point: new THREE.Vector3(), normal: new THREE.Vector3() };
 const waterHit: WaterHit = { distance: 0, level: 0, kind: "water" };
-const flowDir = new THREE.Vector3();
 const rand = (min: number, max: number) => min + Math.random() * (max - min);
 
 export class Game {
@@ -185,13 +183,6 @@ export class Game {
   /** Particles that blend instead of glowing: snow, leaves, ash, mist */
   private readonly softParticles: Particles;
   private readonly ambient: Ambient;
-  /** Under the sea: the geysers and currents as drawn (their push is `waterFlows`) */
-  private readonly flows: ReefFlows;
-  /** What the water carries the pilot with right now (m/s): built up inside geysers and currents, dying away outside */
-  private readonly flowCarry = new THREE.Vector3();
-  private inGeyser = false;
-  private jellyStunTimer = 0;
-  private jellyHit = new Set<number>();
   private readonly speedLines: SpeedLines;
   private readonly debris: Debris;
   private readonly marker: HTMLDivElement;
@@ -318,7 +309,6 @@ export class Game {
     this.particles = new Particles();
     this.softParticles = new Particles(3000, true);
     this.ambient = new Ambient(this.particles, this.softParticles);
-    this.flows = new ReefFlows(this.particles, this.softParticles);
     this.avatar = new Avatar(options.color);
     this.fx = new PilotFx(this.avatar, options.color, this.particles);
     if (!this.attract) {
@@ -332,7 +322,7 @@ export class Game {
     this.equipment = new Equipment(this.avatar, this.particles);
     this.speedLines = new SpeedLines();
     this.debris = new Debris(options.color);
-    this.scene.add(this.avatar.group, this.debris.mesh, this.particles.points, this.softParticles.points, this.speedLines.mesh, this.flows.group, ...this.fx.meshes);
+    this.scene.add(this.avatar.group, this.debris.mesh, this.particles.points, this.softParticles.points, this.speedLines.mesh, ...this.fx.meshes);
 
     this.vignette = document.createElement("div");
     this.vignette.className = "speed-vignette";
@@ -484,11 +474,6 @@ export class Game {
     return this.world.level;
   }
 
-  /** Is this level under the sea (the Reef)? Pilots wear bubbles there, and the water pushes them about */
-  private get underwater(): boolean {
-    return !!this.world.biome.sky.underwater;
-  }
-
   /** True once the land around the camera has arrived */
   get landReady(): boolean {
     return this.view.ready;
@@ -561,10 +546,6 @@ export class Game {
     this.particles.clear();
     this.softParticles.clear();
     this.ambient.setWorld(this.world);
-    this.flows.setWorld(this.world);
-    // Under the sea every pilot flies in a bubble of air
-    this.avatar.setBubble(this.underwater);
-    this.live.forEach((pilot) => pilot.setBubble(this.underwater));
     this.speedLines.setColor(this.world.palette.horizon);
     // How effects react to this biome's light: glows pop at night, and get a push in bright daylight
     const palette = this.world.palette;
@@ -617,8 +598,6 @@ export class Game {
     this.startSlot = null;
     this.raceState = "free";
     this.passed.clear();
-    this.jellyHit.clear();
-    this.jellyStunTimer = 0;
     this.finishMs = null;
     this.view.setRings("free");
     if (respawn) this.respawn(0);
@@ -631,8 +610,6 @@ export class Game {
     this.raceState = "countdown";
     this.startAt = startAt;
     this.passed.clear();
-    this.jellyHit.clear();
-    this.jellyStunTimer = 0;
     this.finishMs = null;
     this.style = 0;
     this.lastBeep = Infinity;
@@ -649,7 +626,6 @@ export class Game {
       keep.add(player.id);
       if (!this.live.has(player.id)) {
         const pilot = new Pilot(player.id, player.name, player.color, false, this.particles);
-        pilot.setBubble(this.underwater);
         this.live.set(player.id, pilot);
         this.scene.add(pilot.group, ...pilot.trailMeshes);
       }
@@ -672,7 +648,6 @@ export class Game {
     this.ghosts.forEach((g) => this.removePilot(g));
     this.ghosts = runs.map((run, i) => {
       const pilot = new Pilot(`ghost${i}`, run.name, "#ffffff", true, this.particles);
-      pilot.setBubble(this.underwater);
       pilot.setSamples(ghostSamples(run.ghost));
       this.scene.add(pilot.group, ...pilot.trailMeshes);
       return pilot;
@@ -704,7 +679,6 @@ export class Game {
     this.fx.dispose();
     this.equipment.dispose();
     this.avatar.dispose();
-    this.flows.dispose();
     this.particles.dispose();
     this.softParticles.dispose();
     this.speedLines.dispose();
@@ -746,8 +720,6 @@ export class Game {
     this.crashedAt = null;
     this.proximity = 0;
     this.combo = 0;
-    this.flowCarry.set(0, 0, 0);
-    this.inGeyser = false;
     this.avatar.revive();
     this.avatar.visible = true;
     this.fx.reset();
@@ -824,13 +796,7 @@ export class Game {
     this.prevPosition.copy(this.flight.position);
     this.prevQuaternion.copy(this.flight.quaternion);
     this.prevVelocity.copy(this.flight.velocity);
-    const stunK = this.jellyStunTimer > 0 ? 0.2 : 1;
-    const stunnedInput: FlightInput = stunK < 1
-      ? { ...input, pitch: input.pitch * stunK, roll: input.roll * stunK }
-      : input;
-    this.flight.step(STEP, stunnedInput, this.proximity * this.proximity, FLIGHT);
-    this.waterFlows(STEP);
-    this.jellyCheck();
+    this.flight.step(STEP, input, this.proximity * this.proximity, FLIGHT);
     this.airWall(STEP);
 
     const { x, y, z } = this.flight.position;
@@ -865,87 +831,6 @@ export class Game {
         if (this.view.gates.passing(i) || !this.crossed(i)) continue;
         this.gateKick();
         this.gateBurst(i);
-      }
-    }
-  }
-
-  /**
-   * The water's push under the sea (the Reef; geysers.ts has where). Inside a geyser's plume
-   * the speed climbs and the water throws the pilot upward; inside a current it carries them
-   * along its direction, and flying with it gains speed, flying against it loses some. The
-   * carry (`flowCarry`) builds up at `flowDecay` inside a current and dies away at the same
-   * rate outside anything, so a plume launches you on past its top rather than dropping you
-   * at it. Nothing here on levels above the sea: there are no flows to be inside
-   */
-  private waterFlows(dt: number) {
-    const { geysers, currents } = this.world;
-    if (!geysers.length && !currents.length) return;
-    const f = this.flight;
-    const carry = this.flowCarry;
-    const decay = Math.exp(-FLIGHT.flowDecay * dt);
-
-    let lift = 0;
-    for (const g of geysers) lift = Math.max(lift, geyserStrength(g, f.position));
-    if (lift > 0) {
-      f.speed += FLIGHT.geyserBoost * lift * dt;
-      carry.y += FLIGHT.geyserLift * lift * dt;
-      if (!this.inGeyser) this.geyserEntry();
-    }
-    this.inGeyser = lift > 0;
-
-    // The currents: carried along at `currentBoost` once settled in, and driven on or held back by how much you fly along them
-    let drive = 0;
-    flowDir.set(0, 0, 0);
-    for (const c of currents) {
-      const k = currentStrength(c, f.position);
-      if (k <= 0) continue;
-      flowDir.addScaledVector(c.direction, k);
-      drive += k * f.forward.dot(c.direction);
-    }
-    // Eased towards the current's own velocity: carry += (target - carry) * (1 - decay), with the decay below taking the carry's share
-    carry.addScaledVector(flowDir, FLIGHT.currentBoost * (1 - decay));
-    f.speed = Math.max(0, f.speed + FLIGHT.currentDrive * drive * dt);
-
-    carry.multiplyScalar(decay);
-    if (carry.lengthSq() < 1e-6) {
-      carry.set(0, 0, 0);
-      return;
-    }
-    f.position.addScaledVector(carry, dt);
-    // The trails, camera and speed lines see the water's push too (Flight.step recomputes its velocity each step)
-    f.velocity.add(carry);
-  }
-
-  /** Into a geyser: a kick of the camera, a flash and a burst of bubbles off the body (looks only) */
-  private geyserEntry() {
-    this.rig.kick();
-    this.flash = Math.max(this.flash, 0.6);
-    const amount = this.particles.budget;
-    for (let k = 0; k < Math.round(24 * amount); k++) {
-      at.copy(this.flight.position).add(tmp.set(rand(-1, 1), rand(-1, 1), rand(-1, 1)));
-      vel.set(rand(-1, 1), rand(0.5, 1.5), rand(-1, 1)).normalize().multiplyScalar(rand(3, 8)).addScaledVector(this.flight.velocity, 0.5);
-      this.softParticles.emit(at, vel, fx(rand(0.8, 1.6), rand(0.2, 0.5), SPRAY, Kind.Bubble, -0.6, 1.2, 1));
-    }
-  }
-
-  /** Jellyfish: touching one zaps you forward (electric boost) but stuns controls briefly */
-  private jellyCheck() {
-    if (!this.view) return;
-    const jelly = this.view.jellyfish;
-    if (!jelly || !jelly.length) return;
-    const pos = this.flight.position;
-    if (this.jellyStunTimer > 0) this.jellyStunTimer -= STEP;
-    for (let i = 0; i < jelly.length; i += 4) {
-      const dx = pos.x - jelly[i], dy = pos.y - jelly[i + 1], dz = pos.z - jelly[i + 2];
-      const size = jelly[i + 3];
-      const dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
-      if (dist < size * 1.5 && !this.jellyHit.has(i)) {
-        this.jellyHit.add(i);
-        this.flight.speed += FLIGHT.jellyBoost;
-        this.jellyStunTimer = FLIGHT.jellyStun;
-        this.rig.kick();
-        this.flash = Math.max(this.flash, 0.8);
-        break;
       }
     }
   }
@@ -1438,7 +1323,6 @@ export class Game {
     const flying = !crashed && this.raceState !== "countdown" && this.attract !== "drift";
     this.speedLines.update(dt, body.position, flying ? this.flight.velocity : tmp.set(0, 0, 0), camera, this.particles.budget);
     this.ambient.update(dt, camera.position, flying ? this.flight.velocity : tmp.set(0, 0, 0), this.particles.budget);
-    this.flows.update(dt, camera.position, this.particles.budget);
 
     const liveTime = t - INTERPOLATION_DELAY_MS;
     this.live.forEach((pilot) => pilot.update(liveTime, dt));

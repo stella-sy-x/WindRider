@@ -27,14 +27,6 @@ export const FLIGHT = {
   boostSeconds: 2.5,
   boostRecharge: 0.22, // reserve per second after release
   gateBoost: 8, // m/s added at once when you fly through a gate (Game.checkRings); drag bleeds it off again
-  // The water's push under the sea (Game.waterFlows): geysers and currents, the Reef's answer to the boost button
-  geyserBoost: 15, // m/s² of speed gained while inside a geyser's plume
-  geyserLift: 8, // m/s² the plume throws you upward (a carry that dies away at flowDecay once you're out)
-  currentBoost: 12, // m/s a current carries you along its direction while you're inside it
-  currentDrive: 10, // m/s² of speed gained flying with a current, and lost flying against it
-  flowDecay: 1.5, // 1/s: how fast the water's carry builds up inside a current and dies away outside it
-  jellyBoost: 15, // m/s added instantly on touching a jellyfish (electric zap flings you forward)
-  jellyStun: 1.0, // seconds of reduced control after a jellyfish zap
   controlResponse: 12,
   brakeDrag: 0.025,
   brakeFloor: 22, // brake force fades here; climbing can still stall

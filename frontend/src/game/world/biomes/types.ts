@@ -179,37 +179,13 @@ export interface StructureSpec {
   };
 }
 
-/**
- * Geysers rising from the seabed along the course (geysers.ts). Fly into a
- * plume and the water throws you up and on (Game.waterFlows, FLIGHT.geyserBoost)
- */
-export interface GeyserSpec {
-  count: [number, number]; // how many along the course
-  lateral: [number, number]; // metres either side of the racing line a vent sits
-  radius: number; // of the plume at its top (it is narrower at the vent)
-  height: number; // metres it rises from the seabed
-}
-
-/** Currents: streams of water along the course that carry you with them (FLIGHT.currentBoost) */
-export interface CurrentSpec {
-  count: [number, number];
-  radius: number; // of the stream
-  length: [number, number]; // metres
-  cross: number; // share of the streams that cut across the line (the rest run along it)
-  lateral: [number, number]; // metres either side of the racing line a stream starts
-}
-
-/** A level under the sea: looks only, the flight is the same as in the air, but for the geysers and currents */
+/** A level under the sea: looks only, the flight is the same as in the air */
 export interface UnderwaterSpec {
   surface: number; // the water's surface, seen from below, this many metres above the racing line
   shoals: number; // schools of fish along the course
   fish: string[]; // their colors, one per school
   jellyfish: number;
   jelly: string[];
-  /** Geysers to fly into for a push (none when left out) */
-  geysers?: GeyserSpec;
-  /** Currents that carry you along (none when left out) */
-  currents?: CurrentSpec;
 }
 
 /** Mist and clouds around the land */

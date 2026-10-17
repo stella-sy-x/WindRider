@@ -6,8 +6,7 @@ import type { Biome } from "./types";
 // gates of a drowned shrine, a galleon asleep on a reef. Overhead the water's
 // surface ripples with light, shafts of it slant down, ripples of it run over
 // the sand; schools of fish circle, jellyfish drift, bubbles rise. You fly it
-// like any other level, but the water itself moves you here and there: geysers
-// throw you up and on, currents carry you along (geysers.ts, Game.waterFlows).
+// like any other level: the water only changes what you see.
 
 export const REEF: Biome = {
   id: "reef",
@@ -151,10 +150,6 @@ export const REEF: Biome = {
       fish: ["#ffb347", "#ffe066", "#ff7a8a", "#7ad8ff", "#c8f0ff", "#b08aff"],
       jellyfish: 110,
       jelly: ["#ff9ad8", "#9ad8ff", "#c8a0ff", "#a0ffe0"],
-      // The water's own push (Game.waterFlows): geysers beside the line to swing into for a
-      // launch, and currents to ride (or fight), some running along the line, some across it
-      geysers: { count: [3, 5], lateral: [0, 30], radius: 15, height: 40 },
-      currents: { count: [5, 8], radius: 10, length: [80, 120], cross: 0.4, lateral: [0, 25] },
     },
   },
   particles: {

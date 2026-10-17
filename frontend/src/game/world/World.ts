@@ -2,7 +2,6 @@ import { Vector3 } from "three";
 import { makeRng, range } from "../rng";
 import type { Biome, Level } from "./biomes";
 import { Course } from "./course";
-import { type Current, type Geyser, placeCurrents, placeGeysers } from "./geysers";
 import { type MoodShift, type Palette, moodShift } from "./palette";
 import { TerrainField } from "./terrain/field";
 import { Ground } from "./terrain/ground";
@@ -63,9 +62,6 @@ export class World {
   private seaTable: Float32Array | null = null;
   /** Waterfalls off floating islands */
   readonly islandFalls: IslandFall[] = [];
-  /** Under the sea: geysers that throw you up and currents that carry you (Game.waterFlows, geysers.ts); empty elsewhere */
-  readonly geysers: Geyser[] = [];
-  readonly currents: Current[] = [];
   /** Trees grow on the land; chunks add them as they are meshed */
   readonly trees = new TreeIndex(PROXIMITY_RANGE);
   /** Which way pilots face on the start line */
@@ -91,9 +87,6 @@ export class World {
     this.rock = field;
     this.steps = ground?.steps?.river ? ground.steps : null;
     if (terrain.islandFalls) this.findIslandFalls(terrain.islandFalls.chance);
-    const underwater = this.biome.sky.underwater;
-    if (underwater?.geysers) this.geysers = placeGeysers(this.course, this.rock, ground, underwater.geysers, this.seed);
-    if (underwater?.currents) this.currents = placeCurrents(this.course, this.rock, underwater.currents, this.seed);
     this.startDirection = this.startHeading();
   }
 

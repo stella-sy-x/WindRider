@@ -170,14 +170,6 @@ export const DEEP = {
   life: 1, // how brightly fish and jellyfish glow
 };
 
-/** Geysers and currents under the sea (Sunken Reef, geysers.ts). Looks only: the push itself is FLIGHT.geyserBoost and friends */
-export const FLOWS = {
-  geyserGlow: 1, // the plume's wall of water and the glowing vent on the seabed
-  geyserBubbles: 1, // bubbles rising in the plume, as a multiplier
-  currentGlow: 1, // the stream's wall of water
-  currentStreaks: 1, // motes streaming along the current, as a multiplier
-};
-
 /** The autopilot (the menu's chase view): flies the racing line on rails */
 export const AUTOPILOT = {
   railMinSpeed: 28, // m/s: the slowest it glides…
@@ -198,7 +190,7 @@ export const AUDIO = {
   nightMuffle: 0.55, // how much the highs are rolled off at night
 };
 
-const GROUPS = { ANIM, FX, RINGS, CORRIDOR, CAMERA, TERRAIN, FLORA, STRUCTURES, WATER, DEEP, FLOWS, AUTOPILOT, PET_LOOKS, AUDIO } as const;
+const GROUPS = { ANIM, FX, RINGS, CORRIDOR, CAMERA, TERRAIN, FLORA, STRUCTURES, WATER, DEEP, AUTOPILOT, PET_LOOKS, AUDIO } as const;
 const DEFAULTS = JSON.parse(JSON.stringify(GROUPS)) as typeof GROUPS;
 const STORAGE_KEY = "windrider.tuning.speed-control-v1";
 
@@ -358,10 +350,6 @@ export const RANGES: Record<string, [number, number, number?]> = {
   shafts: [0, 3],
   surface: [0, 2],
   life: [0, 3],
-  geyserGlow: [0, 3],
-  geyserBubbles: [0, 3],
-  currentGlow: [0, 3],
-  currentStreaks: [0, 3],
   railMinSpeed: [15, 45],
   railMaxSpeed: [30, 80],
   railBank: [0, 80],
@@ -389,7 +377,6 @@ export const TUNING_GROUPS: [string, Group][] = [
   ["Structures", STRUCTURES],
   ["Water", WATER],
   ["Underwater", DEEP],
-  ["Geysers & currents", FLOWS],
   ["Autopilot", AUTOPILOT],
   ["Companions", PET_LOOKS],
   ["Audio", AUDIO],
