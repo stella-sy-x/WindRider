@@ -34,17 +34,17 @@ const MODEL_URL = import.meta.env.BASE_URL + "models/pilot.glb";
 // `HIPS_Y` inside the rig (death.ts's contact balls assume the origin at the hips).
 
 /** The hips' height: the body's origin, and what the prone rotation turns about */
-const HIPS_Y = 0.495;
+const HIPS_Y = 0.26;
 /** The wings' outer edge: the mesh's x extremes, at mid-chord */
-const WING_TIP: Vec = [0.77, 0.57, 0.143];
+const WING_TIP: Vec = [0.79, 0.524, 0.04];
 /** Where the wing leaves the torso */
-const WING_ROOT_X = 0.132;
+const WING_ROOT_X = 0.094;
 /** The bottom of the jetpack, the exhaust: the mesh's +z extreme */
-const EXHAUST: Vec = [0, 0.587, 0.315];
+const EXHAUST: Vec = [0, 0.359, 0.068];
 /** Item anchors: the pack's outer face, the crown of the helmet, the right palm along the wing, the ankles */
-const SLOT_BACK: Vec = [0, 0.46, 0.31];
-const SLOT_HEAD: Vec = [0, 1.0, -0.02];
-const SLOT_HAND: Vec = [0.40, 0.68, 0];
+const SLOT_BACK: Vec = [0, 0.478, 0.099];
+const SLOT_HEAD: Vec = [0, 1.045, 0.003];
+const SLOT_HAND: Vec = [0.36, 0.66, 0];
 const SLOT_FOOT: Vec = [0.1, 0.08, 0];
 
 type Vec = [number, number, number];
