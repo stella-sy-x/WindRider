@@ -169,6 +169,11 @@ export const DEEP = {
   shafts: 1, // shafts of light slanting down from the surface
   surface: 1, // how bright the water's surface is from below
   life: 1, // how brightly fish and jellyfish glow
+  zapCycle: 4, // seconds between a jellyfish's discharges
+  zapTelegraph: 0.5, // seconds it visibly charges up before one
+  zapActive: 1, // seconds the discharge lasts
+  zapGlow: 2.5, // how much brighter it burns while discharging
+  jellyNear: 0.6, // share of the small jellyfish placed beside the racing line, in reach; applies to the next map
 };
 
 /** The autopilot (the menu's chase view): flies the racing line on rails */
@@ -330,6 +335,11 @@ export const RANGES: Record<string, [number, number, number?]> = {
   shafts: [0, 3],
   surface: [0, 2],
   life: [0, 3],
+  zapCycle: [1, 12],
+  zapTelegraph: [0.1, 2],
+  zapActive: [0.2, 4],
+  zapGlow: [0, 5],
+  jellyNear: [0, 1],
   railMinSpeed: [15, 45],
   railMaxSpeed: [30, 80],
   railBank: [0, 80],

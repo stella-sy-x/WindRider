@@ -1301,7 +1301,9 @@ export class Game {
 
     const camera = this.rig.camera;
     camera.updateMatrixWorld();
-    this.view.update(camera, dt, crashed ? undefined : this.flight.velocity);
+    // The race clock (shared by the room) drives what everyone must see in step; before a start it is the local one
+    const raceSeconds = this.startAt > 0 ? (t - this.startAt) / 1000 : this.elapsed;
+    this.view.update(camera, dt, crashed ? undefined : this.flight.velocity, raceSeconds);
     this.gateMotes(dt);
     this.gateGlints(dt);
     const flying = !crashed && this.raceState !== "countdown" && this.attract !== "drift";

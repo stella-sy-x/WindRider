@@ -2,6 +2,7 @@ import * as THREE from "three";
 import { sceneryTime as fxTime } from "../particles";
 import { makeRng, range } from "../rng";
 import { FX_LIGHT } from "../toon";
+import { DEEP } from "../tuning";
 import { ATMOSPHERE } from "./atmosphere";
 import type { UnderwaterSpec } from "./biomes/types";
 import type { World } from "./World";
@@ -11,6 +12,33 @@ import type { World } from "./World";
 // slanting down from the surface, schools of fish circling, jellyfish drifting.
 // Each is one instanced draw call animated in its vertex shader. Looks only:
 // nothing here collides or touches the flight.
+//
+// The jellyfish discharge on a fixed cycle (DEEP.zapCycle), each with its own
+// seeded phase: a short charge-up, then a burst of electric light, then rest.
+// The cycle runs on the race clock, so everyone in a room sees the same
+// jellyfish light up at the same moment, and `jellyCycle` is the one formula
+// (shader and CPU alike) a future touch check will read the state from.
+
+const TAU = Math.PI * 2;
+
+/** Where the near jellyfish go: beside the racing line, in reach of a pilot who wants them (metres from the line, and above or below it) */
+const NEAR_LATERAL: [number, number] = [5, 20];
+const NEAR_RISE: [number, number] = [-8, 15];
+
+/**
+ * A jellyfish's state at `time` seconds of the race, from its seeded `phase`:
+ * `charge` 0..1 ramps through the telegraph, `zap` is 1 while it discharges.
+ * The same formula as the shaders', so a touch check agrees with what is seen
+ */
+export function jellyCycle(phase: number, time: number): { charge: number; zap: number } {
+  const cycle = Math.max(DEEP.zapCycle, 0.1);
+  const telegraph = Math.min(Math.max(DEEP.zapTelegraph, 0.01), cycle);
+  const active = Math.min(Math.max(DEEP.zapActive, 0.01), cycle - telegraph);
+  const t = (((time + (phase / TAU) * cycle) % cycle) + cycle) % cycle;
+  if (t < telegraph) return { charge: t / telegraph, zap: 0 };
+  if (t < telegraph + active) return { charge: 1, zap: 1 };
+  return { charge: 0, zap: 0 };
+}
 
 /** Shafts stand on a grid of cells this wide, in a patch of SHAFT_GRID × SHAFT_GRID cells around the camera */
 const SHAFT_CELL = 64;
@@ -165,24 +193,40 @@ const jellyVertex = /* glsl */ `
   attribute vec4 home; // where it drifts, and its size
   attribute vec4 hue; // color, and its own phase
   uniform float time;
+  uniform float raceTime;
+  uniform vec3 zapCycle; // seconds: the whole cycle, the charge-up telegraph, the discharge
   varying vec3 vColor;
   varying float vEdge;
   varying float vHang;
+  varying float vCharge;
+  varying float vZap;
   #include <fog_pars_vertex>
+  float jellyHash(float x) { return fract(sin(x * 12.9898) * 43758.5453); }
   void main() {
     float phase = hue.w;
     float beat = sin(time * 1.5 + phase);
+    // Where in its discharge cycle this one is (the same arithmetic as jellyCycle in deep.ts)
+    float cycle = max(zapCycle.x, 0.1);
+    float telegraph = clamp(zapCycle.y, 0.01, cycle);
+    float active = clamp(zapCycle.z, 0.01, cycle - telegraph);
+    float ct = mod(raceTime + (phase / ${TAU.toFixed(6)}) * cycle, cycle);
+    float charge = ct < telegraph ? ct / telegraph : (ct < telegraph + active ? 1.0 : 0.0);
+    float zap = (ct >= telegraph && ct < telegraph + active) ? 1.0 : 0.0;
     vec3 p = position;
     if (body.x < 0.5) {
-      // The bell squeezes in at the rim and springs open again
-      p.xz *= 1.0 - 0.2 * beat * body.y;
-      p.y *= 1.0 + 0.1 * beat;
+      // The bell squeezes in at the rim and springs open again; charging, it draws in tight
+      p.xz *= (1.0 - 0.2 * beat * body.y) * (1.0 - 0.15 * charge * (1.0 - zap));
+      p.y *= 1.0 + 0.1 * beat + 0.1 * zap;
     } else {
-      // Tentacles trail the beat and wave about
+      // Tentacles trail the beat and wave about; discharging, they snap straight and shiver
+      float wave = 1.0 - 0.8 * zap;
       p.xz *= 1.0 - 0.2 * beat;
-      p.x += sin(time * 1.2 + body.y * 4.0 + phase) * 0.3 * body.y;
-      p.z += cos(time * 0.9 + body.y * 3.0 + phase * 1.7) * 0.3 * body.y;
-      p.y += sin(time * 1.5 + phase - 0.9) * 0.25 * body.y;
+      p.x += sin(time * 1.2 + body.y * 4.0 + phase) * 0.3 * body.y * wave;
+      p.z += cos(time * 0.9 + body.y * 3.0 + phase * 1.7) * 0.3 * body.y * wave;
+      p.y += sin(time * 1.5 + phase - 0.9) * 0.25 * body.y * wave;
+      float shiver = jellyHash(floor(time * 40.0) + phase + body.y * 7.0) - 0.5;
+      p.x += shiver * 0.18 * body.y * zap;
+      p.z += (jellyHash(floor(time * 40.0) + phase * 3.0 + body.y * 5.0) - 0.5) * 0.18 * body.y * zap;
     }
     vec3 drift = vec3(sin(time * 0.21 + phase) * 2.0, sin(time * 0.33 + phase * 2.0) * 3.0, cos(time * 0.17 + phase) * 2.0);
     vec3 world = home.xyz + p * home.w + drift;
@@ -191,6 +235,8 @@ const jellyVertex = /* glsl */ `
     vec3 toCamera = normalize(cameraPosition - world + vec3(1e-4));
     vEdge = body.x < 0.5 ? 1.0 - abs(dot(normal, toCamera)) : 0.5;
     vHang = body.x < 0.5 ? 0.0 : body.y;
+    vCharge = charge;
+    vZap = zap;
     vColor = hue.rgb;
     vec4 mvPosition = viewMatrix * vec4(world, 1.0);
     gl_Position = projectionMatrix * mvPosition;
@@ -200,14 +246,21 @@ const jellyVertex = /* glsl */ `
 
 const jellyFragment = /* glsl */ `
   uniform float glow;
+  uniform float zapGlow;
   varying vec3 vColor;
   varying float vEdge;
   varying float vHang;
+  varying float vCharge;
+  varying float vZap;
   #include <fog_pars_fragment>
   void main() {
     float edge = vEdge * vEdge;
-    vec3 color = vColor * (0.4 + edge * 1.2) * (1.0 + glow);
-    float alpha = (0.3 + edge * 0.6) * (1.0 - vHang * 0.7);
+    // Resting a touch dimmer than before, brightening through the charge-up, then a burst of
+    // pale electric light over its own colour while it discharges
+    float energy = 0.85 + vCharge * 0.9 + vZap * zapGlow;
+    vec3 color = vColor * (0.4 + edge * 1.2) * (1.0 + glow) * energy;
+    color = mix(color, vec3(0.78, 0.96, 1.0) * (1.0 + glow) * (1.0 + zapGlow), vZap * 0.7);
+    float alpha = min(1.0, (0.3 + edge * 0.6) * (1.0 - vHang * 0.7) * (1.0 + vZap * 0.6 + vCharge * 0.2));
     #ifdef USE_FOG
       float fogFactor = smoothstep(fogNear, fogFar, vFogDepth);
       color = mix(color, fogColor, fogFactor);
@@ -280,6 +333,10 @@ function jellyGeometry(): THREE.InstancedBufferGeometry {
 export class SeaLife {
   readonly meshes: THREE.Mesh<THREE.InstancedBufferGeometry, THREE.ShaderMaterial>[] = [];
   private readonly glow = { value: 0 };
+  /** The race clock the jellyfish discharge on, seconds */
+  private readonly raceTime = { value: 0 };
+  private readonly zapCycle = { value: new THREE.Vector3(DEEP.zapCycle, DEEP.zapTelegraph, DEEP.zapActive) };
+  private readonly zapGlow = { value: DEEP.zapGlow };
 
   constructor(world: World, spec: UnderwaterSpec) {
     const { course } = world;
@@ -336,9 +393,12 @@ export class SeaLife {
     const home: number[] = [];
     const hues: number[] = [];
     for (let i = 0; i < spec.jellyfish; i++) {
-      // Mostly small, now and then a giant further out
+      // Mostly small, now and then a giant further out. A share of the small ones (DEEP.jellyNear,
+      // for the next map) hang beside the racing line where a pilot can reach them; the rest, and
+      // every giant, drift further out as scenery
       const size = rng() < 0.12 ? range(rng, 4, 7) : range(rng, 0.8, 2.4);
-      const at = spot([size > 3 ? 40 : 8, 190], [-18, 60], size * 3 + 4);
+      const near = size <= 3 && rng() < DEEP.jellyNear;
+      const at = near ? spot(NEAR_LATERAL, NEAR_RISE, size * 3 + 4) : spot([size > 3 ? 40 : 8, 190], [-18, 60], size * 3 + 4);
       const hue = spec.jelly[Math.floor(rng() * spec.jelly.length)];
       const phase = rng() * Math.PI * 2;
       if (!at) continue;
@@ -352,7 +412,7 @@ export class SeaLife {
       geometry.setAttribute("hue", new THREE.InstancedBufferAttribute(new Float32Array(hues), 4));
       geometry.instanceCount = home.length / 4;
       const material = new THREE.ShaderMaterial({
-        uniforms: { ...fog(), glow: this.glow, time: fxTime },
+        uniforms: { ...fog(), glow: this.glow, time: fxTime, raceTime: this.raceTime, zapCycle: this.zapCycle, zapGlow: this.zapGlow },
         vertexShader: jellyVertex,
         fragmentShader: jellyFragment,
         side: THREE.DoubleSide,
@@ -371,9 +431,15 @@ export class SeaLife {
     return mesh;
   }
 
-  /** `life`: how brightly they glow, on top of the level's own light (dim by day, bright at night) */
-  update(life: number) {
+  /**
+   * `life`: how brightly they glow, on top of the level's own light (dim by day, bright at
+   * night). `raceTime`: seconds on the race clock, which the jellyfish discharge on
+   */
+  update(life: number, raceTime: number) {
     this.glow.value = FX_LIGHT.glow.value * life;
+    this.raceTime.value = raceTime;
+    this.zapCycle.value.set(DEEP.zapCycle, DEEP.zapTelegraph, DEEP.zapActive);
+    this.zapGlow.value = DEEP.zapGlow;
   }
 
   dispose() {
