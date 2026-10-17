@@ -7,7 +7,7 @@ import { Particles, fx, fxTime, Kind } from "../src/game/particles.ts";
 function emitter() {
   const group = new Group();
   const avatar = {
-    group, wingStyle: "classic", barrelProgress: -1, boost: 0, brake: 0,
+    group, barrelProgress: -1, boost: 0, brake: 0,
     wingtips(left, right) { left.copy(group.position).x -= 2; right.copy(group.position).x += 2; },
     span(out) { out.set(1, 0, 0); },
     capeTip(out) { out.copy(group.position); },
@@ -51,24 +51,6 @@ test("subframe emission preserves birth time in the GPU particle buffer", () => 
   assert.ok(Math.abs(birth - 9.975) < .00001);
   particles.dispose();
   fxTime.value = 0;
-});
-
-test("decorated wings also distribute their accent grains across the frame", () => {
-  const random = Math.random;
-  Math.random = () => .5;
-  try {
-    const { avatar, emitted, effects } = emitter();
-    avatar.wingStyle = "astral";
-    const velocity = new Vector3(0, 0, 60);
-    effects.update(0, 60, velocity, 0);
-    avatar.group.position.z = 6;
-    effects.update(.1, 60, velocity, 0);
-    const accents = emitted.filter(p => p.kind === Kind.Star);
-    assert.ok(accents.length >= 3);
-    assert.ok(new Set(accents.map(p => p.position.z)).size === accents.length);
-    assert.ok(accents.every(p => p.size <= .2 && p.age >= 0 && p.age <= .1));
-    effects.dispose();
-  } finally { Math.random = random; }
 });
 
 test("stopping emission and resetting do not draw a particle bridge after a teleport", () => {

@@ -6,9 +6,6 @@ import { Ambient } from "./ambient";
 import { Autopilot } from "./autopilot";
 import { GameAudio } from "./audio";
 import { Avatar } from "./avatar";
-import { APPEARANCE_EVENT, loadAppearance } from "./cosmetics/storage";
-import { Companion } from "./pets/companion";
-import { CosmeticSparkles } from "./cosmetics/sparkles";
 import { CameraRig } from "./camera";
 import { DISSOLVE_AT, type DeathKind, DeathFall, classifyCrash, fieldNormal } from "./death";
 import { Debris } from "./effects";
@@ -179,16 +176,7 @@ export class Game {
   private readonly renderVelocity = new THREE.Vector3();
   private readonly prevQuaternion = new THREE.Quaternion();
   private readonly avatar: Avatar;
-  private readonly companion: Companion;
-  private readonly appearanceChanged = () => {
-    const appearance = loadAppearance();
-    this.avatar.setAppearance(appearance);
-    this.companion.set(appearance.pet);
-    this.sparkles.setAppearance(appearance);
-  };
   private readonly fx: PilotFx;
-  /** Rare cosmetics' own particles (decoration only) */
-  private readonly sparkles: CosmeticSparkles;
   /** What the pilot carries (models and animations only, for now) */
   private readonly equipment: Equipment;
   readonly particles: Particles;
@@ -322,10 +310,6 @@ export class Game {
     this.softParticles = new Particles(3000, true);
     this.ambient = new Ambient(this.particles, this.softParticles);
     this.avatar = new Avatar(options.color);
-    this.companion = new Companion(this.scene, this.particles);
-    this.sparkles = new CosmeticSparkles(this.avatar, this.particles);
-    this.appearanceChanged();
-    window.addEventListener(APPEARANCE_EVENT, this.appearanceChanged);
     this.fx = new PilotFx(this.avatar, options.color, this.particles);
     if (!this.attract) {
       // Your own wings make a sound on each downstroke (the effects keep their own hook)
@@ -599,7 +583,6 @@ export class Game {
     this.input.settings = controls;
     this.input.reset();
     this.rig.reducedMotion = !!controls.reducedMotion;
-    this.avatar.setStyle(controls.pilotStyle ?? 1);
     this.audio.setPreferences(controls.musicVolume ?? 1, controls.effectsVolume ?? 1,
       controls.muted ?? false);
     const mode = controls.quality ?? "auto";
@@ -695,8 +678,6 @@ export class Game {
     this.ghosts.forEach((p) => this.removePilot(p));
     this.fx.dispose();
     this.equipment.dispose();
-    window.removeEventListener(APPEARANCE_EVENT, this.appearanceChanged);
-    this.companion.dispose();
     this.avatar.dispose();
     this.particles.dispose();
     this.softParticles.dispose();
@@ -1308,7 +1289,6 @@ export class Game {
       // Frozen on the start line: no motes, or they pile up into a glowing ball
       const moving = this.raceState !== "countdown";
       this.fx.update(dt, this.flight.speed, this.flight.velocity, this.smoothProximity, moving);
-      this.sparkles.update(dt, this.flight.velocity, moving && !this.attract);
       this.skimSpray(dt);
       this.rig.update(
         dt,
@@ -1334,8 +1314,6 @@ export class Game {
       this.deathEffects(dt);
       this.rig.fall(body.position, dt, this.field);
     }
-    this.avatar.showCosmeticHat(this.equipment.wearing("head") === null);
-    this.companion.update(dt, body, !crashed && this.attract !== "drift", this.world.course, this.flight.speed);
     this.debris.update(dt);
 
     const camera = this.rig.camera;

@@ -6,9 +6,6 @@ import { ANIM, FX } from "./tuning";
 import { clamp, smoothstep } from "./math";
 import { DISSOLVE_AT, type DeathKind, WING_POINTS } from "./death";
 import type { ItemSlot } from "./items/models";
-import { capeSpec, wingSpec, type WingId } from "./cosmetics/catalog";
-import type { Appearance } from "./cosmetics/storage";
-import { buildHat, buildShoe, disposeModel } from "./cosmetics/models";
 
 // The pilot: a small low-poly wingsuit flyer with chibi proportions (a big
 // helmeted head, slim limbs) in a high-tech flight suit. Fabric membranes
@@ -90,21 +87,6 @@ function tonesFor(): Tones {
     visorShine: new THREE.Color("#e4edff"),
     metal: new THREE.Color("#4b505e"),
   };
-}
-
-/**
- * The fixed livery with its fabric recolored for a wardrobe item (the `wings` and
- * `cape` slots): the cloth family follows the item's color, everything else stays.
- */
-function fabricTones(color: string): Tones {
-  const tones = tonesFor();
-  const cloth = new THREE.Color(color);
-  const hsl = { h: 0, s: 0, l: 0 };
-  cloth.getHSL(hsl);
-  tones.cloth.copy(cloth);
-  tones.clothLight.copy(cloth).lerp(tones.white, 0.55);
-  tones.clothDark.setHSL(hsl.h, Math.min(1, hsl.s * 0.9), hsl.l * 0.5);
-  return tones;
 }
 
 // --- geometry helpers --------------------------------------------------------------
@@ -386,11 +368,6 @@ export class Avatar {
   /** The fabric between the legs, a tail fin */
   private readonly fin: Cloth;
   private finShape: ClothShape = () => {};
-  private hat: THREE.Group | null = null;
-  private shoes: THREE.Group[] = [];
-  private appearance: Appearance = { cape: "classic", hat: "none", shoes: "classic", wings: "classic", pet: "none" };
-  /** The arm membranes' style (the `wings` wardrobe slot); pilotfx tints its wingtip particles from it */
-  get wingStyle(): WingId { return this.appearance.wings; }
   private readonly clothInverse = new THREE.Matrix4();
   private readonly painted: Painted[] = [];
   private readonly materials: THREE.Material[] = [];
@@ -749,32 +726,9 @@ export class Avatar {
     return material;
   }
 
-  /** The arm membranes' tones: the `wings` wardrobe slot, or the suit's own on "classic" */
-  private membraneTones(): Tones {
-    const id = this.appearance.wings;
-    if (id === "classic") return this.tones;
-    const spec = wingSpec(id), tones = fabricTones(spec.color);
-    tones.accent.set(spec.accent);
-    return tones;
-  }
-
-  /** The tail fin's tones: the `cape` wardrobe slot, or the suit's own on "classic" */
-  private finTones(): Tones {
-    const spec = capeSpec(this.appearance.cape);
-    if (!spec.color) return this.tones;
-    const tones = fabricTones(spec.color);
-    tones.trim.set(spec.trim);
-    tones.accent.set(spec.trim);
-    return tones;
-  }
-
+  /** Writes the one livery onto every part, membranes and tail fin included */
   private repaint() {
-    const membranes = this.membraneTones(), fin = this.finTones();
-    for (const painted of this.painted) {
-      if (painted === this.fin.painted) applyPaint(painted, fin);
-      else if (painted === this.left.membrane.painted || painted === this.right.membrane.painted) applyPaint(painted, membranes);
-      else applyPaint(painted, this.tones);
-    }
+    for (const painted of this.painted) applyPaint(painted, this.tones);
     this.auraMaterial.color.copy(this.tones.clothLight);
   }
 
@@ -793,12 +747,6 @@ export class Avatar {
   readonly setColor: (color: string) => void = () => {};
 
   /**
-   * Legacy from the two hair-and-eyes styles (Game.ts still calls it from the
-   * settings): the helmet and visor replaced them, so there is nothing to switch.
-   */
-  readonly setStyle: (style: 1 | 2) => void = () => {};
-
-  /**
    * How brightly the ducted fans' cores burn, 0..1: dark metal when idle, the
    * accent color going white-hot at full boost. `applyPose` eases it towards the
    * boost input each frame. Repaints the cores only when it changes noticeably.
@@ -809,34 +757,6 @@ export class Avatar {
     this.fanGlow = k;
     applyPaint(this.fanCores, this.tones);
   }
-
-  /** Cosmetic meshes live on the animated joints; the flight hitbox never reads them. */
-  setAppearance(appearance: Appearance) {
-    if (this.ghost) return;
-    if (appearance.hat !== this.appearance.hat) {
-      if (this.hat) disposeModel(this.hat);
-      this.hat = appearance.hat === "none" ? null : buildHat(appearance.hat);
-      if (this.hat) this.slots.head.add(this.hat);
-    }
-    if (appearance.shoes !== this.appearance.shoes) {
-      this.shoes.forEach(disposeModel);
-      this.shoes = [];
-      for (const [side, sign] of [[this.left, -1], [this.right, 1]] as const) {
-        side.boot.visible = appearance.shoes === "classic";
-        if (appearance.shoes !== "classic") {
-          const shoe = buildShoe(appearance.shoes, sign);
-          side.knee.add(shoe); this.shoes.push(shoe);
-        }
-      }
-    }
-    // The wings and cape slots color the arm membranes and the tail fin
-    this.appearance = { ...appearance };
-    this.repaint();
-    this.applyPose(0);
-  }
-
-  /** A carried helmet takes priority over the wardrobe hat. */
-  showCosmeticHat(visible: boolean) { if (this.hat) this.hat.visible = visible; }
 
   /**
    * The two fans' exhausts in world space, where the wingtip trails stream from
@@ -1150,8 +1070,6 @@ export class Avatar {
   }
 
   dispose() {
-    if (this.hat) disposeModel(this.hat);
-    this.shoes.forEach(disposeModel);
     this.painted.forEach((p) => p.geometry.dispose());
     this.materials.forEach((m) => m.dispose());
     this.auraMaterial.dispose();

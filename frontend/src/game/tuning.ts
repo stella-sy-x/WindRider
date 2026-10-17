@@ -182,8 +182,6 @@ export const AUTOPILOT = {
 /** Companion movement and scale: looks only, independent of all flight rules. */
 /** `spacing`: the orbit's radius (m), `orbit`: seconds per lap, `roam`: seconds of free play after a hoop, `follow`: the spring's stiffness */
 export const PET_LOOKS = { size: 1.8, spacing: 3.2, height: 0.5, trail: 0.8, follow: 5, snapDistance: 30, bob: 0.12, wingbeat: 1, tailSway: 1, lead: 9, sparkle: 1, gallop: 1.6, stride: 1, hoopRange: 80, guideBlend: 0.8, orbit: 5.5, roam: 4 };
-/** Small ornaments and particle emission, never the pilot's hitbox. */
-export const COSMETIC_FX = { capeDetail: 1, wingParticles: 22, wingParticleSize: .1, sparkle: 1 };
 /** Music and sound levels */
 export const AUDIO = {
   music: 0.45, // volume of the background music
@@ -193,7 +191,7 @@ export const AUDIO = {
   nightMuffle: 0.55, // how much the highs are rolled off at night
 };
 
-const GROUPS = { ANIM, FX, RINGS, CORRIDOR, CAMERA, TERRAIN, FLORA, STRUCTURES, WATER, DEEP, AUTOPILOT, PET_LOOKS, COSMETIC_FX, AUDIO } as const;
+const GROUPS = { ANIM, FX, RINGS, CORRIDOR, CAMERA, TERRAIN, FLORA, STRUCTURES, WATER, DEEP, AUTOPILOT, PET_LOOKS, AUDIO } as const;
 const DEFAULTS = JSON.parse(JSON.stringify(GROUPS)) as typeof GROUPS;
 const STORAGE_KEY = "windrider.tuning.speed-control-v1";
 
@@ -383,6 +381,5 @@ export const TUNING_GROUPS: [string, Group][] = [
   ["Underwater", DEEP],
   ["Autopilot", AUTOPILOT],
   ["Companions", PET_LOOKS],
-  ["Cosmetic detail", COSMETIC_FX],
   ["Audio", AUDIO],
 ];
