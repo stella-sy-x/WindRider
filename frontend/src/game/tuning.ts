@@ -85,9 +85,9 @@ export const CAMERA = {
   lookAhead: 14,
   stiffness: 7, // how tightly it follows
   rollFollow: 0.18, // share of the pilot's bank the horizon follows
-  fov: 70,
-  fovPerSpeed: 0.25, // extra degrees per m/s above 30
-  fovMax: 18,
+  fov: 58, // vertical degrees at low speed (about 88° across on 16:9)
+  fovPerSpeed: 0.2, // extra degrees per m/s above 30
+  fovMax: 14, // the speed stretch tops out here: 72° vertical, about 104° across
   shake: 0.03, // when skimming the ground at speed
   boostFov: 4,
   boostDistance: 1.2,
