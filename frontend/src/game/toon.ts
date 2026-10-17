@@ -12,8 +12,8 @@ export const FX_LIGHT = {
 /** Pure white, shared by effects that lerp or emit towards it. Never mutate it */
 export const WHITE = new THREE.Color("#ffffff");
 
-/** The local pilot's color: solo, test, the menu backdrop and the item gallery */
-export const PLAYER_COLOR = "#ff5d73";
+/** The local pilot's color (light gold, the paper's own): solo, test, the menu backdrop and the item gallery. Rooms hand out rooms.py's COLORS, which open with the same gold */
+export const PLAYER_COLOR = "#f2d27a";
 
 export interface MaterialOptions {
   emissive?: THREE.ColorRepresentation;
