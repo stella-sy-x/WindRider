@@ -1302,12 +1302,11 @@ export class Game {
         this.flight.boost,
       );
     } else {
-      // The crash plays out: the pose first (the wings flail), then the tumble moves the body and
+      // The crash plays out: the pose first (the body thrashes), then the tumble moves the body and
       // keeps that pose out of the rock, so what's drawn is always resolved; the camera keeps it in view
       this.avatar.update(dt, this.death.speed, 0);
       this.avatar.wingPoints(this.death.wing);
       this.death.update(dt, this.contact);
-      this.avatar.foldWings(this.death.wedged[0], this.death.wedged[1], dt);
       body.position.copy(this.death.position);
       body.quaternion.copy(this.death.quaternion);
       this.equipment.update(dt);
@@ -1326,9 +1325,9 @@ export class Game {
     this.ambient.update(dt, camera.position, flying ? this.flight.velocity : tmp.set(0, 0, 0), this.particles.budget);
 
     const liveTime = t - INTERPOLATION_DELAY_MS;
-    this.live.forEach((pilot) => pilot.update(liveTime, dt, camera.position));
+    this.live.forEach((pilot) => pilot.update(liveTime, dt));
     const racing = this.raceState !== "free";
-    this.ghosts.forEach((ghost) => ghost.update(racing ? t - this.startAt : -Infinity, dt, camera.position));
+    this.ghosts.forEach((ghost) => ghost.update(racing ? t - this.startAt : -Infinity, dt));
     this.particles.update();
     this.softParticles.update();
 
