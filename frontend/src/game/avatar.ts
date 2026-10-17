@@ -7,18 +7,21 @@ import { clamp, smoothstep } from "./math";
 import { DISSOLVE_AT, type DeathKind, WING_POINTS } from "./death";
 import type { ItemSlot } from "./items/models";
 
-// The pilot: a small low-poly wingsuit flyer, one static mesh built in Blender and
-// shipped as `public/models/pilot.glb` (positions and baked vertex colors only, no
-// textures, no skeleton). The chase camera only ever sees it from behind and above,
-// ten metres away, where it reads as two wide orange wings, a dark jetpack down the
-// back, a helmeted head and two legs.
+// The pilot: a gold paper airplane (kilansky's "Paper Airplane", CC BY 4.0, see
+// CREDITS.md), one static 42-triangle mesh converted in Blender and shipped as
+// `public/models/pilot.glb` (positions and baked vertex colors only, no textures, no
+// skeleton). The chase camera only ever sees it from behind and above, ten metres
+// away, where it reads as a bright gold dart: two swept wings flaring up to the tips
+// at the tail, a keel fold down the middle.
 //
-// The model stands up +y, faces -z (its back is +z), with its feet on y = 0 and the
-// top of the helmet at y ≈ 1.04. It is laid prone here, so the head points along the
-// flight direction (-z) and the back faces up. The caller places `group` at the flight
-// model's position and rotation; everything the animation adds (rolls, bobbing, the
-// speed stretch, the crash flail) happens inside it, on the rig as a whole: the mesh
-// is one piece, so there are no limbs to pose.
+// The model is "standing" in the game's convention: up +y, nose pointing -z, tail
+// +z, wings spread along x, the bottom of the keel on y = 0. Wingspan 1.0, length
+// ≈ 1.06, wingtips at y ≈ 0.22. It is laid prone here like the old wingsuit pilot
+// was, so after `body.rotation.x = -π/2` the nose points along the flight direction
+// (-z). The caller places `group` at the flight model's position and rotation;
+// everything the animation adds (rolls, bobbing, the speed stretch, the crash flail)
+// happens inside it, on the rig as a whole: the mesh is one piece, so there are no
+// limbs to pose.
 //
 // The GLB is fetched once and shared by every avatar (players, ghosts, the gallery);
 // an avatar is empty until it arrives, then the mesh pops in.
@@ -29,23 +32,24 @@ const TAU = Math.PI * 2;
 /** Where the GLB lives, under Vite's public dir */
 const MODEL_URL = import.meta.env.BASE_URL + "models/pilot.glb";
 
-// --- the model's landmarks, in model space (feet on y = 0, facing -z, back +z) -------------
-// Measured off the mesh; the whole body is hung from the hips so these are offset by
-// `HIPS_Y` inside the rig (death.ts's contact balls assume the origin at the hips).
+// --- the model's landmarks, in model space (keel on y = 0, nose -z, tail +z) -------------
+// Measured off the mesh (bounding box x ±0.5, y 0..0.224, z ±0.527); the whole body is
+// hung from the "hips" so these are offset by `HIPS_Y` inside the rig (death.ts's
+// contact balls assume the origin at the hips).
 
-/** The hips' height: the body's origin, and what the prone rotation turns about */
-const HIPS_Y = 0.26;
-/** The wings' outer edge: the mesh's x extremes, at mid-chord */
-const WING_TIP: Vec = [0.79, 0.524, 0.04];
-/** Where the wing leaves the torso */
-const WING_ROOT_X = 0.094;
-/** The bottom of the jetpack, the exhaust: the mesh's +z extreme */
-const EXHAUST: Vec = [0, 0.359, 0.068];
-/** Item anchors: the pack's outer face, the crown of the helmet, the right palm along the wing, the ankles */
-const SLOT_BACK: Vec = [0, 0.478, 0.099];
-const SLOT_HEAD: Vec = [0, 1.045, 0.003];
-const SLOT_HAND: Vec = [0.36, 0.66, 0];
-const SLOT_FOOT: Vec = [0.1, 0.08, 0];
+/** The centre of mass height: the body's origin, and what the prone rotation turns about */
+const HIPS_Y = 0.11;
+/** The wings' outer edge: the mesh's x extremes, the raised tips at the trailing edge */
+const WING_TIP: Vec = [0.5, 0.21, 0.52];
+/** Where the wing leaves the keel fold */
+const WING_ROOT_X = 0.05;
+/** The tail of the airplane, where the trails stream from: the middle of the trailing edge at the keel */
+const EXHAUST: Vec = [0, 0.1, 0.46];
+/** Item anchors: the top of the keel fold amidships, the nose tip, the right wingtip, the belly under the wings */
+const SLOT_BACK: Vec = [0, 0.14, 0.04];
+const SLOT_HEAD: Vec = [0, 0.01, -0.52];
+const SLOT_HAND: Vec = [0.45, 0.2, 0.47];
+const SLOT_FOOT: Vec = [0.03, 0, 0.3];
 
 type Vec = [number, number, number];
 
