@@ -14,11 +14,13 @@ import type { ItemSlot } from "./items/models";
 // away, where it reads as a bright gold dart: two swept wings flaring up to the tips
 // at the tail, a keel fold down the middle.
 //
-// The model is "standing" in the game's convention: up +y, nose pointing -z, tail
-// +z, wings spread along x, the bottom of the keel on y = 0. Wingspan 1.0, length
-// ≈ 1.06, wingtips at y ≈ 0.22. It is laid prone here like the old wingsuit pilot
-// was, so after `body.rotation.x = -π/2` the nose points along the flight direction
-// (-z). The caller places `group` at the flight model's position and rotation;
+// The model is "standing" in the game's convention, baked into the GLB: nose pointing
+// +y (straight up), tail -y, wings spread along x, the keel fold along z with its
+// bottom towards -z and the raised wingtips towards +z. Wingspan 1.0, length ≈ 1.06,
+// height ≈ 0.22, centred on its centre of mass (the wing root amidships). It is laid
+// prone here like the old wingsuit pilot was, so after `body.rotation.x = -π/2` the
+// nose points along the flight direction (-z), the wingtips rise (+y) and the keel
+// hangs below. The caller places `group` at the flight model's position and rotation;
 // everything the animation adds (rolls, bobbing, the speed stretch, the crash flail)
 // happens inside it, on the rig as a whole: the mesh is one piece, so there are no
 // limbs to pose.
@@ -32,24 +34,22 @@ const TAU = Math.PI * 2;
 /** Where the GLB lives, under Vite's public dir */
 const MODEL_URL = import.meta.env.BASE_URL + "models/pilot.glb";
 
-// --- the model's landmarks, in model space (keel on y = 0, nose -z, tail +z) -------------
-// Measured off the mesh (bounding box x ±0.5, y 0..0.224, z ±0.527); the whole body is
-// hung from the "hips" so these are offset by `HIPS_Y` inside the rig (death.ts's
-// contact balls assume the origin at the hips).
+// --- the model's landmarks, in model space (nose +y, tail -y, wingtips +z, keel -z) ------
+// Measured off the mesh (bounding box x ±0.5, y -0.435..0.62, z -0.109..0.115). The
+// origin is the centre of mass, so it is also the body's origin: what the prone
+// rotation and the pitch arch turn about, and where death.ts's contact balls sit.
 
-/** The centre of mass height: the body's origin, and what the prone rotation turns about */
-const HIPS_Y = 0.11;
 /** The wings' outer edge: the mesh's x extremes, the raised tips at the trailing edge */
-const WING_TIP: Vec = [0.5, 0.21, 0.52];
+const WING_TIP: Vec = [0.5, -0.43, 0.1];
 /** Where the wing leaves the keel fold */
 const WING_ROOT_X = 0.05;
 /** The tail of the airplane, where the trails stream from: the middle of the trailing edge at the keel */
-const EXHAUST: Vec = [0, 0.1, 0.46];
+const EXHAUST: Vec = [0, -0.36, -0.01];
 /** Item anchors: the top of the keel fold amidships, the nose tip, the right wingtip, the belly under the wings */
-const SLOT_BACK: Vec = [0, 0.14, 0.04];
-const SLOT_HEAD: Vec = [0, 0.01, -0.52];
-const SLOT_HAND: Vec = [0.45, 0.2, 0.47];
-const SLOT_FOOT: Vec = [0.03, 0, 0.3];
+const SLOT_BACK: Vec = [0, 0.05, 0.03];
+const SLOT_HEAD: Vec = [0, 0.61, -0.1];
+const SLOT_HAND: Vec = [0.45, -0.38, 0.09];
+const SLOT_FOOT: Vec = [0.03, -0.21, -0.09];
 
 type Vec = [number, number, number];
 
@@ -118,7 +118,7 @@ export class Avatar {
   private readonly rig = new THREE.Group();
   /** The standing model laid prone */
   private readonly body = new THREE.Group();
-  /** Model space: the mesh and the anchors, hung so the hips sit at the body's origin */
+  /** Model space: the mesh and the anchors, centred on the body's origin */
   private readonly anchors = new THREE.Group();
   /** The pilot mesh once the GLB has arrived */
   private model: THREE.Mesh | null = null;
@@ -169,11 +169,10 @@ export class Avatar {
     this.group.add(this.rig);
     this.rig.add(this.body);
     this.rig.scale.setScalar(SCALE);
-    // Lay the model prone: nose forward along the flight direction.
-    // The paper airplane has nose at -Z, keel at +Y in model space;
-    // rotation.x = -PI/2 points -Z downward, so rotation.z = PI flips it nose-forward.
-    this.body.rotation.set(-Math.PI / 2, 0, Math.PI);
-    this.anchors.position.y = -HIPS_Y;
+    // Lay the standing model prone: its +y nose turns to -z, forward along the flight
+    // direction, and its +z wingtips turn up (+y). The GLB is already centred on its
+    // centre of mass, so the anchors sit at the body's origin.
+    this.body.rotation.set(-Math.PI / 2, 0, 0);
     this.body.add(this.anchors);
 
     // Item slots, fixed to the model
@@ -252,7 +251,7 @@ export class Avatar {
     this.thrust = clamp(amount, 0, 1);
   }
 
-  /** A model-space point (feet on y = 0) to world space (call after update) */
+  /** A model-space point (origin at the centre of mass) to world space (call after update) */
   private toWorld(at: Vec, out: THREE.Vector3, mirror: 1 | -1 = 1): THREE.Vector3 {
     out.set(at[0] * mirror, at[1], at[2]);
     return this.anchors.localToWorld(out);
@@ -362,7 +361,7 @@ export class Avatar {
     // Body pitch: slow = nose up (shows back to chase cam), fast = nose down (streamlined).
     // Brake raises the nose further, boost dips it, climbing lifts.
     const arch = 0.15 * (1 - speedK) + this.brake * 0.18 - this.boost * 0.08 + clamp(this.climb, 0, 1) * 0.1 + this.pitchRate * 0.04;
-    this.body.rotation.set(-Math.PI / 2 + arch, 0, Math.PI - this.lean * 0.15);
+    this.body.rotation.set(-Math.PI / 2 + arch, 0, -this.lean * 0.15);
 
     // Aura: a faint halo when cruising, brighter with speed, skimming the ground and the burn...
     this.setAuraOpacity(0.4 + speedK * 0.6 + proximity * 0.3 + this.thrust * 0.5);
