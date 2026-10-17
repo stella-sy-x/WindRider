@@ -9,9 +9,9 @@ Continued development by Stella with Claude.
 ## Assets
 
 ### 3D Models
-- **Kenney — Mini Characters** (CC0 1.0)
-  https://kenney.nl/assets/mini-characters
-  Character base models
+- **mazko — Free Lowpoly Chibi Base Model** (CC BY 4.0)
+  https://sketchfab.com/3d-models/mazko-free-lowpoly-chibi-base-model-6f296bb009a14c49a368a0fd9472edcd
+  Pilot character base model — by mazko (@mazkoexe)
 
 - **OpenGameArt — Lowpoly Jetpack** by Luke." (CC0 1.0)
   https://opengameart.org/content/lowpoly-jetpack
