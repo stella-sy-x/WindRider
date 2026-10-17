@@ -130,6 +130,9 @@ export class Avatar {
   /** A ghost's current fade (see `fade`); dims its aura along with the body */
   private ghostFade = 1;
   private readonly ghost: boolean;
+  /** Under the sea: a translucent bubble around the body (`setBubble`), breathing gently; looks only */
+  private readonly bubble: THREE.Mesh<THREE.IcosahedronGeometry, THREE.MeshBasicMaterial>;
+  private bubbleOn = false;
 
   // Animation state
   private readonly lastQuaternion = new THREE.Quaternion();
@@ -200,6 +203,16 @@ export class Avatar {
     this.aura.renderOrder = 3;
     this.group.add(this.aura);
 
+    // The bubble shield: a low-poly sphere on the rig, so it rolls, bobs and stretches with the body
+    this.bubble = new THREE.Mesh(
+      new THREE.IcosahedronGeometry(BUBBLE_RADIUS, 1),
+      new THREE.MeshBasicMaterial({ color: "#a0e8ff", transparent: true, opacity: BUBBLE_OPACITY, side: THREE.DoubleSide, depthWrite: false }),
+    );
+    this.bubble.scale.setScalar(BUBBLE_SCALE);
+    this.bubble.renderOrder = 2;
+    this.bubble.visible = false;
+    this.rig.add(this.bubble);
+
     // The mesh pops in when the shared GLB arrives (nothing shows until then)
     loadPilotGeometry().then(
       (geometry) => {
@@ -249,6 +262,12 @@ export class Avatar {
    */
   setBoostGlow(amount: number) {
     this.thrust = clamp(amount, 0, 1);
+  }
+
+  /** Wraps the pilot in a bubble of air (levels under the sea) or takes it away. Looks only */
+  setBubble(visible: boolean) {
+    this.bubbleOn = visible;
+    this.bubble.visible = visible;
   }
 
   /** A model-space point (origin at the centre of mass) to world space (call after update) */
@@ -367,6 +386,8 @@ export class Avatar {
     this.setAuraOpacity(0.4 + speedK * 0.6 + proximity * 0.3 + this.thrust * 0.5);
     // ...with a gentle living pulse in its size
     this.aura.scale.setScalar(AURA_SCALE * (1 + 0.03 * Math.sin(t * 1.5) + this.thrust * 0.1));
+    // The bubble breathes: ±5 % of its size, slowly
+    if (this.bubbleOn) this.bubble.scale.setScalar(BUBBLE_SCALE * (1 + 0.05 * Math.sin(t * 2.4)));
   }
 
   /** Starts the crash animation of this kind; `side` is the wing that hit (1 right, -1 left) */
@@ -426,6 +447,7 @@ export class Avatar {
     // The halo follows (ghosts wear 0.3 of it, see `setAuraOpacity`); the next pose applies it
     this.ghostFade = opacity;
     this.auraMaterial.opacity *= opacity;
+    this.bubble.material.opacity = BUBBLE_OPACITY * 0.5 * opacity;
   }
 
   /** Hides the pilot (e.g. after a crash) */
@@ -444,8 +466,19 @@ export class Avatar {
     this.model = null;
     this.material.dispose();
     this.auraMaterial.dispose();
+    this.bubble.geometry.dispose();
+    this.bubble.material.dispose();
   }
 }
+
+// --- bubble shield ----------------------------------------------------------------------
+
+/** The bubble's geometry radius (rig units, before SCALE): a low-poly sphere of 80 facets */
+const BUBBLE_RADIUS = 0.4;
+/** Scaled up so it wraps the wingtips (half a wingspan is 0.5 in model units): about a metre's radius in the world */
+const BUBBLE_SCALE = 1.6;
+/** Faint: a soft sheen around the body, never a wall in front of the camera */
+const BUBBLE_OPACITY = 0.12;
 
 // --- aura halo ------------------------------------------------------------------------
 

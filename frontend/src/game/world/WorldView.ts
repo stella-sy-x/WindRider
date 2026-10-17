@@ -259,6 +259,11 @@ export class WorldView {
     this.flora?.bake(renderer);
   }
 
+  /** Jellyfish positions and sizes for collision: [x, y, z, radius, ...] groups of 4, or undefined if no sea life */
+  get jellyfish(): Float32Array | undefined {
+    return this.seaLife?.jellyfish;
+  }
+
   /**
    * "race": every gate still to take glows, the finish most, and passed ones are gone. "free": all shown
    * quietly. `restart` brings every gate back (a new race); a change of mode does too
