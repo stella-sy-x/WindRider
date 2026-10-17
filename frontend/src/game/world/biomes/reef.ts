@@ -77,6 +77,7 @@ export const REEF: Biome = {
       level: null,
       extent: 1400,
     },
+    walls: {},
     groundSurface: 0,
     surfaces: [
       // 0: the seabed: blue-grey rock, pale sand with patches of algae

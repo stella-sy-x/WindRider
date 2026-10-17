@@ -76,7 +76,7 @@ export class World {
     this.course = new Course(this.seed);
     const terrain = this.biome.terrain;
     const noise = makeNoise(this.seed, "land");
-    const ground = terrain.ground ? new Ground(this.course, terrain.ground, makeRng(this.seed, "ground"), noise) : null;
+    const ground = terrain.ground ? new Ground(this.course, terrain.ground, makeRng(this.seed, "ground"), noise, terrain.walls) : null;
     const field = new TerrainField(this.course, ground, terrain.groundSurface, noise);
     if (terrain.sea) {
       this.hasSea = true;

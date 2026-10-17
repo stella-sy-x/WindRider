@@ -56,6 +56,7 @@ cd frontend && npm install && npm run dev  # http://localhost:5173
 | `game/world/` | Terrain generation, biomes, courses, trees, water, atmosphere |
 | `game/world/crystals.ts` | Crystal gates |
 | `game/world/landCollider.ts` | Collision with drawn land meshes |
+| `game/world/terrain/ground.ts` | Ground heightfield, incl. the canyon walls that bound the course |
 | `game/cosmetics/` | Cape/hat/shoe/wing catalogs and sparkles |
 | `game/pets/` | Companion pets |
 | `game/items/` | Item models and gallery (cosmetic only, no mechanics) |
@@ -72,6 +73,26 @@ Backend: `app.py` endpoints, `rooms.py` race state machine and SSE relay,
 `store.py` SQLite ghosts and runs, `models.py` Pydantic models.
 
 ## Change log
+
+### 2026-10-17: Canyon walls replace the air wall (Claude, Sunken Reef first)
+
+- The course's boundary is now the land: `Ground.heightAt` has a floor either
+  side of the racing line (`WALLS` in tuning.ts: foot at 60 m, a 40 m scree
+  slope and cliff up to +50 m over the line, then +0.8 m/m on up). Noise only
+  adds to the floor, never digs below it; the tube still carves the line.
+  Per-biome opt-in/override via `TerrainRecipe.walls`; only `reef` has it so
+  far, the other seven follow one at a time. Archipelago (no ground) needs
+  its own scheme. Reload workers after editing `WALLS`.
+- Climb check (flight.ts, full pull-up from level flight): +61 m at 60 m/s,
+  +228 m with boost, so the +50 m top alone is climbable; the slope beyond
+  it leaves no air to fly in, and `FLIGHT.lateralClamp` (150 m, silent
+  hard hold in `Game.lateralClamp`) is the last resort.
+- Removed the wind push (`lateralLimit/lateralWall/lateralPush`, `airWall`)
+  and the corridor marker posts (`world/corridor.ts`, `CORRIDOR` tuning).
+- Reef near-line triangles at LOD 0 within ±80 m: ~43k → ~54k per 400 m
+  of course (+24 %); LOD 2 (decoration past 80 m) +5 %.
+- New mesh test: wall floor, tube clearance, and horizontal rays from the
+  line hitting the drawn wall at LOD 0.
 
 ### 2026-10-12: Unify visual style (Claude)
 

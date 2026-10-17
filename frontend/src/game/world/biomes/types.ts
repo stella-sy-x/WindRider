@@ -1,7 +1,7 @@
 import type { SpeciesId } from "../flora/species";
 import type { Palette } from "../palette";
 import type { StructureId } from "../structures/kinds";
-import type { GroundSpec } from "../terrain/ground";
+import type { GroundSpec, WallSpec } from "../terrain/ground";
 
 // A biome is data: what a level looks like, what grows there, what floats in
 // the air, and what there is to do. One engine renders them all; nothing here
@@ -96,6 +96,8 @@ export interface IslandFallsSpec {
 export interface TerrainRecipe {
   kind: "v2";
   ground: GroundSpec | null;
+  /** Canyon walls either side of the line, bounding the course (WALLS in tuning.ts, any of it overridden here). Needs a ground */
+  walls?: Partial<WallSpec>;
   groundSurface: number;
   surfaces: Surface[];
   layers: Layers;
