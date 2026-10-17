@@ -21,9 +21,16 @@ import type { World } from "./World";
 
 const TAU = Math.PI * 2;
 
-/** Where the near jellyfish go: beside the racing line, in reach of a pilot who wants them (metres from the line, and above or below it) */
-const NEAR_LATERAL: [number, number] = [5, 20];
+/**
+ * The near jellyfish: beside the racing line, in reach of a pilot who wants them (metres from
+ * the line, above or below it), bell radius, and how much open water they need around them
+ * (less than the scenery ones: they are soft, meant to be flown into, and the tube is only
+ * 11 m clear)
+ */
+const NEAR_LATERAL: [number, number] = [4, 14];
 const NEAR_RISE: [number, number] = [-8, 15];
+const NEAR_SIZE: [number, number] = [2.5, 4.5];
+const NEAR_ROOM = 2;
 
 /**
  * A jellyfish's state at `time` seconds of the race, from its seeded `phase`:
@@ -255,9 +262,9 @@ const jellyFragment = /* glsl */ `
   #include <fog_pars_fragment>
   void main() {
     float edge = vEdge * vEdge;
-    // Resting a touch dimmer than before, brightening through the charge-up, then a burst of
-    // pale electric light over its own colour while it discharges
-    float energy = 0.85 + vCharge * 0.9 + vZap * zapGlow;
+    // Brightening through the charge-up, then a burst of pale electric light over its own
+    // colour while it discharges
+    float energy = 1.0 + vCharge * 0.9 + vZap * zapGlow;
     vec3 color = vColor * (0.4 + edge * 1.2) * (1.0 + glow) * energy;
     color = mix(color, vec3(0.78, 0.96, 1.0) * (1.0 + glow) * (1.0 + zapGlow), vZap * 0.7);
     float alpha = min(1.0, (0.3 + edge * 0.6) * (1.0 - vHang * 0.7) * (1.0 + vZap * 0.6 + vCharge * 0.2));
@@ -393,12 +400,13 @@ export class SeaLife {
     const home: number[] = [];
     const hues: number[] = [];
     for (let i = 0; i < spec.jellyfish; i++) {
-      // Mostly small, now and then a giant further out. A share of the small ones (DEEP.jellyNear,
-      // for the next map) hang beside the racing line where a pilot can reach them; the rest, and
-      // every giant, drift further out as scenery
-      const size = rng() < 0.12 ? range(rng, 4, 7) : range(rng, 0.8, 2.4);
-      const near = size <= 3 && rng() < DEEP.jellyNear;
-      const at = near ? spot(NEAR_LATERAL, NEAR_RISE, size * 3 + 4) : spot([size > 3 ? 40 : 8, 190], [-18, 60], size * 3 + 4);
+      // Mostly small, now and then a giant further out. A share of them (DEEP.jellyNear, for the
+      // next map) hang beside the racing line where a pilot can reach them, bigger than the small
+      // scenery ones so they read at speed; the rest, and every giant, drift further out as scenery
+      const giant = rng() < 0.12;
+      const near = !giant && rng() < DEEP.jellyNear;
+      const size = giant ? range(rng, 4, 7) : near ? range(rng, NEAR_SIZE[0], NEAR_SIZE[1]) : range(rng, 0.8, 2.4);
+      const at = near ? spot(NEAR_LATERAL, NEAR_RISE, size + NEAR_ROOM) : spot([giant ? 40 : 8, 190], [-18, 60], size * 3 + 4);
       const hue = spec.jelly[Math.floor(rng() * spec.jelly.length)];
       const phase = rng() * Math.PI * 2;
       if (!at) continue;
