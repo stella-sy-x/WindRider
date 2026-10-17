@@ -59,14 +59,14 @@ export const RINGS = {
   spin: 0.08, // how fast the cohort turns around the gate (rad/s)
   selfSpin: 0.6, // how fast each crystal turns on its own axis
   glow: 1, // inner glow of the lit gates (every gate still to take in a race)
-  gateGlow: 0.35, // 0..1, how brightly a gate you haven't taken yet glows in a race; the finish glows fully
+  gateGlow: 0.15, // 0..1, how brightly a gate you haven't taken yet glows in a race (a whisper: they're optional); the finish glows fully
   motes: 28, // glowing motes that trace each gate's ring; applies to the next map
   moteSize: 0.7, // metres across, for a 13 m ring (smaller gates get smaller motes)
   moteDrift: 0.25, // metres each mote wanders from its place on the ring
   shatter: 1, // particles when you pass through
   passTime: 1.4, // seconds of the pass animation
-  finishBeam: 1.6, // brightness of the finish gate's gold pillar (the other gates' is 0.55 × gateGlow)
-  finishBeamHeight: 2, // the finish pillar's height, as a multiple of the other gates' 700 m; applies to the next map
+  finishBeam: 1.6, // brightness of the finish gate's gold pillar (the only gate with one)
+  finishBeamHeight: 2, // the finish pillar's height, in 700 m units; applies to the next map
 };
 
 /** The corridor markers: faint posts either side of the racing line, just inside the air wall. Looks only */

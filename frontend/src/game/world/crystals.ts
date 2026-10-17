@@ -9,14 +9,35 @@ import type { Ring } from "./course";
 // Passing a gate makes its crystals flare white, burst outward and dissolve,
 // and the motes flash and scatter. In a race every gate is an optional speed
 // boost: all the gates still to take glow a little, the finish (the one goal)
-// glows fully, and taken ones stay gone. All gates share three draw calls
-// (crystals, motes, beams); the motion runs in the vertex shader from a few
-// numbers per gate.
+// glows fully, and taken ones stay gone. The gates are landmarks of the world,
+// not power-ups: their stone is muted, a soft grey-blue and a warm sand tinted
+// a touch by the biome, so they sit in the landscape; only the finish is gold
+// and only the finish raises a pillar of light. All gates share three draw
+// calls (crystals, motes, the finish beam); the motion runs in the vertex
+// shader from a few numbers per gate.
 
 export type RingMode = "race" | "free" | "hidden";
 
 const GOLD = new THREE.Color("#ffd23f");
 const clamp01 = (x: number) => Math.min(1, Math.max(0, x));
+
+/** The gates' muted stone, as the crystal and mote shaders use it (`ice` unlit, `accent` when lit) */
+export interface GateColors {
+  ice: THREE.Color;
+  accent: THREE.Color;
+}
+
+/**
+ * The gates' colors for a biome: soft grey-blue stone and a warm sand glow, each tinted a little
+ * by the biome's accent so a gate belongs to its world without taking on its neon
+ */
+export function gateColors(biomeAccent: THREE.ColorRepresentation): GateColors {
+  const accent = new THREE.Color(biomeAccent);
+  return {
+    ice: new THREE.Color("#c8d8e0").lerp(accent, 0.08),
+    accent: new THREE.Color("#e8d8c0").lerp(accent, 0.15),
+  };
+}
 
 /** Per-gate state on the CPU; uploaded as one vec4 per gate */
 interface GateState {
@@ -102,12 +123,12 @@ const crystalFragment = /* glsl */ `
 
     vec3 base = mix(mix(ice, accent, vHighlight), gold, vFinish);
     vec3 color = base * (0.35 + 0.45 * diffuse + 0.3 * facet);
-    // Bright rims and a thin-film shimmer, like light through a gem
-    vec3 film = 0.5 + 0.5 * cos(6.2831 * (fresnel * 1.3 + vec3(0.0, 0.33, 0.67)) + time * 0.6 + vSeed);
-    color += fresnel * mix(vec3(1.0), base, 0.35) * (0.9 + vHighlight * 1.4 * glow);
-    color += film * fresnel * 0.35;
-    color += spec * 1.8;
-    color *= 1.0 + vHighlight * glow * (0.45 + 0.25 * sin(time * 3.0 + vSeed));
+    // Soft rims in the stone's own color, a quiet highlight: glowing stone, not a cut gem.
+    // The finish keeps a brighter rim, the one gate meant to be seen from afar
+    float rim = 0.35 + vHighlight * 0.5 * glow + vFinish * 0.5;
+    color += fresnel * mix(base, vec3(1.0), 0.3 + vFinish * 0.3) * rim;
+    color += spec * (0.7 + vFinish * 0.8);
+    color *= 1.0 + vHighlight * glow * (0.3 + 0.15 * sin(time * 3.0 + vSeed));
     color += vFlash * vec3(3.2, 3.0, 2.6);
 
     #ifdef USE_FOG
@@ -210,7 +231,8 @@ const moteFragment = /* glsl */ `
   }
 `;
 
-// A pillar of light rising from every gate still to take, tallest and brightest from the finish, visible from afar
+// A pillar of gold light rising from the finish gate alone, the race's beacon, visible from the start line.
+// The other gates raise none: they are optional pickups, not the way to go
 const beamVertex = /* glsl */ `
   attribute float gate;
   uniform vec4 gates[GATE_COUNT];
@@ -250,11 +272,12 @@ const beamFragment = /* glsl */ `
   varying float vK;
   varying float vDepth;
   void main() {
-    // Strongest for the finish (the race's landmark, gold, slowly breathing), faint for the gates still
-    // to take; a flare runs up it on a pass
+    // Only the finish (gold, slowly breathing) has a pillar; vGate.w is its finish flag, so any other
+    // gate's instance (there are none, but a stale buffer would draw nothing) is discarded. A flare
+    // runs up it on a pass
     float breathe = 1.0 + 0.12 * sin(time * 1.3);
-    float strength = vGate.x * max(vGate.y * 0.55, vGate.w * finishBeam * breathe);
-    if (vK >= 0.0) strength += (1.0 - vK) * 1.5 * step(abs(vHeight - vK * 1.2), 0.25);
+    float strength = vGate.x * vGate.w * finishBeam * breathe;
+    if (vK >= 0.0) strength += vGate.w * (1.0 - vK) * 1.5 * step(abs(vHeight - vK * 1.2), 0.25);
     if (strength < 0.002) discard;
     float streaks = 0.65 + 0.35 * sin(vHeight * 60.0 - time * 2.5 + vAngle * 3.0);
     // pow() of a negative number is NaN, and bloom would smear one NaN pixel over the whole screen.
@@ -310,7 +333,7 @@ export class CrystalGates {
   /** Per gate: the direction it faces now (Resonance can turn it; looks only, the run keeps its own) */
   private readonly facing: THREE.Vector3[];
 
-  constructor(seed: number, rings: Ring[], colors: { ice: THREE.Color; accent: THREE.Color }, sunDirection: THREE.Vector3) {
+  constructor(seed: number, rings: Ring[], colors: GateColors, sunDirection: THREE.Vector3) {
     this.rings = rings;
     this.sunDirection = sunDirection;
     this.states = rings.map(() => ({ visible: 1, highlight: 0, passedAt: -1e3, passed: false }));
@@ -426,11 +449,14 @@ export class CrystalGates {
     this.motes = motes;
     rings.forEach((_, g) => this.placeMotes(g));
 
-    // Light pillars: an open cylinder per gate, 700 m tall; the finish's is wider and taller still,
-    // the one landmark that shows from the start line
+    // The finish beam: an open cylinder, 700 m × finishBeamHeight tall, from the finish gate(s) only,
+    // the one landmark that shows from the start line. Regular gates get no pillar
+    // (`gate` is the ring's place in `rings`, the index into the gates uniform)
+    const finishGates = rings.map((ring, g) => (ring.finish ? g : -1)).filter((g) => g >= 0);
+    const finishRings = finishGates.map((g) => rings[g]);
     const tube = this.geometry(new THREE.CylinderGeometry(1, 1, 1, 20, 1, true));
     tube.translate(0, 0.5, 0);
-    tube.setAttribute("gate", new THREE.InstancedBufferAttribute(new Float32Array(rings.map((_, i) => i)), 1));
+    tube.setAttribute("gate", new THREE.InstancedBufferAttribute(new Float32Array(finishGates), 1));
     const beamMaterial = this.material(
       new THREE.ShaderMaterial({
         defines,
@@ -443,15 +469,15 @@ export class CrystalGates {
         blending: THREE.AdditiveBlending,
       }),
     );
-    const beams = new THREE.InstancedMesh(tube, beamMaterial, Math.max(1, rings.length));
-    beams.count = rings.length;
+    const beams = new THREE.InstancedMesh(tube, beamMaterial, Math.max(1, finishRings.length));
+    beams.count = finishRings.length;
     const finishHeight = Math.max(1, RINGS.finishBeamHeight);
-    rings.forEach((ring, i) => {
-      const width = ring.radius * (ring.finish ? 0.5 : 0.35);
+    finishRings.forEach((ring, i) => {
+      const width = ring.radius * 0.5;
       tmpMatrix.compose(
         tmpScale.copy(ring.position).setY(ring.position.y - ring.radius),
         tmpQuaternion.identity(),
-        new THREE.Vector3(width, 700 * (ring.finish ? finishHeight : 1), width),
+        new THREE.Vector3(width, 700 * finishHeight, width),
       );
       beams.setMatrixAt(i, tmpMatrix);
     });

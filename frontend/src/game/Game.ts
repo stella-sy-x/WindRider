@@ -1010,7 +1010,7 @@ export class Game {
     this.flash = 1;
     const amount = this.particles.budget * RINGS.shatter;
     if (amount <= 0) return;
-    const tint = ring.finish ? GOLD : color.set(this.world.palette.accent);
+    const tint = ring.finish ? GOLD : this.view.gateColors.accent;
     const forward = ring.normal;
     const crystals = this.view.gates.crystalPositions(index, this.crystalPoints);
     for (const p of crystals) {
@@ -1201,7 +1201,7 @@ export class Game {
     if (Math.abs(n.y) < 0.95) basisA.crossVectors(n, THREE.Object3D.DEFAULT_UP).normalize();
     else basisA.set(1, 0, 0);
     basisB.crossVectors(n, basisA);
-    const tint = ring.finish ? GOLD : color.set(this.world.palette.accent);
+    const tint = ring.finish ? GOLD : this.view.gateColors.accent;
     for (; this.moteDebt >= 1; this.moteDebt--) {
       const angle = Math.random() * Math.PI * 2;
       const r = ring.radius * rand(0.9, 1.25);

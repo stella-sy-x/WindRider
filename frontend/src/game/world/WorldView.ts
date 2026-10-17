@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { hash3 } from "../rng";
 import { ATMOSPHERE, skyMaterial } from "./atmosphere";
-import { CrystalGates, type RingMode } from "./crystals";
+import { CrystalGates, type GateColors, gateColors, type RingMode } from "./crystals";
 import { CorridorMarkers } from "./corridor";
 import { LandCollider } from "./landCollider";
 import type { MeshRequest } from "./mesher.worker";
@@ -54,6 +54,8 @@ export class WorldView {
   private readonly materials: THREE.Material[] = [];
   private readonly geometries: THREE.BufferGeometry[] = [];
   readonly gates: CrystalGates;
+  /** The gates' muted stone colors (for the particles a gate gives off; the finish is gold) */
+  readonly gateColors: GateColors;
   /** Faint posts along both edges of the corridor, where the air wall begins */
   private readonly corridor: CorridorMarkers;
   private readonly sky: THREE.Mesh;
@@ -93,12 +95,9 @@ export class WorldView {
       this.seaLife = new SeaLife(world, underwater);
       this.group.add(this.shafts.mesh, ...this.seaLife.meshes);
     }
-    this.gates = new CrystalGates(
-      world.seed,
-      world.course.rings,
-      { ice: new THREE.Color("#e6f7ff").lerp(accent, 0.12), accent },
-      sun,
-    );
+    // Gates in muted stone, tinted a touch by the biome's accent rather than painted in it
+    this.gateColors = gateColors(accent);
+    this.gates = new CrystalGates(world.seed, world.course.rings, this.gateColors, sun);
     this.group.add(this.gates.group);
     this.setRings("free");
     this.corridor = new CorridorMarkers(world.course, accent);
