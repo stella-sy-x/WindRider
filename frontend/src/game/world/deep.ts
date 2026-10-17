@@ -215,10 +215,10 @@ const jellyVertex = /* glsl */ `
     // Where in its discharge cycle this one is (the same arithmetic as jellyCycle in deep.ts)
     float cycle = max(zapCycle.x, 0.1);
     float telegraph = clamp(zapCycle.y, 0.01, cycle);
-    float active = clamp(zapCycle.z, 0.01, cycle - telegraph);
+    float burst = clamp(zapCycle.z, 0.01, cycle - telegraph);
     float ct = mod(raceTime + (phase / ${TAU.toFixed(6)}) * cycle, cycle);
-    float charge = ct < telegraph ? ct / telegraph : (ct < telegraph + active ? 1.0 : 0.0);
-    float zap = (ct >= telegraph && ct < telegraph + active) ? 1.0 : 0.0;
+    float charge = ct < telegraph ? ct / telegraph : (ct < telegraph + burst ? 1.0 : 0.0);
+    float zap = (ct >= telegraph && ct < telegraph + burst) ? 1.0 : 0.0;
     vec3 p = position;
     if (body.x < 0.5) {
       // The bell squeezes in at the rim and springs open again; charging, it draws in tight
