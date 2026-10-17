@@ -7,54 +7,82 @@ import { clamp, smoothstep } from "./math";
 import { DISSOLVE_AT, type DeathKind, WING_POINTS } from "./death";
 import type { ItemSlot } from "./items/models";
 
-// The pilot: a small low-poly wingsuit flyer with chibi proportions (a big
-// helmeted head, slim limbs) in a high-tech flight suit. Fabric membranes
-// stretch between each arm and the torso and between the legs, and two small
-// electric ducted fans on the upper back light up under boost.
+// The pilot: a small low-poly wingsuit flyer built for the chase camera, which only
+// ever sees it from behind and above, ten metres away. From there it reads as five
+// big shapes and nothing else:
 //
-// The livery is one fixed scheme built for the chase camera, which only ever
-// sees the pilot from behind and above, ten metres away: a warm cream suit so
-// the body stands out against dark terrain and bright sky alike, coral on the
-// big shapes that face the camera (the helmet shell, the shoulder yoke, the arm
-// membranes and the tail fin), charcoal for the hardware (boots, gloves, fans,
-// visor) and gold trims. Everything is built from primitives at runtime.
+//   1. Two THICK, WIDE wings: rigid tapered slabs hung from the chest, far wider than
+//      the arms reach. They carry the identity and make up most of the silhouette.
+//   2. A jetpack: one dark block running down the back from the shoulders to the hips,
+//      with two exhaust nozzles at the bottom that burn under boost (the trails stream
+//      from them).
+//   3. A helmeted head, kept small so the wings stay dominant.
+//   4+5. Two simple legs, nothing between them.
 //
-// The body is modelled standing (up +y, facing -z, right +x) and then laid
-// prone, so the head points along the flight direction (-z) and the back faces
-// up. The caller places `group` at the flight model's position and rotation;
-// everything the animation adds (rolls, bobbing, the arm spread) happens inside it.
+// The livery is one fixed scheme: sunrise orange wings (the brightest thing on the
+// pilot, which pops against green islands, purple twilight and blue water, and keeps
+// its edge against a golden sunset through the ink hardware next to it), a medium
+// slate-teal flight suit, ink for the hardware (helmet, pack, boots) and gold trims.
+// Everything is built from primitives at runtime.
+//
+// The body is modelled standing (up +y, facing -z, right +x) and then laid prone, so
+// the head points along the flight direction (-z) and the back faces up. The caller
+// places `group` at the flight model's position and rotation; everything the
+// animation adds (rolls, bobbing, the wing sweep) happens inside it.
 
 const SCALE = 1.65;
 const TAU = Math.PI * 2;
 
-// The ducted fans, in chest space (standing body: up +y, facing -z). Also where the trails stream from
-/** The right fan's center; the left mirrors x */
-const FAN_AT: Vec = [0.09, 0.1, 0.12];
-const FAN_RADIUS = 0.065;
-const FAN_LENGTH = 0.08;
-/** How far each fan tilts outward from the spine (radians around z) */
-const FAN_CANT = 0.15;
+// --- the wings, in chest space (standing body: up +y, facing -z, right +x) ----------
+
+/** The right wing's root pivot on the chest; the left mirrors x */
+const WING_ROOT: Vec = [0.12, 0.08, -0.01];
+/** Root to tip along x, so the tips sit at x = ±0.7 (the hands reach ±0.5) */
+const WING_LENGTH = 0.58;
+/** Chord (along y: forward +y, aft -y when prone) at the root and the tip */
+const WING_ROOT_CHORD = 0.3;
+const WING_TIP_CHORD = 0.15;
+/** Thickness (along z: up when prone) at the root and the tip */
+const WING_THICK = 0.045;
+const WING_TIP_THICK = 0.03;
+/** How far the tip's chord sits behind the root's */
+const WING_SWEEP = 0.1;
+/** The leading-edge spar's chord, and the gold tip cap's length along the span */
+const WING_SPAR = 0.055;
+const WING_TIP_CAP = 0.09;
+
+// --- the jetpack, in chest space -------------------------------------------------------
+
+/** The pack block's center and size (x width, y height along the spine, z depth off the back) */
+const PACK_AT: Vec = [0, 0.05, 0.11];
+const PACK_SIZE: Vec = [0.12, 0.3, 0.08];
+/** The nozzles hang from the pack's bottom edge, one each side of the spine */
+const NOZZLE_X = 0.035;
+const NOZZLE_RADIUS = 0.028;
+const NOZZLE_LENGTH = 0.07;
+const NOZZLE_TOP = PACK_AT[1] - PACK_SIZE[1] / 2;
 
 // --- colors ----------------------------------------------------------------------
 
 interface Tones {
   skin: THREE.Color;
-  blush: THREE.Color;
-  cloth: THREE.Color;
-  clothLight: THREE.Color;
-  clothDark: THREE.Color;
-  /** The suit's base: a warm cream tinted a little towards the player's hue; the color sits on panels over it */
+  /** The flight suit: a medium slate teal, the complement of the wings */
   suit: THREE.Color;
+  /** The wings' sunrise orange, the brightest thing on the pilot */
+  wing: THREE.Color;
+  /** The wings' leading-edge spar */
+  wingEdge: THREE.Color;
   trim: THREE.Color;
-  /** Charcoal for the hardware: boots, gloves, the power pack, the helmet's pods and strap */
+  /** Ink for the hardware: the helmet, the pack, the boots */
   dark: THREE.Color;
+  /** The pack's raised top, a shade lighter than the block so the step reads */
+  packLight: THREE.Color;
   white: THREE.Color;
-  /** The suit's electric accent: the membranes' lit edges, the helmet's comm lights, the fan cores under boost */
+  /** The exhausts' flame under boost */
   accent: THREE.Color;
-  /** Tinted visor glass and its glint */
+  /** Tinted visor glass */
   visor: THREE.Color;
-  visorShine: THREE.Color;
-  /** Gunmetal for the fan shells */
+  /** Gunmetal for the nozzles */
   metal: THREE.Color;
 }
 
@@ -67,24 +95,21 @@ type ToneName = keyof Tones;
 type Paint = ToneName | ((p: THREE.Vector3, tones: Tones, out: THREE.Color, index: number) => number | void);
 
 /**
- * The suit's one fixed livery: warm cream over coral panels with charcoal hardware
- * and gold trims. There is no player color; every pilot wears the same scheme
- * (multiplayer tells them apart by the name label, see `createLabel`).
+ * The suit's one fixed livery. There is no player color; every pilot wears the same
+ * scheme (multiplayer tells them apart by the name label, see `createLabel`).
  */
 function tonesFor(): Tones {
   return {
     skin: new THREE.Color("#f5d0b0"),
-    blush: new THREE.Color("#ffa9a4"),
-    cloth: new THREE.Color("#ff5d73"),
-    clothLight: new THREE.Color("#ffb0a0"),
-    clothDark: new THREE.Color("#2a2530"),
-    suit: new THREE.Color("#f3ebdf"),
+    suit: new THREE.Color("#4f6a7a"),
+    wing: new THREE.Color("#ff9a3d"),
+    wingEdge: new THREE.Color("#262430"),
     trim: new THREE.Color("#f3c869"),
-    dark: new THREE.Color("#2a2530"),
+    dark: new THREE.Color("#262430"),
+    packLight: new THREE.Color("#3b3845"),
     white: new THREE.Color("#ffffff"),
-    accent: new THREE.Color("#ff4f6d"),
-    visor: new THREE.Color("#1c2233").lerp(new THREE.Color("#ff5d73"), 0.12),
-    visorShine: new THREE.Color("#e4edff"),
+    accent: new THREE.Color("#ffb347"),
+    visor: new THREE.Color("#1a2f44"),
     metal: new THREE.Color("#4b505e"),
   };
 }
@@ -166,12 +191,11 @@ function paintAt(paint: Paint, tones: Tones, index: number): number {
 }
 
 /**
- * Writes vertex colors, and a glow for the gold trims and the accent edges (they light up at night).
+ * Writes vertex colors, and a glow for the gold trims and the accent (they light up at night).
  *
- * Non-indexed geometry (the body parts, three vertices per triangle) is painted once per
- * face at the triangle's centroid, and all three corners get that color, so the parts
- * read as flat facets like the terrain instead of smooth gradients. Indexed geometry
- * (the cloth grids share vertices between faces) keeps per-vertex paint.
+ * The parts are non-indexed (three vertices per triangle) and are painted once per face at
+ * the triangle's centroid, with all three corners getting that color, so they read as flat
+ * facets like the terrain instead of smooth gradients.
  */
 function applyPaint({ geometry, ranges }: Painted, tones: Tones) {
   const position = geometry.getAttribute("position");
@@ -217,75 +241,67 @@ const lathe = (profile: [number, number][], n = 8) =>
     n,
   );
 
-// --- cloth -------------------------------------------------------------------------
+const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
 
-type ClothShape = (u: number, v: number, out: THREE.Vector3) => void;
-type ClothPaint = (u: number, v: number, tones: Tones, out: THREE.Color) => number | void;
-
-/** A grid of vertices moved procedurally every frame: the arm membranes and the tail fin */
-class Cloth {
-  readonly mesh: THREE.Mesh;
-  readonly painted: Painted;
-  private readonly cols: number;
-  private readonly rows: number;
-  private readonly point = new THREE.Vector3();
-
-  constructor(cols: number, rows: number, paint: ClothPaint, material: THREE.Material) {
-    this.cols = cols;
-    this.rows = rows;
-    const geometry = new THREE.PlaneGeometry(1, 1, cols, rows);
-    geometry.deleteAttribute("uv");
-    // Keep (u, v) per vertex so the paint can use them
-    const uv = new Float32Array((cols + 1) * (rows + 1) * 3);
-    for (let r = 0; r <= rows; r++) {
-      for (let c = 0; c <= cols; c++) uv.set([(c / cols) * 2 - 1, r / rows, 0], (r * (cols + 1) + c) * 3);
+/**
+ * A thick slab along x from `x0` to `x1`: a rectangle at the root (y from `root[0]` to
+ * `root[1]`, `rootThick` deep in z) going to another at the tip. Eight corners, twelve
+ * flat facets, 36 vertices. `s` mirrors it onto the left (-x) with the winding kept
+ * outward, so it stays a closed solid for a front-face material.
+ */
+function slab(x0: number, x1: number, root: [number, number], tip: [number, number], rootThick: number, tipThick: number, s: 1 | -1): THREE.BufferGeometry {
+  const r = [[x0, root[0], -rootThick / 2], [x0, root[1], -rootThick / 2], [x0, root[1], rootThick / 2], [x0, root[0], rootThick / 2]];
+  const e = [[x1, tip[0], -tipThick / 2], [x1, tip[1], -tipThick / 2], [x1, tip[1], tipThick / 2], [x1, tip[0], tipThick / 2]];
+  // Each face as a quad wound counter-clockwise seen from outside
+  const quads = [
+    [r[0], r[3], r[2], r[1]], [e[0], e[1], e[2], e[3]], // root and tip caps
+    [r[0], r[1], e[1], e[0]], [r[3], e[3], e[2], r[2]], // underside and top
+    [r[0], e[0], e[3], r[3]], [r[1], r[2], e[2], e[1]], // trailing and leading edges
+  ];
+  const position = new Float32Array(quads.length * 18);
+  let k = 0;
+  for (const [a, b, c, d] of quads) {
+    const corners = [a, b, c, a, c, d];
+    if (s < 0) corners.reverse();
+    for (const v of corners) {
+      position[k++] = v[0] * s;
+      position[k++] = v[1];
+      position[k++] = v[2];
     }
-    const uvAttribute = new THREE.BufferAttribute(uv, 3);
-    geometry.setAttribute("color", new THREE.Float32BufferAttribute(new Float32Array(uv.length), 3));
-    geometry.setAttribute("glow", new THREE.Float32BufferAttribute(new Float32Array(uv.length / 3), 1));
-    (geometry.getAttribute("position") as THREE.BufferAttribute).setUsage(THREE.DynamicDrawUsage);
-    this.painted = {
-      geometry,
-      ranges: [
-        {
-          start: 0,
-          count: uv.length / 3,
-          // The positions move, so paint from each vertex's (u, v)
-          paint: (_p, tones, out, i) => paint(uvAttribute.getX(i), uvAttribute.getY(i), tones, out),
-        },
-      ],
-    };
-    this.mesh = new THREE.Mesh(geometry, material);
-    this.mesh.frustumCulled = false;
   }
-
-  update(shape: ClothShape) {
-    const position = this.mesh.geometry.getAttribute("position") as THREE.BufferAttribute;
-    for (let r = 0; r <= this.rows; r++) {
-      for (let c = 0; c <= this.cols; c++) {
-        shape((c / this.cols) * 2 - 1, r / this.rows, this.point);
-        this.point.toArray(position.array, (r * (this.cols + 1) + c) * 3);
-      }
-    }
-    position.needsUpdate = true;
-    this.mesh.geometry.computeVertexNormals();
-  }
-
-  /** The middle of the hem, in the cloth's space */
-  tip(shape: ClothShape, out: THREE.Vector3): THREE.Vector3 {
-    shape(0, 1, out);
-    return out;
-  }
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute("position", new THREE.BufferAttribute(position, 3));
+  geometry.computeVertexNormals();
+  return geometry;
 }
 
-/** A point `t` (0..1, by length) along the two-segment limb a → b → c */
-function alongLimb(a: THREE.Vector3, b: THREE.Vector3, c: THREE.Vector3, t: number, out: THREE.Vector3): THREE.Vector3 {
-  const ab = a.distanceTo(b), bc = b.distanceTo(c), total = ab + bc;
-  if (total < 1e-6) return out.copy(a);
-  const split = ab / total;
-  if (split > 1 - 1e-6) return out.lerpVectors(a, b, t);
-  if (t < split) return out.lerpVectors(a, b, split > 1e-6 ? t / split : 0);
-  return out.lerpVectors(b, c, (t - split) / (1 - split));
+/** The wing's planform at `u` (0 root → 1 tip): the leading and trailing edge in y, and the thickness */
+function wingSection(u: number): { lead: number; trail: number; thick: number } {
+  return {
+    lead: lerp(WING_ROOT_CHORD / 2, -WING_SWEEP + WING_TIP_CHORD / 2, u),
+    trail: lerp(-WING_ROOT_CHORD / 2, -WING_SWEEP - WING_TIP_CHORD / 2, u),
+    thick: lerp(WING_THICK, WING_TIP_THICK, u),
+  };
+}
+
+/**
+ * One wing (`s` 1 right, -1 left) in its root pivot's space: a broad orange slab, an ink
+ * spar standing a little proud along the leading edge, and a gold cap on the tip. Three
+ * separate solids, so the panel lines are real edges the flat shading can catch.
+ */
+function buildWing(s: 1 | -1): PartBuilder {
+  const capAt = WING_LENGTH - WING_TIP_CAP;
+  const root = wingSection(0), mid = wingSection(capAt / WING_LENGTH), tip = wingSection(1);
+  const body: Paint = (p, t, out) => {
+    out.copy(t.wing);
+    // The underside sits in shadow (the camera never sees it except mid-roll)
+    if (p.z < -0.012) out.multiplyScalar(0.72);
+    return 0;
+  };
+  return new PartBuilder()
+    .add(slab(0, capAt, [root.trail, root.lead - WING_SPAR], [mid.trail, mid.lead - WING_SPAR], root.thick, mid.thick, s), body)
+    .add(slab(0, capAt, [root.lead - WING_SPAR, root.lead], [mid.lead - WING_SPAR, mid.lead], root.thick + 0.012, mid.thick + 0.01, s), "wingEdge")
+    .add(slab(capAt, WING_LENGTH, [mid.trail, mid.lead], [tip.trail, tip.lead], mid.thick, tip.thick, s), (_p, t, out) => { out.copy(t.trim); return 0.5; });
 }
 
 // --- the avatar --------------------------------------------------------------------
@@ -294,49 +310,24 @@ export interface AvatarOptions {
   ghost?: boolean;
 }
 
-/** Joints of the arm and its membrane's anchors on the torso, in chest space this frame */
-interface ArmJoints {
-  shoulder: THREE.Vector3;
-  elbow: THREE.Vector3;
-  hand: THREE.Vector3;
-  /** Where the membrane's root meets the torso, under the arm */
-  root: THREE.Vector3;
-  /** The membrane's trailing corner on the torso side, at the hip */
-  hip: THREE.Vector3;
-}
-
-/** Joints of the leg, in chest space this frame; the ankle reaches a little past the foot */
-interface LegJoints {
-  hip: THREE.Vector3;
-  knee: THREE.Vector3;
-  ankle: THREE.Vector3;
-}
-
 interface Side {
-  boot: THREE.Mesh;
   shoulder: THREE.Object3D;
   elbow: THREE.Object3D;
-  /** The palm: carried items and the crash contact points live here (the trails stream from the fans) */
+  /** The palm: carried items and the crash contact points live here (the trails stream from the exhausts) */
   hand: THREE.Object3D;
   hip: THREE.Object3D;
   knee: THREE.Object3D;
   /** The ankle, where boots go */
   ankle: THREE.Object3D;
-  /** The fabric between the arm and the torso */
-  membrane: Cloth;
-  arm: ArmJoints;
-  leg: LegJoints;
-  shape: ClothShape;
+  /** The wing's root pivot on the chest: sweeps with speed, tilts with the bank, folds in a crash */
+  wing: THREE.Object3D;
 }
 
 const localOmega = new THREE.Vector3();
 const dq = new THREE.Quaternion();
 const prevInverse = new THREE.Quaternion();
 const forwardTmp = new THREE.Vector3();
-const jointTmp = new THREE.Vector3();
-const shapeTmp = new THREE.Vector3();
 const leftTmp = new THREE.Vector3();
-const rightTmp = new THREE.Vector3();
 
 function springStep(value: number, velocity: number, target: number, stiffness: number, damping: number, dt: number) {
   const c = 2 * damping * Math.sqrt(stiffness);
@@ -346,8 +337,6 @@ function springStep(value: number, velocity: number, target: number, stiffness: 
 }
 
 const smoother = (t: number) => t * t * t * (t * (t * 6 - 15) + 10);
-
-const vec = () => new THREE.Vector3();
 
 export class Avatar {
   /** Place this at the flight model's position and rotation */
@@ -365,18 +354,14 @@ export class Avatar {
   private readonly head = new THREE.Object3D();
   private readonly left: Side;
   private readonly right: Side;
-  /** The fabric between the legs, a tail fin */
-  private readonly fin: Cloth;
-  private finShape: ClothShape = () => {};
-  private readonly clothInverse = new THREE.Matrix4();
   private readonly painted: Painted[] = [];
   private readonly materials: THREE.Material[] = [];
-  /** The ducted fans' cores: repainted as the boost glow changes */
-  private readonly fanCores: Painted;
-  /** The fan cores' current glow, 0..1 (see `setBoostGlow`) */
-  private fanGlow = 0;
+  /** The exhaust nozzles' cores: repainted as the boost glow changes */
+  private readonly exhaustCores: Painted;
+  /** The cores' current glow, 0..1 (see `setBoostGlow`) */
+  private exhaustGlow = 0;
   /** The glow eased towards the boost input */
-  private fanLevel = 0;
+  private thrust = 0;
   /** A soft round glow behind the body that silhouettes it against the scenery; looks only */
   private readonly aura: THREE.Sprite;
   private readonly auraMaterial: THREE.SpriteMaterial;
@@ -410,14 +395,12 @@ export class Avatar {
     this.barrel.t = -1;
     this.barrelProgress = -1;
     this.boost = this.brake = 0;
-    this.fanLevel = 0;
+    this.thrust = 0;
   }
   private climb = 0;
   private time = 0;
-  private clothTime = 0;
-  /** The membranes' ripple amplitude this frame (metres) */
-  private flutter = 0;
-  private detailed = true;
+  /** How far each wing (left, right) is folded by the rock during a crash, 0..1 (see `foldWings`) */
+  private readonly fold = [0, 0];
   /** 0..1 while a barrel roll is under way */
   barrelProgress = -1;
   /** Where carried items go: on the back (the firework), on the head (helmets), in the right hand */
@@ -439,7 +422,6 @@ export class Avatar {
     this.tones = tonesFor();
     const ghost = this.ghost;
     const skinMat = this.material(flatMaterial({ ghost }));
-    const clothMat = this.material(flatMaterial({ ghost, side: THREE.DoubleSide }));
 
     this.group.add(this.rig);
     this.rig.add(this.body);
@@ -459,32 +441,28 @@ export class Avatar {
     };
     const part = (joint: THREE.Object3D, builder: PartBuilder, material = skinMat) => build(joint, builder, material).mesh;
 
-    // Pelvis: the cream hip panel with a gold waist band and a belt in the pilot's color
+    // Pelvis: the suit's hips with a gold belt
     this.pelvis.position.set(0, 0.74, 0);
     skeleton.add(this.pelvis);
     part(
       this.pelvis,
-      new PartBuilder()
-        .add(
-          lathe([
-            [0.001, 0.07],
-            [0.095, 0.07],
-            [0.108, -0.02],
-            [0.118, -0.1],
-            [0.12, -0.12],
-            [0.001, -0.12],
-          ]),
-          (p, t, out) => { out.copy(p.y < -0.085 ? t.trim : t.suit); },
-          [0, 0, 0],
-          [0, 0, 0],
-          [1, 1, 0.8],
-        )
-        .add(cyl(0.1, 0.1, 0.035, 6), "cloth", [0, 0.06, 0], [0, 0, 0], [1, 1, 0.8])
-        .add(new THREE.OctahedronGeometry(0.026, 0), "trim", [0, 0.06, -0.082]),
+      new PartBuilder().add(
+        lathe([
+          [0.001, 0.07],
+          [0.095, 0.07],
+          [0.108, -0.02],
+          [0.118, -0.1],
+          [0.12, -0.12],
+          [0.001, -0.12],
+        ]),
+        (p, t, out) => { out.copy(p.y < -0.085 ? t.trim : t.suit); },
+        [0, 0, 0],
+        [0, 0, 0],
+        [1, 1, 0.8],
+      ),
     );
 
-    // Chest: the cream flight suit's torso under a yoke in the pilot's color across the shoulders and
-    // upper back (the part the camera sees above the power pack), collar, neck, shoulder pads
+    // Chest: the suit's torso, a dark collar, the neck and two shoulder pads
     this.chest.position.set(0, 0.06, 0);
     this.pelvis.add(this.chest);
     part(
@@ -501,119 +479,64 @@ export class Avatar {
             [0.03, 0.285],
             [0.001, 0.285],
           ], 12),
-          (p, t, out) => { out.copy(p.y > 0.165 ? t.cloth : t.suit); },
+          "suit",
           [0, 0, 0],
           [0, 0, 0],
           [1, 1, 0.78],
         )
-        .add(new THREE.TorusGeometry(0.05, 0.02, 5, 6), "clothDark", [0, 0.27, 0], [Math.PI / 2, 0, 0], [1, 1, 0.9])
+        .add(new THREE.TorusGeometry(0.05, 0.02, 5, 6), "dark", [0, 0.27, 0], [Math.PI / 2, 0, 0], [1, 1, 0.9])
         .add(cyl(0.034, 0.038, 0.07, 6), "skin", [0, 0.3, 0])
-        .add(sphere(0.048, 6, 4), "cloth", [0.1, 0.22, 0], [0, 0, 0], [1, 0.8, 0.85])
-        .add(sphere(0.048, 6, 4), "cloth", [-0.1, 0.22, 0], [0, 0, 0], [1, 0.8, 0.85]),
+        .add(sphere(0.048, 6, 4), "suit", [0.1, 0.22, 0], [0, 0, 0], [1, 0.8, 0.85])
+        .add(sphere(0.048, 6, 4), "suit", [-0.1, 0.22, 0], [0, 0, 0], [1, 0.8, 0.85]),
     );
 
-    // Ducted fans on the upper back: the suit's signature. Two big gunmetal jet intakes with gold
-    // rims, canted a little outward, on a wide charcoal power pack; their cores light up under
-    // boost. They are sized to read as engines from the chase camera, not as a pair of goggles.
-    // The camera looks straight down the ducts, so the idle cores are gunmetal too (dark hollows
-    // next to each other under the helmet read as a pair of eyes)
-    const fanRim = new THREE.TorusGeometry(FAN_RADIUS, 0.012, 3, 8);
-    const fans = new PartBuilder()
-      .add(new THREE.BoxGeometry(0.27, 0.09, 0.04), "dark", [0, FAN_AT[1], 0.085])
-      .add(new THREE.BoxGeometry(0.04, 0.014, 0.014), "accent", [0, FAN_AT[1], 0.108]);
+    // Jetpack: one ink block down the whole back, a raised lighter top with two gold rails,
+    // and two gunmetal nozzles hanging off the bottom edge whose cores burn under boost.
+    // The camera sits right behind it, so it is the dark center the orange wings hang off
+    const [px, py, pz] = PACK_AT;
+    const [pw, ph, pd] = PACK_SIZE;
+    const pack = new PartBuilder()
+      .add(new THREE.BoxGeometry(pw, ph, pd), "dark", [px, py, pz])
+      .add(new THREE.BoxGeometry(pw * 0.72, ph * 0.86, 0.03), "packLight", [px, py + 0.01, pz + pd / 2 + 0.008])
+      .add(new THREE.BoxGeometry(0.012, ph * 0.9, 0.014), "trim", [px - pw * 0.42, py, pz + pd / 2 + 0.004])
+      .add(new THREE.BoxGeometry(0.012, ph * 0.9, 0.014), "trim", [px + pw * 0.42, py, pz + pd / 2 + 0.004])
+      .add(new THREE.BoxGeometry(pw, 0.016, pd + 0.012), "trim", [px, NOZZLE_TOP + 0.012, pz]);
     const cores = new PartBuilder();
+    const nozzleRing = new THREE.TorusGeometry(NOZZLE_RADIUS, 0.008, 3, 8).rotateX(Math.PI / 2);
     for (const s of [1, -1]) {
-      const at: Vec = [FAN_AT[0] * s, FAN_AT[1], FAN_AT[2]];
-      // Each fan cants around z so its exhaust (the -y end; the body lies prone, so that is aft)
-      // flares away from the spine and the pair reads as a V of jets from behind
-      const rot: Vec = [0, 0, FAN_CANT * s];
-      const rim = (dy: number) =>
-        fanRim.clone().rotateX(Math.PI / 2).translate(0, dy, 0);
-      fans
-        .add(tube(FAN_RADIUS, FAN_LENGTH, 8), "metal", at, rot)
-        .add(rim(FAN_LENGTH / 2), "trim", at, rot)
-        .add(rim(-FAN_LENGTH / 2), "trim", at, rot);
-      cores.add(cyl(FAN_RADIUS * 0.82, FAN_RADIUS * 0.82, FAN_LENGTH + 0.008, 8), (_p, t, out) => {
-        const k = this.fanGlow;
-        out.copy(t.metal).lerp(t.accent, k * 0.7).lerp(t.white, k * k * 0.5);
+      const at: Vec = [NOZZLE_X * s, NOZZLE_TOP - NOZZLE_LENGTH / 2, pz];
+      pack
+        .add(tube(NOZZLE_RADIUS, NOZZLE_LENGTH, 8), "metal", at)
+        .add(nozzleRing.clone(), "trim", [at[0], NOZZLE_TOP - NOZZLE_LENGTH + 0.006, at[2]]);
+      cores.add(cyl(NOZZLE_RADIUS * 0.75, NOZZLE_RADIUS * 0.75, NOZZLE_LENGTH + 0.006, 8), (_p, t, out) => {
+        const k = this.exhaustGlow;
+        out.copy(t.metal).lerp(t.accent, k * 0.8).lerp(t.white, k * k * 0.5);
         return 0.1 + k * 0.9;
-      }, at, rot);
+      }, at);
     }
-    fanRim.dispose();
-    part(this.chest, fans);
-    this.fanCores = build(this.chest, cores).painted;
+    nozzleRing.dispose();
+    part(this.chest, pack);
+    this.exhaustCores = build(this.chest, cores).painted;
 
-    // Head: big and round, a soft jaw and cheeks under it, and the face drawn on in layers
+    // Head: a round head under a dark helmet shell with a gold rim and one wide visor band.
+    // Kept small so the wings stay the biggest thing in the frame
     this.head.position.set(0, 0.32, 0);
     this.chest.add(this.head);
-    const lip: Paint = (_p, t, out) => { out.copy(t.blush).lerp(t.dark, 0.35); };
-    const nose: Paint = (_p, t, out) => { out.copy(t.skin).lerp(t.blush, 0.3); };
-    part(this.head, new PartBuilder()
-      .add(sphere(0.165, 8, 6), "skin", [0, 0.15, 0], [0, 0, 0], [1, 0.97, 0.98])
-      // Cheeks and a small rounded chin give the face its front, so it takes light like a sculpted shape
-      .add(sphere(0.13, 8, 6), "skin", [0, 0.09, -0.04], [0, 0, 0], [1.04, 0.84, 0.95])
-      .add(sphere(0.045, 6, 4), "skin", [0.075, 0.085, -0.115], [0, 0, 0], [1, 0.85, 0.7])
-      .add(sphere(0.045, 6, 4), "skin", [-0.075, 0.085, -0.115], [0, 0, 0], [1, 0.85, 0.7]));
-    // Small features under the visor
-    part(this.head, new PartBuilder()
-      .add(sphere(0.013, 6, 4), nose, [0, 0.09, -0.166], [0, 0, 0], [0.85, 0.8, 1.25])
-      .add(new THREE.TorusGeometry(0.017, 0.004, 4, 6, Math.PI * 0.75), lip, [0, 0.062, -0.158], [0.35, 0, Math.PI * 1.125])
-      .add(sphere(0.02, 6, 4), "blush", [0.08, 0.088, -0.143], [0, 0.5, 0], [1.2, 0.6, 0.3])
-      .add(sphere(0.02, 6, 4), "blush", [-0.08, 0.088, -0.143], [0, -0.5, 0], [1.2, 0.6, 0.3]), skinMat);
-
-    // Helmet: a chunky racing shell in the pilot's color, wider than the head and flattened on top,
-    // tilted back off the brow. A broad cream crest runs from the brow over the crown to the nape
-    // (the classic racing-helmet stripe), a gold rim circles the shell, a neck guard hangs from the
-    // rim around the back, hexagonal ear pods carry a comm light, and a peak shades the visor.
-    // From the chase camera the shell's back, the crest, the rim and the guard are what reads.
-    const helmetTilt = 0.25;
-    const helmetAt: Vec = [0, 0.155, 0.025];
-    const helmetRot: Vec = [helmetTilt, 0, 0];
-    const helmetScale: Vec = [1.08, 0.88, 1.1];
-    // The crest: a ring the shell's size, its tube flattened into a wide low band, stood up to run
-    // front to back and turned so it starts just above the brow and ends at the nape
-    const crest = new THREE.TorusGeometry(0.19, 0.022, 4, 10, Math.PI * 0.86)
-      .scale(1, 1, 1.8)
-      .rotateY(Math.PI / 2)
-      .rotateX(Math.PI * 0.12);
-    part(this.head, new PartBuilder()
-      .add(new THREE.SphereGeometry(0.19, 8, 6, 0, TAU, 0, Math.PI * 0.55), "cloth", helmetAt, helmetRot, helmetScale)
-      .add(crest, "suit", helmetAt, helmetRot, helmetScale)
-      // The rim, sitting where the shell ends
-      .add(new THREE.TorusGeometry(0.188, 0.01, 4, 10).rotateX(Math.PI / 2).translate(0, -0.025, 0), "trim", helmetAt, helmetRot, [1.08, 1, 1.1])
-      // The neck guard: the back half of a ring hanging from the rim
-      .add(tube(0.185, 0.05, 8, -Math.PI / 2, Math.PI).translate(0, -0.05, 0), "cloth", helmetAt, helmetRot, [1.08, 1, 1.1])
-      // The peak: a wide thin wedge jutting forward over the visor, gold underneath
-      .add(new THREE.BoxGeometry(0.22, 0.014, 0.07), "cloth", [0, 0.19, -0.165], [-0.12, 0, 0])
-      .add(new THREE.BoxGeometry(0.22, 0.006, 0.07), "trim", [0, 0.182, -0.168], [-0.12, 0, 0], [0.98, 1, 0.96])
-      // Ear pods: thick hexagonal discs on the sides, each with a small accent light
-      .add(cyl(0.05, 0.05, 0.035, 6), "dark", [0.2, 0.13, -0.005], [0, 0, Math.PI / 2])
-      .add(cyl(0.05, 0.05, 0.035, 6), "dark", [-0.2, 0.13, -0.005], [0, 0, Math.PI / 2])
-      .add(new THREE.OctahedronGeometry(0.014, 0), "accent", [0.222, 0.13, -0.005], [0, 0, 0], [0.5, 1, 1])
-      .add(new THREE.OctahedronGeometry(0.014, 0), "accent", [-0.222, 0.13, -0.005], [0, 0, 0], [0.5, 1, 1])
-      // The chin strap
-      .add(new THREE.TorusGeometry(0.16, 0.011, 4, 8, Math.PI), "dark", [0, 0.135, -0.03], [0, 0, Math.PI], [1.1, 1, 1]));
-
-    // Visor: one wide tinted band wrapped around the face, a gold brow frame and a glint
+    const helmetAt: Vec = [0, 0.135, 0.015];
+    const helmetRot: Vec = [0.2, 0, 0];
     const visorArc = Math.PI * 0.62;
     part(this.head, new PartBuilder()
-      .add(tube(0.17, 0.058, 8, Math.PI - visorArc / 2, visorArc), (_p, t, out) => { out.copy(t.visor); return 0.2; }, [0, 0.13, 0])
-      .add(tube(0.173, 0.012, 8, Math.PI - visorArc / 2, visorArc), "trim", [0, 0.164, 0])
-      .add(sphere(0.012, 6, 4), "visorShine", [0.055, 0.147, -0.163], [0, -0.33, 0], [2, 0.5, 0.4]));
+      .add(sphere(0.14, 8, 6), "skin", [0, 0.13, 0], [0, 0, 0], [1, 0.97, 0.98])
+      .add(new THREE.SphereGeometry(0.16, 8, 6, 0, TAU, 0, Math.PI * 0.6), "dark", helmetAt, helmetRot, [1.05, 0.9, 1.08])
+      .add(new THREE.TorusGeometry(0.158, 0.01, 4, 10).rotateX(Math.PI / 2).translate(0, -0.045, 0), "trim", helmetAt, helmetRot, [1.05, 1, 1.08])
+      .add(tube(0.148, 0.05, 8, Math.PI - visorArc / 2, visorArc), (_p, t, out) => { out.copy(t.visor); return 0.2; }, [0, 0.115, 0]));
 
-    // Arms and legs, mirrored
+    // Arms, legs and wings, mirrored
     const makeSide = (s: 1 | -1): Side => {
       const shoulder = new THREE.Object3D();
       shoulder.position.set(0.125 * s, 0.215, 0);
       this.chest.add(shoulder);
-      // The arm: a shoulder cap in the pilot's color joining the yoke, cream sleeves, an elbow band, a gold cuff and a charcoal glove
-      part(
-        shoulder,
-        new PartBuilder()
-          .add(sphere(0.05, 6, 4), "cloth", [0, -0.02, 0])
-          .add(capsule(0.036, 0.13), "suit", [0, -0.1, 0])
-          .add(new THREE.TorusGeometry(0.037, 0.01, 5, 6), "cloth", [0, -0.17, 0], [Math.PI / 2, 0, 0]),
-      );
+      part(shoulder, new PartBuilder().add(capsule(0.036, 0.13), "suit", [0, -0.1, 0]));
       const elbow = new THREE.Object3D();
       elbow.position.set(0, -0.19, 0);
       shoulder.add(elbow);
@@ -621,8 +544,7 @@ export class Avatar {
         elbow,
         new PartBuilder()
           .add(capsule(0.03, 0.13), "suit", [0, -0.08, 0])
-          .add(cyl(0.036, 0.033, 0.05, 6), "trim", [0, -0.12, 0])
-          .add(sphere(0.036, 6, 4), "dark", [0, -0.19, 0], [0, 0, 0], [0.75, 1.15, 0.45]),
+          .add(sphere(0.034, 6, 4), "skin", [0, -0.19, 0], [0, 0, 0], [0.8, 1.1, 0.5]),
       );
       const hand = new THREE.Object3D();
       hand.position.set(0, -0.215, -0.02);
@@ -631,69 +553,34 @@ export class Avatar {
       const hip = new THREE.Object3D();
       hip.position.set(0.062 * s, -0.04, 0);
       this.pelvis.add(hip);
-      // The leg: a cream thigh, then charcoal boots with a gold cuff
+      // The leg: a suit thigh, then an ink boot with a gold cuff; nothing between the legs
       part(hip, new PartBuilder().add(capsule(0.05, 0.2), "suit", [0, -0.14, 0]));
       const knee = new THREE.Object3D();
       knee.position.set(0, -0.29, 0);
       hip.add(knee);
-      const boot = part(
+      part(
         knee,
         new PartBuilder()
           .add(capsule(0.042, 0.18), "dark", [0, -0.13, 0])
-          .add(new THREE.TorusGeometry(0.046, 0.013, 5, 6), "trim", [0, -0.03, 0], [Math.PI / 2, 0, 0])
-          // Pointed toes, like a dancer's
-          .add(capsule(0.034, 0.08), "dark", [0, -0.3, -0.012], [0.25, 0, 0]),
+          .add(new THREE.TorusGeometry(0.046, 0.013, 5, 6), "trim", [0, -0.03, 0], [Math.PI / 2, 0, 0]),
       );
       const ankle = new THREE.Object3D();
       ankle.position.set(0, -0.2, -0.005);
       knee.add(ankle);
 
-      // The arm membrane: u runs along the arm (shoulder -1 → hand +1), v from the arm (0) to the torso (1).
-      // Its shape is read from the joints every frame (`updateCloth`), so it stretches as the arms spread.
-      // Fabric in the pilot's color, deepening towards the body, with a pale leading edge along the
-      // arm and the accent lit at the wingtip: the widest surfaces the camera sees carry the identity
-      const membrane = new Cloth(6, 4, (u, v, t, out) => {
-        const a = (u + 1) / 2;
-        if (v < 0.01) { out.copy(t.clothLight); return 0.2; }
-        if (a > 0.99) { out.copy(t.cloth).lerp(t.accent, 0.5); return 0.3; }
-        out.copy(t.cloth).lerp(t.clothDark, v * 0.4);
-      }, clothMat);
-      this.painted.push(membrane.painted);
-      this.chest.add(membrane.mesh);
-      const arm: ArmJoints = { shoulder: vec(), elbow: vec(), hand: vec(), root: vec(), hip: vec() };
-      const leg: LegJoints = { hip: vec(), knee: vec(), ankle: vec() };
-      const shape: ClothShape = (u, v, out) => {
-        const a = (u + 1) / 2;
-        alongLimb(arm.shoulder, arm.elbow, arm.hand, a, out);
-        shapeTmp.lerpVectors(arm.root, arm.hip, a);
-        out.lerp(shapeTmp, v);
-        // A soft bow between arm and body, and a ripple that fades out at the attached edges
-        const slack = Math.sin(Math.PI * v);
-        out.z += slack * (0.012 * a + this.flutter * (0.35 + 0.65 * a) * Math.sin(this.time * ANIM.flutterRate + u * 3 + s * 0.8));
-      };
+      // The wing: a rigid slab hung from the chest (not the arm), so it keeps its shape whatever
+      // the arms do; the arms lie along its root. Its pivot sweeps and tilts it (`applyPose`)
+      const wing = new THREE.Object3D();
+      wing.position.set(WING_ROOT[0] * s, WING_ROOT[1], WING_ROOT[2]);
+      this.chest.add(wing);
+      part(wing, buildWing(s));
 
-      return { shoulder, elbow, hand, hip, knee, ankle, boot, membrane, arm, leg, shape };
+      return { shoulder, elbow, hand, hip, knee, ankle, wing };
     };
     this.right = makeSide(1);
     this.left = makeSide(-1);
 
-    // The tail fin between the legs: u runs left (-1) to right (+1), v from the hips (0) to past the ankles (1).
-    // The same fabric as the membranes, deepest at the hips, the hem lit in the accent
-    this.fin = new Cloth(6, 4, (_u, v, t, out) => {
-      if (v > 0.99) { out.copy(t.cloth).lerp(t.accent, 0.5); return 0.3; }
-      out.copy(t.cloth).lerp(t.clothDark, (1 - v) * 0.4);
-    }, clothMat);
-    this.painted.push(this.fin.painted);
-    this.chest.add(this.fin.mesh);
-    const legL = this.left.leg, legR = this.right.leg;
-    this.finShape = (u, v, out) => {
-      alongLimb(legL.hip, legL.knee, legL.ankle, v, leftTmp);
-      alongLimb(legR.hip, legR.knee, legR.ankle, v, rightTmp);
-      out.lerpVectors(leftTmp, rightTmp, (u + 1) / 2);
-      out.z += (1 - u * u) * v * (0.01 + this.flutter * 0.8 * Math.sin(this.time * ANIM.flutterRate * 0.9 + v * 4));
-    };
-
-    // Item slots: between the shoulder blades below the fans, the middle of the head, the right palm
+    // Item slots: on the back below the pack, the middle of the head, the right palm
     const back = new THREE.Object3D();
     back.position.set(0, -0.12, 0.25);
     this.chest.add(back);
@@ -704,7 +591,7 @@ export class Avatar {
     this.feet = [this.right.ankle, this.left.ankle];
     this.slots = { back, head: crown, hand: this.right.hand, feet: this.feet[0] };
 
-    // A soft, diffused halo behind the body, tinted in the outfit's light tone
+    // A soft, diffused halo behind the body, tinted a pale shade of the wings
     this.auraMaterial = new THREE.SpriteMaterial({
       map: glowTexture(),
       blending: THREE.AdditiveBlending,
@@ -718,7 +605,7 @@ export class Avatar {
     this.group.add(this.aura);
 
     this.repaint();
-    this.applyPose(0);
+    this.applyPose();
   }
 
   private material<T extends THREE.Material>(material: T): T {
@@ -726,10 +613,10 @@ export class Avatar {
     return material;
   }
 
-  /** Writes the one livery onto every part, membranes and tail fin included */
+  /** Writes the one livery onto every part */
   private repaint() {
     for (const painted of this.painted) applyPaint(painted, this.tones);
-    this.auraMaterial.color.copy(this.tones.clothLight);
+    this.auraMaterial.color.copy(this.tones.wing).lerp(this.tones.white, 0.45);
   }
 
   /** The halo's opacity this frame, 0..1 before tuning; ghosts wear a dimmer one that thins out with them */
@@ -747,68 +634,71 @@ export class Avatar {
   readonly setColor: (color: string) => void = () => {};
 
   /**
-   * How brightly the ducted fans' cores burn, 0..1: dark metal when idle, the
-   * accent color going white-hot at full boost. `applyPose` eases it towards the
-   * boost input each frame. Repaints the cores only when it changes noticeably.
+   * How brightly the jetpack's exhausts burn, 0..1: gunmetal when idle, the accent
+   * going white-hot at full boost. `applyPose` eases it towards the boost input
+   * each frame. Repaints the cores only when it changes noticeably.
    */
   setBoostGlow(amount: number) {
     const k = clamp(amount, 0, 1);
-    if (Math.abs(k - this.fanGlow) < 0.015 && !(k === 0 && this.fanGlow !== 0)) return;
-    this.fanGlow = k;
-    applyPaint(this.fanCores, this.tones);
+    if (Math.abs(k - this.exhaustGlow) < 0.015 && !(k === 0 && this.exhaustGlow !== 0)) return;
+    this.exhaustGlow = k;
+    applyPaint(this.exhaustCores, this.tones);
   }
 
   /**
-   * The two fans' exhausts in world space, where the wingtip trails stream from
-   * (call after update): the back end of each duct, so the ribbons leave the
-   * propulsion, not the pilot's hands
+   * The two wing tips in world space, where the wingtip trails stream from (call
+   * after update): the middle of each slab's outer edge
    */
   wingtips(left: THREE.Vector3, right: THREE.Vector3) {
-    this.fanExhaust(-1, left);
-    this.fanExhaust(1, right);
+    this.wingTip(this.left, -1, left);
+    this.wingTip(this.right, 1, right);
   }
 
-  /** The back end of one fan's duct (`s` 1 right, -1 left) in world space */
-  private fanExhaust(s: 1 | -1, out: THREE.Vector3): THREE.Vector3 {
-    // The duct's axis is y in chest space (the body lies prone, so chest -y points aft along the
-    // flight direction); its exhaust sits half the tube's length down the axis from the center,
-    // swung outward by the cant
-    const half = FAN_LENGTH / 2;
-    out.set(FAN_AT[0] * s + Math.sin(FAN_CANT) * half * s, FAN_AT[1] - Math.cos(FAN_CANT) * half, FAN_AT[2]);
+  /** The outer edge of one wing (`s` 1 right, -1 left) in world space */
+  private wingTip(side: Side, s: 1 | -1, out: THREE.Vector3): THREE.Vector3 {
+    out.set(WING_LENGTH * s, -WING_SWEEP, 0);
+    return side.wing.localToWorld(out);
+  }
+
+  /** The mouth of one exhaust nozzle (`s` 1 right, -1 left) in world space */
+  private exhaust(s: 1 | -1, out: THREE.Vector3): THREE.Vector3 {
+    // The nozzles point down the spine (chest -y), which is aft once the body lies prone
+    out.set(NOZZLE_X * s, NOZZLE_TOP - NOZZLE_LENGTH, PACK_AT[2]);
     return this.chest.localToWorld(out);
   }
 
   /**
-   * Contact points along both arm membranes in the pilot's own frame (the
-   * group's), left then right, five each: the hand, the wrist, the elbow, the
-   * membrane's trailing corner at the hip and the shoulder. The crash tumble
-   * keeps them out of the rock (call after update)
+   * Contact points along both wings in the pilot's own frame (the group's), left
+   * then right, five each: the wing tip, the wing's root at the trailing edge, the
+   * hand, the elbow and the shoulder. The crash tumble keeps them out of the rock
+   * (call after update)
    */
   wingPoints(out: THREE.Vector3[]) {
+    this.body.updateWorldMatrix(true, true);
     this.sidePoints(this.left, -1, out, 0);
     this.sidePoints(this.right, 1, out, WING_POINTS);
   }
 
   private sidePoints(side: Side, s: 1 | -1, out: THREE.Vector3[], k: number) {
     const g = this.group;
-    const hand = g.worldToLocal(side.hand.getWorldPosition(out[k]));
-    const elbow = g.worldToLocal(side.elbow.getWorldPosition(out[k + 2]));
-    out[k + 1].lerpVectors(elbow, hand, 0.7);
-    g.worldToLocal(this.chest.localToWorld(out[k + 3].set(0.1 * s, -0.02, 0.01)));
+    g.worldToLocal(this.wingTip(side, s, out[k]));
+    g.worldToLocal(side.wing.localToWorld(out[k + 1].set(0.04 * s, -WING_ROOT_CHORD / 2, 0)));
+    g.worldToLocal(side.hand.getWorldPosition(out[k + 2]));
+    g.worldToLocal(side.elbow.getWorldPosition(out[k + 3]));
     g.worldToLocal(side.shoulder.getWorldPosition(out[k + 4]));
   }
 
   /**
-   * The point between the two fans' exhausts in world space, where the body trail
-   * streams from (call after update), so every ribbon leaves the propulsion
+   * The point between the two exhausts in world space, where the body trail
+   * streams from (call after update), so the wide ribbon leaves the propulsion
    */
   capeTip(out: THREE.Vector3): THREE.Vector3 {
-    this.fanExhaust(-1, leftTmp);
-    this.fanExhaust(1, out);
+    this.exhaust(-1, leftTmp);
+    this.exhaust(1, out);
     return out.lerp(leftTmp, 0.5);
   }
 
-  /** The direction the arms span, in world space: trails use it as their width */
+  /** The direction the wings span, in world space: trails use it as their width */
   span(out: THREE.Vector3): THREE.Vector3 {
     return out.setFromMatrixColumn(this.rig.matrixWorld, 1).normalize();
   }
@@ -822,7 +712,8 @@ export class Avatar {
 
   /**
    * Animates the pilot. Call after placing `group` for this frame. `distance`
-   * is how far the camera is, so far-away pilots skip the fine details.
+   * is how far the camera is: far-away pilots keep whatever exhaust glow they
+   * have instead of repainting the cores (the one per-frame buffer upload left).
    */
   update(dt: number, speed: number, proximity: number, distance = 0) {
     if (dt <= 0) return;
@@ -856,17 +747,13 @@ export class Avatar {
     const target = clamp(this.rollRate * ANIM.bankLead + this.yawRate * 0.35, -1.1, 1.1);
     [this.lean, this.leanVelocity] = springStep(this.lean, this.leanVelocity, target, ANIM.bankSpring, ANIM.bankDamping, dt);
 
-    // The fans spool up and down with the boost input
-    this.fanLevel += (this.boost - this.fanLevel) * (1 - Math.exp(-dt * 6));
+    // The exhausts spool up and down with the boost input
+    this.thrust += (this.boost - this.thrust) * (1 - Math.exp(-dt * 6));
 
-    const far = distance > 110;
-    if (far !== !this.detailed) {
-      this.detailed = !far;
-    }
-    this.applyPose(dt, proximity);
+    this.applyPose(proximity, distance > 110);
   }
 
-  private applyPose(dt: number, proximity = 0) {
+  private applyPose(proximity = 0, far = false) {
     const t = this.time;
     const A = ANIM;
     const speedK = smoothstep(25, 95, this.speed);
@@ -895,10 +782,15 @@ export class Avatar {
     this.head.rotation.set(0.85 - this.pitchRate * 0.08, -turn * 0.35 * A.headLook, turn * 0.25 * A.headLook);
     this.pelvis.rotation.set(0, turn * 0.06 * A.limbSwing, -this.lean * 0.15);
 
-    // Arms: spread wide to brake, tucked to the body at speed and under boost; the membranes follow
+    // Arms: spread wide to brake, tucked to the body at speed and under boost
     const barrelTuck = this.barrel.t >= 0 ? Math.sin(Math.PI * this.barrel.t) : 0;
     const glide = clamp(A.armSpread - speedK * A.tuckSpeed - barrelTuck * 0.45 + this.brake * A.spreadBrake - this.boost * A.tuckBoost, 0.3, 1.6);
     const tucked = 1 - glide / 1.6;
+    // Wings: swept back as the arms tuck (speed, boost, mid-roll), forward as they spread to
+    // brake; tilted into the bank ahead of the body; pitched nose-up a little under brake
+    const sweep = (A.armSpread - glide) * A.wingSweep;
+    const flex = Math.sin(t * 1.7) * 0.012 * calm;
+    const pitch = this.brake * 0.2 - this.boost * 0.05 + this.pitchRate * 0.03;
     for (const [side, s] of [
       [this.right, 1],
       [this.left, -1],
@@ -908,10 +800,13 @@ export class Avatar {
       side.shoulder.rotation.set(0, -armLift * s, glide * s);
       side.elbow.rotation.set(0, 0, (0.25 + tucked * 0.2) * s);
 
-      // Legs together at speed, apart to brake so the fin fans out; knees soft, toes pointed; they swing like a rudder in turns
+      // Legs together at speed, a little apart to brake; knees soft, toes pointed; they swing like a rudder in turns
       const kick = Math.sin(t * 2.4 + (s > 0 ? 0 : 1.6)) * 0.06 * calm;
-      side.hip.rotation.set(0.06 + kick, 0, (0.05 + this.brake * 0.4 - this.boost * 0.03) * s - turn * 0.12 * A.limbSwing);
+      side.hip.rotation.set(0.06 + kick, 0, (0.05 + this.brake * 0.25 - this.boost * 0.03) * s - turn * 0.12 * A.limbSwing);
       side.knee.rotation.set(-this.brake * 0.3 - 0.32 - clamp(this.climb, 0, 1) * 0.35 - kick * 1.4 - barrelTuck * 0.4, 0, 0);
+
+      side.wing.rotation.set(pitch, -s * A.wingDihedral + this.lean * A.wingBank + flex, -sweep * s);
+      side.wing.scale.setScalar(1);
     }
 
     // Item animations take over the right arm
@@ -924,51 +819,13 @@ export class Avatar {
       el.z += (arm.elbow - el.z) * k;
     }
 
-    // The fans glow with the boost
-    this.setBoostGlow(this.fanLevel);
+    // The exhausts glow with the boost (not worth a repaint on a pilot far away)
+    if (!far) this.setBoostGlow(this.thrust);
 
     // Aura: a faint halo when cruising, a touch brighter with speed and skimming the ground...
     this.setAuraOpacity(0.4 + speedK * 0.6 + proximity * 0.3);
     // ...with a gentle living pulse in its size
     this.aura.scale.setScalar(AURA_SCALE * (1 + 0.03 * Math.sin(t * 1.5)));
-
-    if (!this.detailed && dt > 0) return;
-    this.clothTime += dt * (4.5 + this.speed * 0.11) * A.clothSpeed;
-    // The membranes ripple at speed, less when boost pulls them taut
-    this.flutter = A.membraneFlutter * speedK * (1 - this.boost * 0.5);
-    this.updateCloth();
-  }
-
-  /** The joint's position in chest space, where the cloth lives */
-  private toChest(joint: THREE.Object3D, out: THREE.Vector3): THREE.Vector3 {
-    return out.setFromMatrixPosition(joint.matrixWorld).applyMatrix4(this.clothInverse);
-  }
-
-  /** Moves the arm membranes and the tail fin to follow this frame's joints */
-  private updateCloth() {
-    // Cloth is in chest space, whereas the legs follow the pelvis. Resolve
-    // their current pose before shaping it, including knees bent by climbing,
-    // braking, items or a crash. Never alter the limbs or flight hitbox.
-    this.body.updateWorldMatrix(true, true);
-    this.clothInverse.copy(this.chest.matrixWorld).invert();
-
-    // Membranes: stretched between the arm joints and the torso side, and between the legs
-    for (const [side, s] of [[this.right, 1], [this.left, -1]] as [Side, 1 | -1][]) {
-      const { arm, leg } = side;
-      this.toChest(side.shoulder, arm.shoulder);
-      this.toChest(side.elbow, arm.elbow);
-      this.toChest(side.hand, arm.hand);
-      arm.root.set(0.1 * s, 0.16, 0);
-      arm.hip.set(0.1 * s, -0.02, 0.01);
-      this.toChest(side.hip, leg.hip);
-      this.toChest(side.knee, leg.knee);
-      this.toChest(side.ankle, leg.ankle);
-      // The fin reaches a little past the ankle
-      jointTmp.subVectors(leg.ankle, leg.knee).normalize();
-      leg.ankle.addScaledVector(jointTmp, 0.05);
-      side.membrane.update(side.shape);
-    }
-    this.fin.update(this.finShape);
   }
 
   /** Starts the crash animation of this kind; `side` is the arm that hit (1 right, -1 left) */
@@ -976,14 +833,18 @@ export class Avatar {
     this.death = { kind, t: 0, side };
     this.barrel.t = -1;
     this.barrelProgress = -1;
+    this.fold[0] = this.fold[1] = 0;
   }
 
   /**
-   * Legacy from the rigid bird wings (Game.ts still calls it during a crash):
-   * the membranes are fabric on the arms, so there is nothing to fold; they
-   * follow wherever the flailing arms go.
+   * Folds a wing further the deeper the rock has it (Game.ts passes how far each
+   * wing is wedged, in metres, during a crash): it crumples up over the back
    */
-  readonly foldWings: (left: number, right: number, dt: number) => void = () => {};
+  foldWings(left: number, right: number, dt: number) {
+    const k = 1 - Math.exp(-dt * 8);
+    this.fold[0] += (clamp(left * 3, 0, 1) - this.fold[0]) * k;
+    this.fold[1] += (clamp(right * 3, 0, 1) - this.fold[1]) * k;
+  }
 
   /** Back to flying (on respawn) */
   revive() {
@@ -991,6 +852,7 @@ export class Avatar {
     this.hasLast = false;
     this.lean = this.leanVelocity = 0;
     this.pitchRate = this.yawRate = this.rollRate = 0;
+    this.fold[0] = this.fold[1] = 0;
   }
 
   get dying(): boolean {
@@ -999,13 +861,13 @@ export class Avatar {
 
   /**
    * The crash pose: limbs windmill in panic, then flop as the pilot goes limp;
-   * the membranes follow the arms; a headfirst hit squashes the body for a
-   * moment. At the end the pilot shrinks into light.
+   * the wings sweep hard back and crumple up over the back (the jetpack stays put);
+   * a headfirst hit squashes the body for a moment. At the end the pilot shrinks
+   * into light.
    */
   private applyDeathPose(dt: number) {
     const d = this.death!;
     const t = d.t;
-    const A = ANIM;
     const panic = Math.exp(-t * 1.5);
     const wave = (rate: number, phase: number) => Math.sin(t * rate + phase);
     const spinning = d.kind === "wing";
@@ -1023,6 +885,7 @@ export class Avatar {
     this.head.rotation.set(0.55 + wave(11, 0.5) * 0.4 * panic + (1 - panic) * 0.35, wave(8, 2) * 0.45 * panic, wave(6, 1) * 0.3);
     this.pelvis.rotation.set(curl * 0.35, 0, wave(6, 0) * 0.12 * panic);
 
+    const crumple = 1 - panic;
     for (const [side, s] of [
       [this.right, 1],
       [this.left, -1],
@@ -1034,21 +897,25 @@ export class Avatar {
       side.elbow.rotation.set(0, 0, (0.55 + 0.45 * wave(9, s) + (broken ? 0.5 : 0)) * s);
       side.hip.rotation.set(-curl * 0.8 + wave(11, s * 1.7) * 0.55 * panic, 0, (0.15 + 0.2 * (1 - panic)) * s);
       side.knee.rotation.set(-0.6 - curl * 0.8 - Math.abs(wave(10, s)) * 0.45 * panic, 0, 0);
+
+      // The wings whip, then crumple: swept back, folded up over the back, and shortened
+      // where the rock has them (the one that hit first folds hardest)
+      const fold = this.fold[s > 0 ? 1 : 0] + (broken ? 0.4 : 0);
+      side.wing.rotation.set(
+        wave(7, s) * 0.3 * panic,
+        -s * (0.4 + 0.9 * crumple + fold * 0.8) + wave(9, s * 2) * 0.35 * panic,
+        -s * (0.8 + 0.5 * crumple + fold * 0.3 + wave(6, s) * 0.3 * panic),
+      );
+      side.wing.scale.set(1 - 0.3 * crumple - fold * 0.25, 1, 1);
     }
 
-    // The fans wind down
-    this.fanLevel *= Math.exp(-dt * 4);
-    this.setBoostGlow(this.fanLevel);
+    // The exhausts wind down
+    this.thrust *= Math.exp(-dt * 4);
+    this.setBoostGlow(this.thrust);
 
     // The aura fades out with the dissolve
     this.setAuraOpacity(0.6 * vanish);
     this.aura.scale.setScalar(AURA_SCALE);
-
-    if (!this.detailed) return;
-    // Cloth whips around hard
-    this.clothTime += dt * 14 * A.clothSpeed;
-    this.flutter = A.membraneFlutter * 1.5;
-    this.updateCloth();
   }
 
   /** A ghost's opacity, 0..1; solid pilots ignore it */

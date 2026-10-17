@@ -12,14 +12,13 @@ export const ANIM = {
   bankLead: 0.55, // limb/pelvis lean response to the bank rate
   bankSpring: 14, // stiffness of the lean spring; lower = floatier
   bankDamping: 0.42, // 1 = no overshoot, lower = a little wobble after a turn
-  membraneFlutter: 0.02, // metres the membranes ripple at speed
-  flutterRate: 8, // ripple cycles per second
+  wingSweep: 0.5, // radians the wings sweep back per radian the arms tuck (forward when braking)
+  wingDihedral: 0.12, // radians the wings angle up from the body plane at rest
+  wingBank: 0.25, // how far the wings tilt into a bank ahead of the body
   bobAmount: 0.12, // metres of gentle up-and-down drift
   bobRate: 0.85, // cycles per second
   headLook: 0.5, // how much the head turns into a turn
   limbSwing: 1, // arm and leg reaction to turns and pitch
-  clothWave: 1, // amplitude of the cape and scarf ripples
-  clothSpeed: 1, // ripple speed multiplier
 };
 
 /** Trails, particles, wind and screen effects */
@@ -265,14 +264,13 @@ export const RANGES: Record<string, [number, number, number?]> = {
   bankLead: [0, 1.5],
   bankSpring: [2, 40],
   bankDamping: [0.1, 1],
-  membraneFlutter: [0, 0.1],
-  flutterRate: [0, 20],
+  wingSweep: [0, 1.5],
+  wingDihedral: [-0.3, 0.6],
+  wingBank: [0, 1],
   bobAmount: [0, 0.6],
   bobRate: [0, 3],
   headLook: [0, 1.5],
   limbSwing: [0, 2],
-  clothWave: [0, 3],
-  clothSpeed: [0, 3],
   trailLength: [0.2, 2.5],
   trailWidth: [0.2, 3],
   trailGlow: [0, 3],
