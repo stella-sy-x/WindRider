@@ -362,7 +362,7 @@ export class Avatar {
     // Body pitch: slow = nose up (shows back to chase cam), fast = nose down (streamlined).
     // Brake raises the nose further, boost dips it, climbing lifts.
     const arch = 0.15 * (1 - speedK) + this.brake * 0.18 - this.boost * 0.08 + clamp(this.climb, 0, 1) * 0.1 + this.pitchRate * 0.04;
-    this.body.rotation.set(-Math.PI / 2 + arch, 0, -this.lean * 0.15);
+    this.body.rotation.set(-Math.PI / 2 + arch, 0, Math.PI - this.lean * 0.15);
 
     // Aura: a faint halo when cruising, brighter with speed, skimming the ground and the burn...
     this.setAuraOpacity(0.4 + speedK * 0.6 + proximity * 0.3 + this.thrust * 0.5);
