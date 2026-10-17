@@ -44,18 +44,18 @@ test("reduced camera motion suppresses speed and gate field-of-view effects", as
   assert.equal(camera.camera.fov,CAMERA.fov);
 });
 test("bindings saved before an action existed keep their keys, and the new action gets its default", () => {
-  const bindings = defaultBindings(); bindings.boost = ["KeyO"]; delete bindings.plunge; delete bindings.burst;
+  const bindings = defaultBindings(); bindings.boost = ["KeyO"]; delete bindings.barrelLeft; delete bindings.mute;
   const s = normalizeSettings({ bindings });
   assert.deepEqual(s.bindings.boost, ["KeyO"]);
-  assert.deepEqual(s.bindings.plunge, ["KeyX"]); assert.deepEqual(s.bindings.burst, ["KeyZ"]);
+  assert.deepEqual(s.bindings.barrelLeft, ["KeyQ"]); assert.deepEqual(s.bindings.mute, ["KeyM"]);
 });
 test("a new action whose default key is already taken gets a spare key, and nothing else changes", () => {
-  const bindings = defaultBindings(); bindings.boost = ["KeyG"]; delete bindings.ascend; delete bindings.resonance;
+  const bindings = defaultBindings(); bindings.boost = ["KeyQ"]; delete bindings.barrelLeft; delete bindings.respawn;
   const s = normalizeSettings({ bindings });
-  assert.deepEqual(s.bindings.boost, ["KeyG"]);
-  assert.deepEqual(s.bindings.resonance, ["KeyT"]);
-  assert.equal(s.bindings.ascend.length, 1);
-  assert.notEqual(s.bindings.ascend[0], "KeyG");
+  assert.deepEqual(s.bindings.boost, ["KeyQ"]);
+  assert.deepEqual(s.bindings.respawn, ["KeyR"]);
+  assert.equal(s.bindings.barrelLeft.length, 1);
+  assert.notEqual(s.bindings.barrelLeft[0], "KeyQ");
   const all = Object.values(s.bindings).flat();
   assert.equal(new Set(all).size, all.length, "no key bound twice");
 });

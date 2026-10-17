@@ -1,23 +1,20 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { Vector3 } from "three";
-import { Flight, FLIGHT, plainMods } from "../src/game/flight.ts";
+import { Flight, FLIGHT } from "../src/game/flight.ts";
 import { CameraRig } from "../src/game/camera.ts";
 
 const make = (speed = 40) => { const f = new Flight(); f.reset(new Vector3(), new Vector3(0, 0, -1), speed); return f; };
-const fly = (f, seconds, input = {}, params = FLIGHT, mods = null) => {
-  for (let i = 0; i < seconds * 120; i++) f.step(1 / 120, {pitch: 0, roll: 0, ...input}, 0, params, mods);
+const fly = (f, seconds, input = {}, params = FLIGHT) => {
+  for (let i = 0; i < seconds * 120; i++) f.step(1 / 120, {pitch: 0, roll: 0, ...input}, 0, params);
 };
 
-test("gravity and drag are integrated once, including upgrade modifiers", () => {
+test("gravity and drag are integrated once", () => {
   const f = make();
   const p = {...FLIGHT, gravity: 0, sink: 0, glideDrag: 0};
   fly(f, 1, {}, p);
   const analytical = 40 / (1 + p.drag * 40);
   assert.ok(Math.abs(f.speed - analytical) < 0.001);
-  const normal = make(), upgraded = make();
-  fly(normal, 2); fly(upgraded, 2, {}, FLIGHT, plainMods());
-  assert.ok(normal.position.distanceTo(upgraded.position) < 1e-8);
 });
 
 test("boost accelerates, exhausts without pulsing, and recharges after release", () => {
