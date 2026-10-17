@@ -5,7 +5,6 @@ import { ATMOSPHERE } from "./world/atmosphere";
 import { ANIM, FX } from "./tuning";
 import { clamp, smoothstep } from "./math";
 import { DISSOLVE_AT, type DeathKind, WING_POINTS } from "./death";
-import type { ItemSlot } from "./items/models";
 
 // The pilot: a gold paper airplane (kilansky's "Paper Airplane", CC BY 4.0, see
 // CREDITS.md), one static 42-triangle mesh converted in Blender and shipped as
@@ -25,7 +24,7 @@ import type { ItemSlot } from "./items/models";
 // happens inside it, on the rig as a whole: the mesh is one piece, so there are no
 // limbs to pose.
 //
-// The GLB is fetched once and shared by every avatar (players, ghosts, the gallery);
+// The GLB is fetched once and shared by every avatar (players, ghosts, the menu backdrop);
 // an avatar is empty until it arrives, then the mesh pops in.
 
 const SCALE = 1.65;
@@ -47,11 +46,6 @@ const WING_TIP: Vec = [0.5, -0.43, 0.1];
 const WING_ROOT_X = 0.05;
 /** The tail of the airplane, where the trails stream from: the middle of the trailing edge at the keel */
 const EXHAUST: Vec = [0, -0.36, -0.01];
-/** Item anchors: the top of the keel fold amidships, the nose tip, the right wingtip, the belly under the wings */
-const SLOT_BACK: Vec = [0, 0.05, 0.03];
-const SLOT_HEAD: Vec = [0, 0.61, -0.1];
-const SLOT_HAND: Vec = [0.45, -0.38, 0.09];
-const SLOT_FOOT: Vec = [0.03, -0.21, -0.09];
 
 type Vec = [number, number, number];
 
@@ -151,15 +145,6 @@ export class Avatar {
   brake = 0;
   /** 0..1 while a barrel roll is under way */
   barrelProgress = -1;
-  /** Where carried items go: on the back (the firework), on the head (helmets), in the right hand */
-  readonly slots: Record<ItemSlot, THREE.Object3D>;
-  /** The right and left ankle, for boots */
-  readonly feet: [THREE.Object3D, THREE.Object3D];
-  /**
-   * Kept for items/equip.ts, which still writes it: the arm pose it asks for.
-   * The mesh is one piece, so nothing reads it any more.
-   */
-  readonly armPose = { amount: 0, x: 0, y: 0, z: 0, elbow: 0 };
   /** A crash playing out: the body flails, then goes limp (Game moves `group`) */
   private death: { kind: DeathKind; t: number; side: number } | null = null;
 
@@ -177,17 +162,6 @@ export class Avatar {
     // centre of mass, so the anchors sit at the body's origin.
     this.body.rotation.set(-Math.PI / 2, 0, 0);
     this.body.add(this.anchors);
-
-    // Item slots, fixed to the model
-    const slot = (at: Vec) => {
-      const o = new THREE.Object3D();
-      o.position.set(...at);
-      this.anchors.add(o);
-      return o;
-    };
-    // Boots go on both ankles (items/equip.ts mirrors the left one)
-    this.feet = [slot(SLOT_FOOT), slot([-SLOT_FOOT[0], SLOT_FOOT[1], SLOT_FOOT[2]])];
-    this.slots = { back: slot(SLOT_BACK), head: slot(SLOT_HEAD), hand: slot(SLOT_HAND), feet: this.feet[0] };
 
     // The glow shell: an unlit, additive copy of the mesh, slightly larger, that lays a
     // warm light over the paper and a thin bright rim around its outline. No lighting
@@ -468,7 +442,7 @@ const SHELL_OPACITY = 0.35;
 
 let glow: THREE.Texture | null = null;
 
-/** A soft round glow for item sprites (items/equip.ts) */
+/** A soft round glow texture for sprites */
 export function glowTexture(): THREE.Texture {
   if (!glow) {
     const size = 64;

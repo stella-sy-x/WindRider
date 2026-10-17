@@ -20,7 +20,6 @@ React + Three.js frontend, FastAPI backend behind Caddy, `docker compose`.
 - **Multiplayer rooms**: race the same map at the same time. Up to 12 pilots.
 - **Test** (`/?test`): free flight through any biome with debug shortcuts
   (Shift+P/O/S, N/B/V world switching). Not exposed to players.
-- **Gallery** (`/?gallery`): item model showcase.
 
 ### Running it
 
@@ -56,9 +55,6 @@ cd frontend && npm install && npm run dev  # http://localhost:5173
 | `game/world/` | Terrain generation, biomes, courses, trees, water, atmosphere |
 | `game/world/crystals.ts` | Crystal gates |
 | `game/world/landCollider.ts` | Collision with drawn land meshes |
-| `game/cosmetics/` | Cape/hat/shoe/wing catalogs and sparkles |
-| `game/pets/` | Companion pets |
-| `game/items/` | Item models and gallery (cosmetic only, no mechanics) |
 | `game/death.ts` | Crash animations |
 | `game/autopilot.ts` | Racing-line autopilot for menu backdrop and victory |
 | `game/audio.ts` | Wind, events, wingbeat sample, music player |

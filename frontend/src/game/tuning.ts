@@ -179,9 +179,6 @@ export const AUTOPILOT = {
   railLead: 0.35, // seconds it banks ahead of a turn
 };
 
-/** Companion movement and scale: looks only, independent of all flight rules. */
-/** `spacing`: the orbit's radius (m), `orbit`: seconds per lap, `roam`: seconds of free play after a hoop, `follow`: the spring's stiffness */
-export const PET_LOOKS = { size: 1.8, spacing: 3.2, height: 0.5, trail: 0.8, follow: 5, snapDistance: 30, bob: 0.12, wingbeat: 1, tailSway: 1, lead: 9, sparkle: 1, gallop: 1.6, stride: 1, hoopRange: 80, guideBlend: 0.8, orbit: 5.5, roam: 4 };
 /** Music and sound levels */
 export const AUDIO = {
   music: 0.45, // volume of the background music
@@ -191,7 +188,7 @@ export const AUDIO = {
   nightMuffle: 0.55, // how much the highs are rolled off at night
 };
 
-const GROUPS = { ANIM, FX, RINGS, CORRIDOR, CAMERA, TERRAIN, FLORA, STRUCTURES, WATER, DEEP, AUTOPILOT, PET_LOOKS, AUDIO } as const;
+const GROUPS = { ANIM, FX, RINGS, CORRIDOR, CAMERA, TERRAIN, FLORA, STRUCTURES, WATER, DEEP, AUTOPILOT, AUDIO } as const;
 const DEFAULTS = JSON.parse(JSON.stringify(GROUPS)) as typeof GROUPS;
 const STORAGE_KEY = "windrider.tuning.speed-control-v1";
 
@@ -233,25 +230,6 @@ export function resetTuning() {
 
 /** Slider ranges for the ?tune panel; anything missing gets a range from its default */
 export const RANGES: Record<string, [number, number, number?]> = {
-  size: [0, 3],
-  lead: [4, 45],
-  gallop: [0, 4],
-  stride: [0, 2],
-  hoopRange: [0, 150],
-  guideBlend: [0.3, 6],
-  orbit: [2, 12],
-  roam: [0, 8],
-  capeDetail: [0, 2],
-  wingParticles: [0, 50],
-  wingParticleSize: [0.05, 0.5],
-  spacing: [2.5, 4.5],
-  trail: [0, 3],
-  follow: [2, 16],
-  snapDistance: [10, 60],
-  bob: [0, 1],
-  wingbeat: [0, 2],
-  tailSway: [0, 2],
-  sparkle: [0, 3],
   armSpread: [0.3, 1.6],
   spreadBrake: [0, 0.8],
   tuckSpeed: [0, 1],
@@ -380,6 +358,5 @@ export const TUNING_GROUPS: [string, Group][] = [
   ["Water", WATER],
   ["Underwater", DEEP],
   ["Autopilot", AUTOPILOT],
-  ["Companions", PET_LOOKS],
   ["Audio", AUDIO],
 ];

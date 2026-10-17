@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import { FX_LIGHT, sceneryTime as fxTime, pixelScale } from "../particles";
 import { makeRng, range } from "../rng";
+import { GOLD } from "../toon";
 import { RINGS } from "../tuning";
 import type { Ring } from "./course";
 
@@ -18,7 +19,6 @@ import type { Ring } from "./course";
 
 export type RingMode = "race" | "free" | "hidden";
 
-const GOLD = new THREE.Color("#ffd23f");
 const clamp01 = (x: number) => Math.min(1, Math.max(0, x));
 
 /** The gates' muted stone, as the crystal and mote shaders use it (`ice` unlit, `accent` when lit) */

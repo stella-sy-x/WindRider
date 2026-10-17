@@ -12,8 +12,6 @@ import { Debris } from "./effects";
 import { TouchControls } from "./touch";
 import { FLIGHT, Flight, type FlightInput, type HitPart, hitboxWorld, touching } from "./flight";
 import { GlideIn } from "./glidein";
-import { Equipment } from "./items/equip";
-import type { ItemId } from "./items/models";
 import { type GhostData, GhostRecorder, type GhostRun, ghostSamples } from "./ghost";
 import { type ControlSettings, type InputObserver, type TestAction, Input, controlsBlocked } from "./input";
 import { FX_LIGHT, Kind, Particles, fx, fxTime, sceneryTime } from "./particles";
@@ -22,7 +20,7 @@ import { INTERPOLATION_DELAY_MS, Pilot, type PilotSample } from "./pilots";
 import { clamp } from "./math";
 import { SpeedLines } from "./speedlines";
 // The glow light shared by trims, flora and water (particles.ts has its own FX_LIGHT, the particle boost)
-import { FX_LIGHT as GLOW_LIGHT, WHITE } from "./toon";
+import { FX_LIGHT as GLOW_LIGHT, GOLD, WHITE } from "./toon";
 import { FX, RANGES, RINGS, TUNING_GROUPS, WATER, loadTuning, resetTuning, saveTuning } from "./tuning";
 import { type Level, levelId, seedLevel } from "./world/biomes";
 import type { WaterKind } from "./world/terrain/river";
@@ -41,7 +39,6 @@ const START_SPEED = 32; // m/s
 /** The autopilot starts the course again this far past the finish (the line runs on, down towards a sea) */
 const AUTOPILOT_LOOP = 40;
 const HUD_INTERVAL = 100; // ms
-const GOLD = new THREE.Color("#ffd23f");
 const SPRAY = new THREE.Color("#e8f7ff");
 const LAVA_SPARK = new THREE.Color("#ff9a3c");
 
@@ -177,8 +174,6 @@ export class Game {
   private readonly prevQuaternion = new THREE.Quaternion();
   private readonly avatar: Avatar;
   private readonly fx: PilotFx;
-  /** What the pilot carries (models and animations only, for now) */
-  private readonly equipment: Equipment;
   readonly particles: Particles;
   /** Particles that blend instead of glowing: snow, leaves, ash, mist */
   private readonly softParticles: Particles;
@@ -319,7 +314,6 @@ export class Game {
         if (this.crashedAt === null) this.audio.wing(strength);
       };
     }
-    this.equipment = new Equipment(this.avatar, this.particles);
     this.speedLines = new SpeedLines();
     this.debris = new Debris(options.color);
     this.scene.add(this.avatar.group, this.debris.mesh, this.particles.points, this.softParticles.points, this.speedLines.mesh, ...this.fx.meshes);
@@ -385,18 +379,6 @@ export class Game {
     if (this.paused) this.input.releasePointer();
     this.audio.setPaused(this.paused);
     this.events.hud(this.hud(this.clock()));
-  }
-
-  // --- items (models and animations only: nothing here changes the flight) ----------------
-
-  /** Pulls an item out of the inventory and puts it on (the firework on the back, helmets on the head, the rest in hand) */
-  equip(id: ItemId) {
-    this.equipment.equip(id);
-  }
-
-  /** The firework's flame, 0..1 (looks only; the boost itself comes later) */
-  thrust(amount: number) {
-    this.equipment.setThrust(amount);
   }
 
   get camera(): THREE.PerspectiveCamera {
@@ -677,7 +659,6 @@ export class Game {
     this.live.forEach((p) => this.removePilot(p));
     this.ghosts.forEach((p) => this.removePilot(p));
     this.fx.dispose();
-    this.equipment.dispose();
     this.avatar.dispose();
     this.particles.dispose();
     this.softParticles.dispose();
@@ -1285,7 +1266,6 @@ export class Game {
       this.avatar.setDodge(this.flight.dodgePhase);
       this.avatar.setSpeedControls(this.flight.boost, this.flight.brake);
       this.avatar.update(dt, this.flight.speed, this.smoothProximity);
-      this.equipment.update(dt);
       // Frozen on the start line: no motes, or they pile up into a glowing ball
       const moving = this.raceState !== "countdown";
       this.fx.update(dt, this.flight.speed, this.flight.velocity, this.smoothProximity, moving);
@@ -1309,7 +1289,6 @@ export class Game {
       this.death.update(dt, this.contact);
       body.position.copy(this.death.position);
       body.quaternion.copy(this.death.quaternion);
-      this.equipment.update(dt);
       this.deathEffects(dt);
       this.rig.fall(body.position, dt, this.field);
     }

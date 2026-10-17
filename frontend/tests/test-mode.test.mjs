@@ -11,9 +11,8 @@ test("?test opens the test sandbox, however it is added to a URL", () => {
   assert.deepEqual(screen("?test=1"), { kind: "test", biome: "verdant", seed: 1 });
   assert.deepEqual(screen("?test=nowhere"), { kind: "test", biome: "verdant", seed: 1 });
   assert.deepEqual(screen("?test=toString"), { kind: "test", biome: "verdant", seed: 1 });
-  // Multiplayer and the gallery never run in test mode
+  // Multiplayer never runs in test mode
   assert.deepEqual(screen("?room=ABCDE&test"), { kind: "room", code: "ABCDE" });
-  assert.deepEqual(screen("?gallery&test"), { kind: "gallery" });
   // Without test, nothing changed
   assert.deepEqual(screen("?seed=42"), { kind: "solo", seed: 42 });
   assert.deepEqual(screen(""), { kind: "menu" });
