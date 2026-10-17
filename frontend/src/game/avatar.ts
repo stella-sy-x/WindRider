@@ -34,17 +34,17 @@ const MODEL_URL = import.meta.env.BASE_URL + "models/pilot.glb";
 // `HIPS_Y` inside the rig (death.ts's contact balls assume the origin at the hips).
 
 /** The hips' height: the body's origin, and what the prone rotation turns about */
-const HIPS_Y = 0.45;
+const HIPS_Y = 0.495;
 /** The wings' outer edge: the mesh's x extremes, at mid-chord */
-const WING_TIP: Vec = [0.7, 0.516, 0.13];
+const WING_TIP: Vec = [0.77, 0.57, 0.143];
 /** Where the wing leaves the torso */
-const WING_ROOT_X = 0.12;
+const WING_ROOT_X = 0.132;
 /** The bottom of the jetpack, the exhaust: the mesh's +z extreme */
-const EXHAUST: Vec = [0, 0.457, 0.344];
+const EXHAUST: Vec = [0, 0.587, 0.315];
 /** Item anchors: the pack's outer face, the crown of the helmet, the right palm along the wing, the ankles */
-const SLOT_BACK: Vec = [0, 0.42, 0.36];
-const SLOT_HEAD: Vec = [0, 0.92, -0.02];
-const SLOT_HAND: Vec = [0.36, 0.62, 0];
+const SLOT_BACK: Vec = [0, 0.46, 0.31];
+const SLOT_HEAD: Vec = [0, 1.0, -0.02];
+const SLOT_HAND: Vec = [0.40, 0.68, 0];
 const SLOT_FOOT: Vec = [0.1, 0.08, 0];
 
 type Vec = [number, number, number];
@@ -353,9 +353,9 @@ export class Avatar {
     const stretch = 1 + clamp((this.speed - 55) / 60, 0, 1) * 0.06;
     this.rig.scale.set(SCALE / Math.sqrt(stretch), SCALE / Math.sqrt(stretch), SCALE * stretch);
 
-    // Body: a superhero arch (nose up to brake, flatter under boost, more when climbing),
-    // and a lean into the bank ahead of the steering
-    const arch = this.brake * 0.18 - this.boost * 0.08 + clamp(this.climb, 0, 1) * 0.1 + this.pitchRate * 0.04;
+    // Body pitch: slow = nose up (shows back to chase cam), fast = nose down (streamlined).
+    // Brake raises the nose further, boost dips it, climbing lifts.
+    const arch = 0.15 * (1 - speedK) + this.brake * 0.18 - this.boost * 0.08 + clamp(this.climb, 0, 1) * 0.1 + this.pitchRate * 0.04;
     this.body.rotation.set(-Math.PI / 2 + arch, 0, -this.lean * 0.15);
 
     // Aura: a faint halo when cruising, brighter with speed, skimming the ground and the burn...
