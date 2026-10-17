@@ -169,8 +169,10 @@ export class Avatar {
     this.group.add(this.rig);
     this.rig.add(this.body);
     this.rig.scale.setScalar(SCALE);
-    // Lay the standing body prone: head forward (-z), back up (+y), centered on the hips
-    this.body.rotation.x = -Math.PI / 2;
+    // Lay the model prone: nose forward along the flight direction.
+    // The paper airplane has nose at -Z, keel at +Y in model space;
+    // rotation.x = -PI/2 points -Z downward, so rotation.z = PI flips it nose-forward.
+    this.body.rotation.set(-Math.PI / 2, 0, Math.PI);
     this.anchors.position.y = -HIPS_Y;
     this.body.add(this.anchors);
 
