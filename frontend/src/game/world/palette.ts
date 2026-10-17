@@ -10,7 +10,7 @@ export interface Palette {
   rock: string; // steep faces and the bare slopes below the snow
   snow: string;
   cloud: string;
-  accent: string; // the gates' glow (the finish is gold)
+  accent: string; // the biome's own things: the gates' glow (the finish is gold), the corridor posts, future biome gameplay pieces. Never the pilot or its effects, and never neon: muted, mid-saturation
   sun: string;
   sunIntensity: number;
   ambient: number;

@@ -174,6 +174,8 @@ export class Game {
   private readonly prevQuaternion = new THREE.Quaternion();
   private readonly avatar: Avatar;
   private readonly fx: PilotFx;
+  /** The pilot's own colour (the trails', see setSelf): what the crash scatters and the dissolve glows in */
+  private readonly pilotColor = new THREE.Color();
   readonly particles: Particles;
   /** Particles that blend instead of glowing: snow, leaves, ash, mist */
   private readonly softParticles: Particles;
@@ -304,6 +306,7 @@ export class Game {
     this.particles = new Particles();
     this.softParticles = new Particles(3000, true);
     this.ambient = new Ambient(this.particles, this.softParticles);
+    this.pilotColor.set(options.color);
     this.avatar = new Avatar(options.color);
     this.fx = new PilotFx(this.avatar, options.color, this.particles);
     if (!this.attract) {
@@ -542,6 +545,7 @@ export class Game {
 
   setSelf(id: string, color: string) {
     this.selfId = id;
+    this.pilotColor.set(color);
     this.avatar.setColor(color);
     this.fx.setColor(color);
     this.debris.setColor(color);
@@ -1008,7 +1012,8 @@ export class Game {
   /** Stars and puffs off the impact, thrown away from the surface; each kind of crash adds its own */
   private crashBurst(kind: DeathKind, away: THREE.Vector3, p: THREE.Vector3) {
     const amount = this.particles.budget;
-    color.set(this.world.palette.accent);
+    // The pilot's own colour, like the trails: the paper scatters as itself, not in the biome's accent
+    color.copy(this.pilotColor);
     // Fewer and smaller than they'd be for a vanishing pilot: the body stays on screen
     for (let k = 0; k < Math.round(40 * amount); k++) {
       vel.set(rand(-1, 1), rand(-0.3, 1), rand(-1, 1)).normalize().addScaledVector(away, 0.8).normalize();
@@ -1060,7 +1065,7 @@ export class Game {
     // At the end the pilot dissolves into light
     if (!this.dissolved && d.time >= DISSOLVE_AT) {
       this.dissolved = true;
-      color.set(this.world.palette.accent).lerp(WHITE, 0.5);
+      color.copy(this.pilotColor).lerp(WHITE, 0.5);
       for (let k = 0; k < Math.round(70 * amount); k++) {
         at.copy(p).add(tmp.set(rand(-0.6, 0.6), rand(-0.6, 0.6), rand(-0.6, 0.6)));
         vel.set(rand(-1, 1), rand(-0.2, 1), rand(-1, 1)).normalize().multiplyScalar(rand(1, 5));
