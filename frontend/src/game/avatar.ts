@@ -31,7 +31,7 @@ import type { ItemSlot } from "./items/models";
 const SCALE = 1.65;
 const TAU = Math.PI * 2;
 /** The paper's own light: warm gold, added on top of whatever the biome's sky and sun give it (strength in FX.pilotGlow) */
-const GLOW_COLOR = new THREE.Color("#ffc247");
+const GLOW_COLOR = new THREE.Color("#ffefd2");
 
 /** Where the GLB lives, under Vite's public dir */
 const MODEL_URL = import.meta.env.BASE_URL + "models/pilot.glb";
@@ -463,7 +463,7 @@ export class Avatar {
 
 /** The glow shell: how much larger than the body, its colour, and its base alpha at full strength */
 const SHELL_SCALE = 1.05;
-const SHELL_COLOR = new THREE.Color("#ffe9b0");
+const SHELL_COLOR = new THREE.Color("#fff4dc");
 const SHELL_OPACITY = 0.35;
 
 let glow: THREE.Texture | null = null;
