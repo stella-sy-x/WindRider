@@ -39,7 +39,8 @@ export const FX = {
   skimDust: 1, // spray from the ground while skimming
   speedLines: 1, // wind streaks at speed
   speedLinesFrom: 45, // m/s where the wind streaks start
-  aura: 1, // soft glow around the pilot
+  glowShell: 1, // the pilot's glow: an unlit warm shell over the paper and a bright rim around its outline
+  pilotGlow: 0.3, // the paper's own warm light (emissive), so the biome's sky never muddies it
   vignette: 1, // speed vignette at the screen edges
   bloom: 0.4, // glow strength (0 turns post-processing off)
   bloomRadius: 0.12,
@@ -284,7 +285,8 @@ export const RANGES: Record<string, [number, number, number?]> = {
   skimDust: [0, 4],
   speedLines: [0, 3],
   speedLinesFrom: [10, 100],
-  aura: [0, 3],
+  glowShell: [0, 3],
+  pilotGlow: [0, 1],
   vignette: [0, 2],
   bloom: [0, 2.5],
   bloomRadius: [0, 1],

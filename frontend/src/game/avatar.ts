@@ -30,6 +30,8 @@ import type { ItemSlot } from "./items/models";
 
 const SCALE = 1.65;
 const TAU = Math.PI * 2;
+/** The paper's own light: warm gold, added on top of whatever the biome's sky and sun give it (strength in FX.pilotGlow) */
+const GLOW_COLOR = new THREE.Color("#ffc247");
 
 /** Where the GLB lives, under Vite's public dir */
 const MODEL_URL = import.meta.env.BASE_URL + "models/pilot.glb";
@@ -124,10 +126,10 @@ export class Avatar {
   private model: THREE.Mesh | null = null;
   private readonly material: THREE.MeshLambertMaterial;
   private disposed = false;
-  /** A soft round glow behind the body that silhouettes it against the scenery; looks only */
-  private readonly aura: THREE.Sprite;
-  private readonly auraMaterial: THREE.SpriteMaterial;
-  /** A ghost's current fade (see `fade`); dims its aura along with the body */
+  /** The glow shell around the body (see the constructor); looks only */
+  private shell: THREE.Mesh | null = null;
+  private readonly shellMaterial: THREE.MeshBasicMaterial;
+  /** A ghost's current fade (see `fade`); dims its glow along with the body */
   private ghostFade = 1;
   private readonly ghost: boolean;
 
@@ -141,7 +143,7 @@ export class Avatar {
   private leanVelocity = 0;
   private barrel = { t: -1, dir: 1 };
   private speed = 30;
-  /** The boost eased in, 0..1: brightens the aura */
+  /** The boost eased in, 0..1: brightens the glow */
   private thrust = 0;
   private climb = 0;
   private time = 0;
@@ -164,7 +166,8 @@ export class Avatar {
   /** `color` is kept for the callers' sake (multiplayer rosters); the suit's livery is baked into the model */
   constructor(_color: string, options: AvatarOptions = {}) {
     this.ghost = !!options.ghost;
-    this.material = flatMaterial({ ghost: this.ghost, side: THREE.FrontSide });
+    this.material = flatMaterial({ ghost: this.ghost, side: THREE.FrontSide, emissive: GLOW_COLOR });
+    this.setGlow();
 
     this.group.add(this.rig);
     this.rig.add(this.body);
@@ -186,19 +189,19 @@ export class Avatar {
     this.feet = [slot(SLOT_FOOT), slot([-SLOT_FOOT[0], SLOT_FOOT[1], SLOT_FOOT[2]])];
     this.slots = { back: slot(SLOT_BACK), head: slot(SLOT_HEAD), hand: slot(SLOT_HAND), feet: this.feet[0] };
 
-    // A soft, diffused halo behind the body, a pale shade of the wings' orange
-    this.auraMaterial = new THREE.SpriteMaterial({
-      map: glowTexture(),
-      color: new THREE.Color("#ff9a3d").lerp(new THREE.Color("#ffffff"), 0.45),
+    // The glow shell: an unlit, additive copy of the mesh, slightly larger, that lays a
+    // warm light over the paper and a thin bright rim around its outline. No lighting
+    // reaches it, so the biome's ambient can't tint it: the paper's own light, read even
+    // where the sky dims and colours everything else
+    this.shellMaterial = new THREE.MeshBasicMaterial({
+      color: SHELL_COLOR,
       blending: THREE.AdditiveBlending,
       transparent: true,
+      opacity: 0,
       depthWrite: false,
-      fog: true,
+      side: THREE.DoubleSide,
+      fog: false,
     });
-    this.aura = new THREE.Sprite(this.auraMaterial);
-    this.aura.scale.setScalar(AURA_SCALE);
-    this.aura.renderOrder = 3;
-    this.group.add(this.aura);
 
     // The mesh pops in when the shared GLB arrives (nothing shows until then)
     loadPilotGeometry().then(
@@ -206,6 +209,10 @@ export class Avatar {
         if (this.disposed) return;
         this.model = new THREE.Mesh(geometry, this.material);
         this.anchors.add(this.model);
+        this.shell = new THREE.Mesh(geometry, this.shellMaterial);
+        this.shell.scale.setScalar(SHELL_SCALE);
+        this.shell.renderOrder = 2;
+        this.anchors.add(this.shell);
       },
       () => {},
     );
@@ -228,11 +235,16 @@ export class Avatar {
     this.thrust = 0;
   }
 
-  /** The halo's opacity this frame, 0..1 before tuning; ghosts wear a dimmer one that thins out with them */
-  private setAuraOpacity(k: number) {
-    const value = AURA_OPACITY * k * FX.aura * (1 + ATMOSPHERE.night.value * 1.5) * (this.ghost ? 0.3 * this.ghostFade : 1);
-    this.auraMaterial.opacity = value;
-    this.aura.visible = value > 0.01;
+  /** The paper's own light, read from the tuning each frame so the panel's slider works live; ghosts glow half as much */
+  private setGlow() {
+    this.material.emissiveIntensity = FX.pilotGlow * (this.ghost ? 0.5 : 1);
+  }
+
+  /** The shell's glow this frame: `k` is 0..1 before tuning, brighter at night; ghosts wear a dimmer one that thins out with them */
+  private setGlowStrength(k: number) {
+    const shell = SHELL_OPACITY * k * FX.glowShell * (1 + ATMOSPHERE.night.value * 1.5) * (this.ghost ? 0.3 * this.ghostFade : 1);
+    this.shellMaterial.opacity = shell;
+    if (this.shell) this.shell.visible = shell > 0.01;
   }
 
   /**
@@ -305,6 +317,7 @@ export class Avatar {
     if (dt <= 0) return;
     this.time += dt;
     this.speed = speed;
+    this.setGlow();
     if (this.death) {
       this.death.t += dt;
       this.applyDeathPose(dt);
@@ -363,10 +376,8 @@ export class Avatar {
     const arch = 0.15 * (1 - speedK) + this.brake * 0.18 - this.boost * 0.08 + clamp(this.climb, 0, 1) * 0.1 + this.pitchRate * 0.04;
     this.body.rotation.set(-Math.PI / 2 + arch, 0, -this.lean * 0.15);
 
-    // Aura: a faint halo when cruising, brighter with speed, skimming the ground and the burn...
-    this.setAuraOpacity(0.4 + speedK * 0.6 + proximity * 0.3 + this.thrust * 0.5);
-    // ...with a gentle living pulse in its size
-    this.aura.scale.setScalar(AURA_SCALE * (1 + 0.03 * Math.sin(t * 1.5) + this.thrust * 0.1));
+    // Glow: faint when cruising, brighter with speed, skimming the ground and the burn
+    this.setGlowStrength(0.4 + speedK * 0.6 + proximity * 0.3 + this.thrust * 0.5);
   }
 
   /** Starts the crash animation of this kind; `side` is the wing that hit (1 right, -1 left) */
@@ -414,18 +425,17 @@ export class Avatar {
     // The jetpack winds down
     this.thrust *= Math.exp(-dt * 4);
 
-    // The aura fades out with the dissolve
-    this.setAuraOpacity(0.6 * vanish);
-    this.aura.scale.setScalar(AURA_SCALE);
+    // The glow fades out with the dissolve
+    this.setGlowStrength(0.6 * vanish);
   }
 
   /** A ghost's opacity, 0..1; solid pilots ignore it */
   fade(opacity: number) {
     if (!this.ghost) return;
     this.material.opacity = opacity;
-    // The halo follows (ghosts wear 0.3 of it, see `setAuraOpacity`); the next pose applies it
+    // The glow follows (ghosts wear 0.3 of it, see `setGlowStrength`); the next pose applies it
     this.ghostFade = opacity;
-    this.auraMaterial.opacity *= opacity;
+    this.shellMaterial.opacity *= opacity;
   }
 
   /** Hides the pilot (e.g. after a crash) */
@@ -442,17 +452,19 @@ export class Avatar {
     this.disposed = true;
     if (this.model) this.anchors.remove(this.model);
     this.model = null;
+    if (this.shell) this.anchors.remove(this.shell);
+    this.shell = null;
     this.material.dispose();
-    this.auraMaterial.dispose();
+    this.shellMaterial.dispose();
   }
 }
 
-// --- aura halo ------------------------------------------------------------------------
+// --- glow -------------------------------------------------------------------------------
 
-/** Base alpha of the halo at full strength: faint on purpose, just enough to lift the silhouette off the scenery */
-const AURA_OPACITY = 0.18;
-/** Side of the halo sprite (m): a little larger than the body so it reads as a soft glow, not an outline */
-const AURA_SCALE = 2.0;
+/** The glow shell: how much larger than the body, its colour, and its base alpha at full strength */
+const SHELL_SCALE = 1.05;
+const SHELL_COLOR = new THREE.Color("#ffe9b0");
+const SHELL_OPACITY = 0.35;
 
 let glow: THREE.Texture | null = null;
 
