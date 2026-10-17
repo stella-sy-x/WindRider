@@ -88,8 +88,8 @@ export class Pilot {
     return lo;
   }
 
-  /** Draws the pilot at `time`; `dt` and the camera position drive its animation */
-  update(time: number, dt: number, camera: THREE.Vector3) {
+  /** Draws the pilot at `time`; `dt` drives its animation */
+  update(time: number, dt: number) {
     const i = this.indexAt(time);
     const last = this.samples[this.samples.length - 1];
     const stale = !last || (!this.ghost && time - last.t > STALE_MS) || (this.ghost && time > last.t + 1500);
@@ -139,7 +139,7 @@ export class Pilot {
     this.avatar.setDodge(dodge);
     this.avatar.setSpeedControls((a.boost ?? 0) + ((b?.boost ?? a.boost ?? 0) - (a.boost ?? 0)) * blend,
       (a.brake ?? 0) + ((b?.brake ?? a.brake ?? 0) - (a.brake ?? 0)) * blend);
-    this.avatar.update(dt, this.speed, 0, camera.distanceTo(this.position));
+    this.avatar.update(dt, this.speed, 0);
     this.fx.update(dt, this.speed, this.velocity, 0);
   }
 

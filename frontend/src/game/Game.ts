@@ -6,9 +6,6 @@ import { Ambient } from "./ambient";
 import { Autopilot } from "./autopilot";
 import { GameAudio } from "./audio";
 import { Avatar } from "./avatar";
-import { APPEARANCE_EVENT, loadAppearance } from "./cosmetics/storage";
-import { Companion } from "./pets/companion";
-import { CosmeticSparkles } from "./cosmetics/sparkles";
 import { CameraRig } from "./camera";
 import { DISSOLVE_AT, type DeathKind, DeathFall, classifyCrash, fieldNormal } from "./death";
 import { Debris } from "./effects";
@@ -32,6 +29,7 @@ import type { WaterKind } from "./world/terrain/river";
 import { type WaterHit, World } from "./world/World";
 import { WorldView } from "./world/WorldView";
 import type { Palette } from "./world/palette";
+import type { Ring } from "./world/course";
 import { reloadForNewBuild } from "../staleBuild";
 import { onHold } from "./hold";
 
@@ -72,7 +70,7 @@ export interface Participant {
 
 export interface Standing extends Participant {
   me: boolean;
-  checkpoints: number;
+  checkpoints: number; // gates taken (optional speed boosts), not progress: that is the distance to the finish
 }
 
 export interface HudState {
@@ -89,8 +87,9 @@ export interface HudState {
   raceState: RaceState;
   raceTimeMs: number | null;
   countdown: number | null; // whole seconds left
-  checkpoints: number;
-  totalCheckpoints: number;
+  checkpoints: number; // gates taken so far (every gate but the finish is an optional speed boost)
+  totalCheckpoints: number; // gates there are to take, the finish not counted
+  respawnRing: number; // where a crash puts you back: the furthest gate taken (1-based), 0 = the start
   proximity: number; // 0..1
   style: number;
   multiplier: number;
@@ -128,7 +127,7 @@ export interface GameOptions {
   testMode?: boolean;
 }
 
-/** Live state for the network: [x,y,z], [qx,qy,qz,qw], speed, checkpoints */
+/** Live state for the network: [x,y,z], [qx,qy,qz,qw], speed, gates taken */
 export interface NetState {
   p: [number, number, number];
   q: [number, number, number, number];
@@ -177,16 +176,7 @@ export class Game {
   private readonly renderVelocity = new THREE.Vector3();
   private readonly prevQuaternion = new THREE.Quaternion();
   private readonly avatar: Avatar;
-  private readonly companion: Companion;
-  private readonly appearanceChanged = () => {
-    const appearance = loadAppearance();
-    this.avatar.setAppearance(appearance);
-    this.companion.set(appearance.pet);
-    this.sparkles.setAppearance(appearance);
-  };
   private readonly fx: PilotFx;
-  /** Rare cosmetics' own particles (decoration only) */
-  private readonly sparkles: CosmeticSparkles;
   /** What the pilot carries (models and animations only, for now) */
   private readonly equipment: Equipment;
   readonly particles: Particles;
@@ -238,7 +228,11 @@ export class Game {
 
   private raceState: RaceState = "free";
   private startAt = 0;
-  private checkpoints = 0;
+  /**
+   * The gates flown through this race, by ring index. Gates are optional speed boosts, taken in any
+   * order and each only once; only the finish (the last ring) is a must, and it ends the race
+   */
+  private readonly passed = new Set<number>();
   private finishMs: number | null = null;
   private crashedAt: number | null = null;
   /** The pilot's tumble after a crash (looks only) */
@@ -316,10 +310,6 @@ export class Game {
     this.softParticles = new Particles(3000, true);
     this.ambient = new Ambient(this.particles, this.softParticles);
     this.avatar = new Avatar(options.color);
-    this.companion = new Companion(this.scene, this.particles);
-    this.sparkles = new CosmeticSparkles(this.avatar, this.particles);
-    this.appearanceChanged();
-    window.addEventListener(APPEARANCE_EVENT, this.appearanceChanged);
     this.fx = new PilotFx(this.avatar, options.color, this.particles);
     if (!this.attract) {
       // Your own wings make a sound on each downstroke (the effects keep their own hook)
@@ -593,7 +583,6 @@ export class Game {
     this.input.settings = controls;
     this.input.reset();
     this.rig.reducedMotion = !!controls.reducedMotion;
-    this.avatar.setStyle(controls.pilotStyle ?? 1);
     this.audio.setPreferences(controls.musicVolume ?? 1, controls.effectsVolume ?? 1,
       controls.muted ?? false);
     const mode = controls.quality ?? "auto";
@@ -608,9 +597,9 @@ export class Game {
     if (this.paused) this.togglePause();
     this.startSlot = null;
     this.raceState = "free";
-    this.checkpoints = 0;
+    this.passed.clear();
     this.finishMs = null;
-    this.view.setRings("free", 0);
+    this.view.setRings("free");
     if (respawn) this.respawn(0);
   }
 
@@ -620,12 +609,12 @@ export class Game {
     this.startSlot = slot;
     this.raceState = "countdown";
     this.startAt = startAt;
-    this.checkpoints = 0;
+    this.passed.clear();
     this.finishMs = null;
     this.style = 0;
     this.lastBeep = Infinity;
     this.recorder.reset();
-    this.view.setRings("race", 0);
+    this.view.setRings("race", true);
     this.respawn(0);
   }
 
@@ -667,7 +656,7 @@ export class Game {
 
   netState(): NetState {
     const { position: p, quaternion: q, speed } = this.flight;
-    return { p: [p.x, p.y, p.z], q: [q.x, q.y, q.z, q.w], v: speed, cp: this.checkpoints, boost: this.flight.boost, brake: this.flight.brake, dodge: this.flight.dodgePhase };
+    return { p: [p.x, p.y, p.z], q: [q.x, q.y, q.z, q.w], v: speed, cp: this.passed.size, boost: this.flight.boost, brake: this.flight.brake, dodge: this.flight.dodgePhase };
   }
 
   dispose() {
@@ -689,8 +678,6 @@ export class Game {
     this.ghosts.forEach((p) => this.removePilot(p));
     this.fx.dispose();
     this.equipment.dispose();
-    window.removeEventListener(APPEARANCE_EVENT, this.appearanceChanged);
-    this.companion.dispose();
     this.avatar.dispose();
     this.particles.dispose();
     this.softParticles.dispose();
@@ -742,7 +729,34 @@ export class Game {
 
   private respawnNow() {
     if (this.raceState === "countdown") return;
-    this.respawn(this.raceState === "free" ? 0 : this.checkpoints);
+    this.respawn(this.raceState === "free" ? 0 : this.furthestPassed());
+  }
+
+  /** The furthest gate taken this race along the course, 1-based (World.spawnPoint); 0: none yet */
+  private furthestPassed(): number {
+    let furthest = 0;
+    for (const index of this.passed) furthest = Math.max(furthest, index + 1);
+    return furthest;
+  }
+
+  /** The nearest gate ahead that is still to take (looks only: where the motes glitter) */
+  private nextGate(): Ring | undefined {
+    const p = this.flight.position;
+    let best: Ring | undefined;
+    let nearest = Infinity;
+    const rings = this.world.course.rings;
+    for (let i = 0; i < rings.length; i++) {
+      if (this.passed.has(i)) continue;
+      const ring = rings[i];
+      // Ahead: still on the side you fly in from
+      if (tmp.subVectors(p, ring.position).dot(ring.normal) >= 0) continue;
+      const d = p.distanceToSquared(ring.position);
+      if (d < nearest) {
+        nearest = d;
+        best = ring;
+      }
+    }
+    return best;
   }
 
   /**
@@ -809,12 +823,14 @@ export class Game {
 
     if (this.raceState === "racing") {
       this.recorder.record(this.clock() - this.startAt, this.flight.position, this.flight.quaternion, this.flight.boost, this.flight.brake, this.flight.dodgePhase);
-      this.checkRing();
+      this.checkRings();
     } else if (this.raceState === "free") {
-      // No race, but flying through a gate still makes it shine
+      // No race, but flying through a gate still shines and kicks you on, as it does in one
       const rings = this.world.course.rings;
       for (let i = 0; i < rings.length; i++) {
-        if (!this.view.gates.passing(i) && this.crossed(i)) this.gateBurst(i);
+        if (this.view.gates.passing(i) || !this.crossed(i)) continue;
+        this.gateKick();
+        this.gateBurst(i);
       }
     }
   }
@@ -924,27 +940,40 @@ export class Game {
     return 1 + Math.min(4, Math.floor(this.combo / 1.5));
   }
 
-  /** Did the last step pass through the next ring? */
-  private checkRing() {
-    const index = this.checkpoints;
-    const ring = this.world.course.rings[index];
-    if (!ring || !this.crossed(index)) return;
-
-    this.checkpoints++;
-    if (ring.finish) {
-      const timeMs = Math.round(this.clock() - this.startAt);
-      this.raceState = "finished";
-      this.finishMs = timeMs;
-      this.view.setRings("hidden", 0);
-      this.gateBurst(index);
-      this.audio.finish();
-      const ghost = this.recorder.finish(timeMs, this.flight.position, this.flight.quaternion, this.flight.boost, this.flight.brake, this.flight.dodgePhase);
-      this.events.finished?.({ timeMs, ghost });
-    } else {
+  /**
+   * Did the last step fly through a gate not yet taken? Any gate, in any order, each once: it kicks
+   * the speed up and flares. The finish (the last ring) is the only must, and it ends the race
+   */
+  private checkRings() {
+    const rings = this.world.course.rings;
+    for (let i = 0; i < rings.length; i++) {
+      if (this.passed.has(i) || !this.crossed(i)) continue;
+      this.passed.add(i);
+      if (rings[i].finish) {
+        this.finishRace(i);
+        return;
+      }
+      this.gateKick();
       this.audio.ring();
-      this.view.setRings("race", this.checkpoints);
-      this.gateBurst(index);
+      this.gateBurst(i);
     }
+  }
+
+  /** Through the finish ring: the clock stops, the gates go out, the run is handed over */
+  private finishRace(index: number) {
+    const timeMs = Math.round(this.clock() - this.startAt);
+    this.raceState = "finished";
+    this.finishMs = timeMs;
+    this.view.setRings("hidden");
+    this.gateBurst(index);
+    this.audio.finish();
+    const ghost = this.recorder.finish(timeMs, this.flight.position, this.flight.quaternion, this.flight.boost, this.flight.brake, this.flight.dodgePhase);
+    this.events.finished?.({ timeMs, ghost });
+  }
+
+  /** The gate's reward: a kick of speed, at once; drag takes it back over the next seconds */
+  private gateKick() {
+    this.flight.speed += FLIGHT.gateBoost;
   }
 
   // --- effects -------------------------------------------------------------------
@@ -962,7 +991,7 @@ export class Game {
     this.flash = 1;
     const amount = this.particles.budget * RINGS.shatter;
     if (amount <= 0) return;
-    const tint = ring.finish ? GOLD : color.set(this.world.palette.accent);
+    const tint = ring.finish ? GOLD : this.view.gateColors.accent;
     const forward = ring.normal;
     const crystals = this.view.gates.crystalPositions(index, this.crystalPoints);
     for (const p of crystals) {
@@ -1143,17 +1172,17 @@ export class Game {
     this.glintDebt = Math.min(this.glintDebt, 2);
   }
 
-  /** Glitter drifting around the next gate, so it sparkles from afar */
+  /** Glitter drifting around the nearest gate ahead still to take, so it sparkles from afar */
   private gateMotes(dt: number) {
     if (this.raceState !== "racing" && this.raceState !== "countdown") return;
-    const ring = this.world.course.rings[this.checkpoints];
+    const ring = this.nextGate();
     if (!ring || ring.position.distanceToSquared(this.flight.position) > 600 * 600) return;
     this.moteDebt += 30 * this.particles.budget * dt;
     const n = ring.normal;
     if (Math.abs(n.y) < 0.95) basisA.crossVectors(n, THREE.Object3D.DEFAULT_UP).normalize();
     else basisA.set(1, 0, 0);
     basisB.crossVectors(n, basisA);
-    const tint = ring.finish ? GOLD : color.set(this.world.palette.accent);
+    const tint = ring.finish ? GOLD : this.view.gateColors.accent;
     for (; this.moteDebt >= 1; this.moteDebt--) {
       const angle = Math.random() * Math.PI * 2;
       const r = ring.radius * rand(0.9, 1.25);
@@ -1260,7 +1289,6 @@ export class Game {
       // Frozen on the start line: no motes, or they pile up into a glowing ball
       const moving = this.raceState !== "countdown";
       this.fx.update(dt, this.flight.speed, this.flight.velocity, this.smoothProximity, moving);
-      this.sparkles.update(dt, this.flight.velocity, moving && !this.attract);
       this.skimSpray(dt);
       this.rig.update(
         dt,
@@ -1274,20 +1302,17 @@ export class Game {
         this.flight.boost,
       );
     } else {
-      // The crash plays out: the pose first (the wings flail), then the tumble moves the body and
+      // The crash plays out: the pose first (the body thrashes), then the tumble moves the body and
       // keeps that pose out of the rock, so what's drawn is always resolved; the camera keeps it in view
       this.avatar.update(dt, this.death.speed, 0);
       this.avatar.wingPoints(this.death.wing);
       this.death.update(dt, this.contact);
-      this.avatar.foldWings(this.death.wedged[0], this.death.wedged[1], dt);
       body.position.copy(this.death.position);
       body.quaternion.copy(this.death.quaternion);
       this.equipment.update(dt);
       this.deathEffects(dt);
       this.rig.fall(body.position, dt, this.field);
     }
-    this.avatar.showCosmeticHat(this.equipment.wearing("head") === null);
-    this.companion.update(dt, body, !crashed && this.attract !== "drift", this.world.course, this.flight.speed);
     this.debris.update(dt);
 
     const camera = this.rig.camera;
@@ -1300,9 +1325,9 @@ export class Game {
     this.ambient.update(dt, camera.position, flying ? this.flight.velocity : tmp.set(0, 0, 0), this.particles.budget);
 
     const liveTime = t - INTERPOLATION_DELAY_MS;
-    this.live.forEach((pilot) => pilot.update(liveTime, dt, camera.position));
+    this.live.forEach((pilot) => pilot.update(liveTime, dt));
     const racing = this.raceState !== "free";
-    this.ghosts.forEach((ghost) => ghost.update(racing ? t - this.startAt : -Infinity, dt, camera.position));
+    this.ghosts.forEach((ghost) => ghost.update(racing ? t - this.startAt : -Infinity, dt));
     this.particles.update();
     this.softParticles.update();
 
@@ -1342,8 +1367,9 @@ export class Game {
       raceState: this.raceState,
       raceTimeMs,
       countdown: this.raceState === "countdown" ? Math.max(0, Math.ceil((this.startAt - t) / 1000)) : null,
-      checkpoints: this.checkpoints,
-      totalCheckpoints: this.world.course.rings.length,
+      checkpoints: this.passed.size,
+      totalCheckpoints: Math.max(0, this.world.course.rings.length - 1),
+      respawnRing: this.furthestPassed(),
       proximity: crashed ? 0 : this.smoothProximity,
       style: Math.round(this.style),
       multiplier: this.multiplier,
@@ -1359,31 +1385,30 @@ export class Game {
   private standings(): Standing[] {
     if (!this.participants.length || this.raceState === "free") return [];
     const rings = this.world.course.rings;
-    const progress = (checkpoints: number, position: THREE.Vector3 | undefined) => {
-      if (!position) return -Infinity;
-      const ring = rings[Math.min(checkpoints, rings.length - 1)];
-      return checkpoints * 1e6 - position.distanceTo(ring.position);
-    };
+    // Gates are optional, so the way to the finish is the measure of progress, not how many were taken
+    const finish = rings[rings.length - 1];
+    const progress = (position: THREE.Vector3 | undefined) => (position && finish ? -position.distanceTo(finish.position) : -Infinity);
     return this.participants
       .map((p) => {
         const me = p.id === this.selfId;
         const pilot = this.live.get(p.id);
-        const checkpoints = me ? this.checkpoints : (pilot?.checkpoints ?? 0);
+        const checkpoints = me ? this.passed.size : (pilot?.checkpoints ?? 0);
         const finishMs = me ? (this.finishMs ?? p.finishMs) : p.finishMs;
         const score =
           finishMs !== null
             ? 1e12 - finishMs
-            : progress(checkpoints, me ? this.flight.position : pilot?.visible ? pilot.position : undefined);
+            : progress(me ? this.flight.position : pilot?.visible ? pilot.position : undefined);
         return { standing: { ...p, me, checkpoints, finishMs }, score };
       })
       .sort((a, b) => b.score - a.score)
       .map(({ standing }) => standing);
   }
 
-  /** A marker on screen (or at its edge) pointing at the next ring */
+  /** A marker on screen (or at its edge) pointing at the finish, the one ring that must be flown through */
   private updateMarker() {
     const racing = this.raceState === "countdown" || this.raceState === "racing";
-    const ring = racing && this.crashedAt === null ? this.world.course.rings[this.checkpoints] : undefined;
+    const rings = this.world.course.rings;
+    const ring = racing && this.crashedAt === null ? rings[rings.length - 1] : undefined;
     if (!ring) {
       this.marker.style.display = "none";
       return;

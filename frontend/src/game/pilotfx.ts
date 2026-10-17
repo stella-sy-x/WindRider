@@ -3,8 +3,7 @@ import type { Avatar } from "./avatar";
 import { Kind, type Particles, fx } from "./particles";
 import { WHITE } from "./toon";
 import { Trail } from "./trail";
-import { FX, COSMETIC_FX } from "./tuning";
-import { wingSpec } from "./cosmetics/catalog";
+import { FX } from "./tuning";
 
 const tipL = new THREE.Vector3();
 const tipR = new THREE.Vector3();
@@ -49,7 +48,6 @@ export class PilotFx {
   private readonly center = new THREE.Vector3();
   private moving = true;
   private brakeDebt = 0;
-  private wingDebt = 0;
   private readonly previousL = new THREE.Vector3();
   private readonly previousR = new THREE.Vector3();
   private readonly previousCenter = new THREE.Vector3();
@@ -85,7 +83,7 @@ export class PilotFx {
   reset() {
     this.trails.forEach((t) => t.reset());
     this.hasPrevious = false;
-    this.debtL = this.debtR = this.spiralDebt = this.boostDebt = this.brakeDebt = this.wingDebt = 0;
+    this.debtL = this.debtR = this.spiralDebt = this.boostDebt = this.brakeDebt = 0;
     this.rollGrain = this.boostGrain = 0;
   }
 
@@ -124,21 +122,6 @@ export class PilotFx {
       return;
     }
     const budget = particles.budget * this.share;
-    const style = avatar.wingStyle;
-    if (style !== "classic") {
-      const wingRate = COSMETIC_FX.wingParticles * budget * (style === "astral" ? 1.5 : 1);
-      this.wingDebt += dt * wingRate;
-      color.set(wingSpec(style).accent);
-      for (; this.wingDebt >= 1; this.wingDebt--) {
-        const age = (this.wingDebt - 1) / wingRate;
-        const left = Math.random() < .5;
-        this.sampleTip(left ? tipL : tipR, left ? this.previousL : this.previousR, age, dt);
-        jitter.lerpVectors(this.center, this.previousCenter, age / dt);
-        at.lerp(jitter, rand(0, .65));
-        particles.emit(at, vel.copy(velocity).multiplyScalar(.08), fx(.55, COSMETIC_FX.wingParticleSize * rand(.75, 1.15), color,
-          style === "astral" ? Kind.Star : style === "frost" || style === "storm" ? Kind.Shard : style === "tide" ? Kind.Bubble : Kind.Glow, -.3, 1.5, .9), age);
-      }
-    }
     const brakeRate = FX.brakeWisps * avatar.brake * budget;
     this.brakeDebt += dt * brakeRate;
     for (; this.brakeDebt >= 1; this.brakeDebt--) {

@@ -214,7 +214,7 @@ export class World {
     return y < this.course.y(z) - ABYSS;
   }
 
-  /** Where to put a pilot who has passed `checkpoints` rings */
+  /** Where to put a pilot whose furthest gate passed is ring `checkpoints` (1-based): just past it; 0 is the start */
   spawnPoint(checkpoints: number): { position: Vector3; direction: Vector3 } {
     const { rings, start } = this.course;
     if (checkpoints <= 0) {

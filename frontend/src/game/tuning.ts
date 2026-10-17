@@ -12,14 +12,13 @@ export const ANIM = {
   bankLead: 0.55, // limb/pelvis lean response to the bank rate
   bankSpring: 14, // stiffness of the lean spring; lower = floatier
   bankDamping: 0.42, // 1 = no overshoot, lower = a little wobble after a turn
-  membraneFlutter: 0.02, // metres the membranes ripple at speed
-  flutterRate: 8, // ripple cycles per second
+  wingSweep: 0.5, // radians the wings sweep back per radian the arms tuck (forward when braking)
+  wingDihedral: 0.12, // radians the wings angle up from the body plane at rest
+  wingBank: 0.25, // how far the wings tilt into a bank ahead of the body
   bobAmount: 0.12, // metres of gentle up-and-down drift
   bobRate: 0.85, // cycles per second
   headLook: 0.5, // how much the head turns into a turn
   limbSwing: 1, // arm and leg reaction to turns and pitch
-  clothWave: 1, // amplitude of the cape and scarf ripples
-  clothSpeed: 1, // ripple speed multiplier
 };
 
 /** Trails, particles, wind and screen effects */
@@ -58,12 +57,23 @@ export const RINGS = {
   driftRate: 0.55,
   spin: 0.08, // how fast the cohort turns around the gate (rad/s)
   selfSpin: 0.6, // how fast each crystal turns on its own axis
-  glow: 1, // inner glow of the next gate
+  glow: 1, // inner glow of the lit gates (every gate still to take in a race)
+  gateGlow: 0.15, // 0..1, how brightly a gate you haven't taken yet glows in a race (a whisper: they're optional); the finish glows fully
   motes: 28, // glowing motes that trace each gate's ring; applies to the next map
   moteSize: 0.7, // metres across, for a 13 m ring (smaller gates get smaller motes)
   moteDrift: 0.25, // metres each mote wanders from its place on the ring
   shatter: 1, // particles when you pass through
   passTime: 1.4, // seconds of the pass animation
+  finishBeam: 1.6, // brightness of the finish gate's gold pillar (the only gate with one)
+  finishBeamHeight: 2, // the finish pillar's height, in 700 m units; applies to the next map
+};
+
+/** The corridor markers: faint posts either side of the racing line, just inside the air wall. Looks only */
+export const CORRIDOR = {
+  postSpacing: 90, // metres of z between posts
+  postLateral: 55, // metres from the racing line (the wind starts at FLIGHT.lateralLimit, 60)
+  postOpacity: 0.3, // 0 hides them
+  postHeight: 4, // metres
 };
 
 /** The chase camera */
@@ -171,8 +181,6 @@ export const AUTOPILOT = {
 /** Companion movement and scale: looks only, independent of all flight rules. */
 /** `spacing`: the orbit's radius (m), `orbit`: seconds per lap, `roam`: seconds of free play after a hoop, `follow`: the spring's stiffness */
 export const PET_LOOKS = { size: 1.8, spacing: 3.2, height: 0.5, trail: 0.8, follow: 5, snapDistance: 30, bob: 0.12, wingbeat: 1, tailSway: 1, lead: 9, sparkle: 1, gallop: 1.6, stride: 1, hoopRange: 80, guideBlend: 0.8, orbit: 5.5, roam: 4 };
-/** Small ornaments and particle emission, never the pilot's hitbox. */
-export const COSMETIC_FX = { capeDetail: 1, wingParticles: 22, wingParticleSize: .1, sparkle: 1 };
 /** Music and sound levels */
 export const AUDIO = {
   music: 0.45, // volume of the background music
@@ -182,7 +190,7 @@ export const AUDIO = {
   nightMuffle: 0.55, // how much the highs are rolled off at night
 };
 
-const GROUPS = { ANIM, FX, RINGS, CAMERA, TERRAIN, FLORA, STRUCTURES, WATER, DEEP, AUTOPILOT, PET_LOOKS, COSMETIC_FX, AUDIO } as const;
+const GROUPS = { ANIM, FX, RINGS, CORRIDOR, CAMERA, TERRAIN, FLORA, STRUCTURES, WATER, DEEP, AUTOPILOT, PET_LOOKS, AUDIO } as const;
 const DEFAULTS = JSON.parse(JSON.stringify(GROUPS)) as typeof GROUPS;
 const STORAGE_KEY = "windrider.tuning.speed-control-v1";
 
@@ -256,14 +264,13 @@ export const RANGES: Record<string, [number, number, number?]> = {
   bankLead: [0, 1.5],
   bankSpring: [2, 40],
   bankDamping: [0.1, 1],
-  membraneFlutter: [0, 0.1],
-  flutterRate: [0, 20],
+  wingSweep: [0, 1.5],
+  wingDihedral: [-0.3, 0.6],
+  wingBank: [0, 1],
   bobAmount: [0, 0.6],
   bobRate: [0, 3],
   headLook: [0, 1.5],
   limbSwing: [0, 2],
-  clothWave: [0, 3],
-  clothSpeed: [0, 3],
   trailLength: [0.2, 2.5],
   trailWidth: [0.2, 3],
   trailGlow: [0, 3],
@@ -291,8 +298,15 @@ export const RANGES: Record<string, [number, number, number?]> = {
   spin: [-1, 1],
   selfSpin: [0, 4],
   glow: [0, 3],
+  gateGlow: [0, 1, 0.05],
   shatter: [0, 4],
   passTime: [0.4, 3],
+  finishBeam: [0, 4],
+  finishBeamHeight: [1, 4, 0.25],
+  postSpacing: [40, 200, 10],
+  postLateral: [20, 90],
+  postOpacity: [0, 1, 0.05],
+  postHeight: [1, 12, 0.5],
   distance: [3, 20],
   distancePerSpeed: [0, 0.1],
   height: [0, 8],
@@ -356,6 +370,7 @@ export const TUNING_GROUPS: [string, Group][] = [
   ["Pilot animation", ANIM],
   ["Trails & particles", FX],
   ["Crystal gates", RINGS],
+  ["Corridor markers", CORRIDOR],
   ["Camera", CAMERA],
   ["Terrain", TERRAIN],
   ["Plants", FLORA],
@@ -364,6 +379,5 @@ export const TUNING_GROUPS: [string, Group][] = [
   ["Underwater", DEEP],
   ["Autopilot", AUTOPILOT],
   ["Companions", PET_LOOKS],
-  ["Cosmetic detail", COSMETIC_FX],
   ["Audio", AUDIO],
 ];

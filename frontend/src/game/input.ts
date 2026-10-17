@@ -17,8 +17,6 @@ export interface ControlSettings {
   musicVolume?: number;
   effectsVolume?: number;
   muted?: boolean;
-  /** The pilot's look: 1 (ponytail) or 2 (short hair); looks only */
-  pilotStyle?: 1 | 2;
 }
 
 /** URL test mode only: Shift+S */

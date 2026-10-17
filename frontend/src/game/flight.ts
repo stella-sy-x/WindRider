@@ -26,6 +26,7 @@ export const FLIGHT = {
   boostAcceleration: 24,
   boostSeconds: 2.5,
   boostRecharge: 0.22, // reserve per second after release
+  gateBoost: 8, // m/s added at once when you fly through a gate (Game.checkRings); drag bleeds it off again
   controlResponse: 12,
   brakeDrag: 0.025,
   brakeFloor: 22, // brake force fades here; climbing can still stall

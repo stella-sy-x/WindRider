@@ -85,14 +85,6 @@ export default function SettingsPanel({ settings, onSettings, onClose }: Props) 
       </div>)}</div>
       <button onClick={() => { const defaults = defaultSettings(); update({bindings:defaultBindings(),mouseSensitivity:2,invertPitch:false,invertMouse:false,invertGamepad:false,invertTouch:false,deadZone:defaults.deadZone}); setWaiting(null); setMessage("Flight controls reset."); }}>Reset controls</button>
     </section>
-    <section className="sheet-panel"><h3>Pilot</h3>
-      <div className="field"><span>Character style</span>
-        <div className="style-choice" role="radiogroup" aria-label="Character style">
-          {([1, 2] as const).map(style => <button key={style} role="radio" aria-checked={(settings.pilotStyle ?? 1) === style}
-            className={(settings.pilotStyle ?? 1) === style ? "selected" : ""} onClick={() => update({ pilotStyle: style })}>Style {style}</button>)}
-        </div>
-      </div>
-    </section>
     <section className="sheet-panel"><h3>Sound</h3>
       {toggle("muted", "Mute all audio")}
       {slider("musicVolume", "Music volume", 0, 1, 0.05, 1)}

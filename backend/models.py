@@ -70,7 +70,7 @@ class StateRequest(BaseModel):
     brake: Annotated[FiniteFloat, Field(ge=0, le=1)] = 0
     dodge: Annotated[FiniteFloat, Field(ge=-1, le=1)] = 0
     v: FiniteFloat
-    cp: Annotated[int, Field(ge=-1, le=1000)]  # checkpoints passed
+    cp: Annotated[int, Field(ge=-1, le=1000)]  # gates passed (optional speed boosts; shown in the standings)
 
 
 class FinishRequest(BaseModel):
