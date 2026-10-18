@@ -380,9 +380,8 @@ const TENTACLE_MAP_URL = import.meta.env.BASE_URL + "models/jellyfish-tentacle.p
 interface JellyModel {
   positions: Float32Array;
   uvs: Float32Array;
-  /** Per vertex, 3 or 4 values: part, how far down it, texture select */
-  tags: Float32Array;
-  tagSize: number;
+  /** Per vertex: part, how far down it, texture select (COLOR_0, normalised: read it through getX/Y/Z) */
+  tags: THREE.BufferAttribute;
   bellMap: THREE.Texture;
   tentacleMap: THREE.Texture;
 }
@@ -403,7 +402,7 @@ function loadModel(): Promise<JellyModel> {
     if (!mesh) throw new Error("jellyfish.glb has no mesh");
     const found = mesh as THREE.Mesh;
     const geometry = found.geometry.index ? found.geometry.toNonIndexed() : found.geometry;
-    const tags = geometry.getAttribute("color");
+    const tags = geometry.getAttribute("color") as THREE.BufferAttribute | undefined;
     if (!tags) throw new Error("jellyfish.glb has no COLOR_0 tags");
     for (const map of [bellMap, tentacleMap]) {
       map.colorSpace = THREE.SRGBColorSpace;
@@ -412,8 +411,7 @@ function loadModel(): Promise<JellyModel> {
     return {
       positions: geometry.getAttribute("position").array as Float32Array,
       uvs: geometry.getAttribute("uv").array as Float32Array,
-      tags: tags.array as Float32Array,
-      tagSize: tags.itemSize,
+      tags,
       bellMap,
       tentacleMap,
     };
@@ -439,16 +437,14 @@ function jellyGeometry(source: JellyModel): THREE.InstancedBufferGeometry {
   let bellVertices = 0;
   for (const wantTentacle of [false, true]) {
     for (let t = 0; t < triangles; t++) {
-      const k = t * 3 * source.tagSize;
-      const tentacle = source.tags[k] > 0.5;
+      const tentacle = source.tags.getX(t * 3) > 0.5;
       if (tentacle !== wantTentacle) continue;
       for (let v = 0; v < 3; v++) {
         const i = t * 3 + v;
-        const tag = i * source.tagSize;
         positions.push(source.positions[i * 3], source.positions[i * 3 + 1], source.positions[i * 3 + 2]);
         uvOut.push(uvs[i * 2], uvs[i * 2 + 1]);
-        bodyOut.push(tentacle ? 1 : 0, source.tags[tag + 1]);
-        texOut.push(source.tags[tag + 2] > 0.5 ? 1 : 0);
+        bodyOut.push(tentacle ? 1 : 0, source.tags.getY(i));
+        texOut.push(source.tags.getZ(i) > 0.5 ? 1 : 0);
       }
     }
     if (!wantTentacle) bellVertices = positions.length / 3;
