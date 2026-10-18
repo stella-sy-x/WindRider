@@ -68,14 +68,6 @@ export const RINGS = {
   finishBeamHeight: 2, // the finish pillar's height, in 700 m units; applies to the next map
 };
 
-/** The corridor markers: faint posts either side of the racing line, just inside the air wall. Looks only */
-export const CORRIDOR = {
-  postSpacing: 90, // metres of z between posts
-  postLateral: 55, // metres from the racing line (the wind starts at FLIGHT.lateralLimit, 60)
-  postOpacity: 0.3, // 0 hides them
-  postHeight: 4, // metres
-};
-
 /** The chase camera */
 export const CAMERA = {
   distance: 8.5, // metres behind at low speed
@@ -101,6 +93,24 @@ export const CAMERA = {
 };
 
 export const TERRAIN_DETAIL = { mountainRelief: 3, facetScatter: 0.16 }; // bounded relief × biome roughness; reload workers after edits
+
+/**
+ * The canyon walls (Ground.heightAt): the course's boundary. Either side of the
+ * racing line the ground has a floor it can never drop below, rising from the
+ * valley at `from` metres sideways to `height` metres above the line over
+ * `band` metres (a scree slope at the foot, a cliff above), then on and up at
+ * `slope` metres per metre, so there is no air to fly in beyond. A biome's
+ * terrain recipe turns them on (`walls`) and may override any of these; they
+ * change what you hit, and the land: reload workers after edits
+ */
+export const WALLS = {
+  from: 90, // metres from the racing line where the wall begins
+  band: 70, // metres of slope from the foot to the top
+  height: 50, // the top, metres above the racing line
+  slope: 0.8, // metres per metre the land keeps rising beyond the top
+  wander: 8, // metres the foot drifts in and out along the course
+  relief: 10, // metres of bumps on the face and the top (never below the floor)
+};
 
 // Worker geometry settings: changing these requires rebuilding/reloading workers.
 export const MESH_CLEANUP = {
@@ -190,7 +200,7 @@ export const AUDIO = {
   nightMuffle: 0.55, // how much the highs are rolled off at night
 };
 
-const GROUPS = { ANIM, FX, RINGS, CORRIDOR, CAMERA, TERRAIN, FLORA, STRUCTURES, WATER, DEEP, AUTOPILOT, PET_LOOKS, AUDIO } as const;
+const GROUPS = { ANIM, FX, RINGS, CAMERA, TERRAIN, FLORA, STRUCTURES, WATER, DEEP, AUTOPILOT, PET_LOOKS, AUDIO } as const;
 const DEFAULTS = JSON.parse(JSON.stringify(GROUPS)) as typeof GROUPS;
 const STORAGE_KEY = "windrider.tuning.speed-control-v1";
 
@@ -303,10 +313,6 @@ export const RANGES: Record<string, [number, number, number?]> = {
   passTime: [0.4, 3],
   finishBeam: [0, 4],
   finishBeamHeight: [1, 4, 0.25],
-  postSpacing: [40, 200, 10],
-  postLateral: [20, 90],
-  postOpacity: [0, 1, 0.05],
-  postHeight: [1, 12, 0.5],
   distance: [3, 20],
   distancePerSpeed: [0, 0.1],
   height: [0, 8],
@@ -370,7 +376,6 @@ export const TUNING_GROUPS: [string, Group][] = [
   ["Pilot animation", ANIM],
   ["Trails & particles", FX],
   ["Crystal gates", RINGS],
-  ["Corridor markers", CORRIDOR],
   ["Camera", CAMERA],
   ["Terrain", TERRAIN],
   ["Plants", FLORA],

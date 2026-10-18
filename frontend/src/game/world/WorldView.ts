@@ -2,7 +2,6 @@ import * as THREE from "three";
 import { hash3 } from "../rng";
 import { ATMOSPHERE, skyMaterial } from "./atmosphere";
 import { CrystalGates, type GateColors, gateColors, type RingMode } from "./crystals";
-import { CorridorMarkers } from "./corridor";
 import { LandCollider } from "./landCollider";
 import type { MeshRequest } from "./mesher.worker";
 import { levelId } from "./biomes";
@@ -56,8 +55,6 @@ export class WorldView {
   readonly gates: CrystalGates;
   /** The gates' muted stone colors (for the particles a gate gives off; the finish is gold) */
   readonly gateColors: GateColors;
-  /** Faint posts along both edges of the corridor, where the air wall begins */
-  private readonly corridor: CorridorMarkers;
   private readonly sky: THREE.Mesh;
   private disposed = false;
 
@@ -100,8 +97,6 @@ export class WorldView {
     this.gates = new CrystalGates(world.seed, world.course.rings, this.gateColors, sun);
     this.group.add(this.gates.group);
     this.setRings("free");
-    this.corridor = new CorridorMarkers(world.course, accent);
-    this.group.add(this.corridor.mesh);
 
     const { material, uniforms } = terrainMaterial(world.biome.terrain.layers);
     this.material(material);
@@ -296,7 +291,6 @@ export class WorldView {
     this.water?.update();
     this.sky.position.copy(camera.position);
     this.gates.update(dt, camera);
-    this.corridor.update(camera);
   }
 
   dispose() {
@@ -312,7 +306,6 @@ export class WorldView {
     this.geometries.forEach((g) => g.dispose());
     this.materials.forEach((m) => m.dispose());
     this.gates.dispose();
-    this.corridor.dispose();
     this.group.clear();
   }
 }

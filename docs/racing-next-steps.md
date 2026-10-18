@@ -25,8 +25,9 @@ flat-shaded art. Cosmetics system removed; fixed pilot livery.
 - Gates are optional acceleration rings (+8 m/s on pass), any order
 - Finish line (last ring) is the only mandatory target
 - Gold finish beacon visible from start (1400m tall, breathing pulse)
-- Corridor boundary markers (glowing pillars at ±55m)
-- Air wall: soft push-back at 60m, hard limit at 90m
+- Canyon walls: the ground either side of the line rises into a wall from
+  60m out (WALLS in tuning.ts, per biome); hitting it is a crash. Silent
+  hard limit at 150m as a last resort (FLIGHT.lateralClamp)
 
 ### Race format (TODO)
 - **Wind currents / thermals**: visible columns in the world, fly
