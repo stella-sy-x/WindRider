@@ -4,9 +4,17 @@ This file is Claude's memory for Wind Rider. Read it before touching code.
 
 ## Art direction
 
-Low-poly flat shading, chibi proportions, soft silhouettes, warm colors,
-gold trims, capes and feathers. Painted skies, bloom, particles, glass UI.
-No realistic assets or photo textures.
+Low-poly flat shading, soft silhouettes, warm colors, gold trims. Painted
+skies, bloom, particles, glass UI. No realistic assets or photo textures.
+
+The pilot is a paper airplane: plain cream paper (`#f6eedb`, no gold or
+yellow on the paper itself), folds read through shading, a pale warm
+emissive plus an unlit additive glow shell (`FX.pilotGlow`, `FX.glowShell`),
+no halo. The theme colour for trails, debris, name tag, crash burst and
+dissolve is light gold `#f2d27a` (`PLAYER_COLOR`, `toon.ts GOLD`, first entry
+of `rooms.py` COLORS); every glowing particle uses that gold. Each biome
+mood's `accent` is muted (no neon) and belongs to the biome's own things:
+the gates and future biome gameplay pieces, never the pilot or its effects.
 
 ## The game
 
@@ -41,13 +49,51 @@ cd frontend && npm install && npm run dev  # http://localhost:5173
 6. Don't add Claude as co-author on commits.
 7. Models: Opus 4.6 (1M context) as main agent, Fable 5.1 for subagents.
 
+### Working with Stella
+
+- No browser or in-game screenshots unless she asks: the round trips are
+  slow. Blender headless renders are fine when she asks for renders.
+- Before any concrete change technique (how to thicken a mesh, recolour,
+  restructure, tune), list the options and each one's drawbacks and wait
+  for her pick. Read-only checks that inform the options are fine.
+- "成本" / "贵" means runtime performance only (frame time, draw calls,
+  memory, bytes), never authoring effort or tokens. Choose by visual
+  quality first, performance second.
+- Verify terrain and gameplay changes with numbers (node scripts against
+  the TS sources: height profiles, ray casts, triangle counts, the test
+  suite), not by flying the game in the browser. Temporary scripts go
+  under `frontend/tests/` so `three` resolves; delete them after.
+- Tests run on Windows node 22 from `frontend`:
+  `node --experimental-strip-types --import ./tests/register.mjs --test tests/*.test.mjs`
+  (WSL's node 20 cannot). Lint and types: `node node_modules/eslint/bin/eslint.js`,
+  `node node_modules/typescript/bin/tsc -b`.
+- Chinese in chat, English in code, comments, commits and this file.
+
+### Design principles
+
+- Walls are not for hackers. The canyon walls keep racers inside the course
+  naturally; a player who climbs over them is hacking and gets no
+  performance budget. Nothing past `TERRAIN.generateLateral` is generated,
+  and nothing beyond the walls needs to look right. `FLIGHT.lateralClamp`
+  (150 m) is a bug guard, not a play area.
+- "Decoration" in the terrain streamer is the same land as everything else,
+  just more than `TERRAIN.decorationLateral` (80 m) off the racing line: it
+  never splits finer than LOD 2 (12 m cells) and its requests queue last.
+  The walls themselves (90 to 160 m) are decoration.
+- Gameplay grows out of what is already on screen (the reef jellyfish's
+  discharge first, its effect on the pilot next), not out of new abstract
+  pickups.
+- Terrain generators beat imported models for anything placed many times;
+  imported CC BY models are for a few distinctive things (credit them in
+  `CREDITS.md`).
+
 ### Architecture (frontend/src)
 
 | Path | What |
 |:-----|:-----|
 | `game/Game.ts` | Frame loop, physics steps, race state, HUD, effects, rendering |
 | `game/flight.ts` | Arcade flight model (`FLIGHT` constants). Physics only |
-| `game/avatar.ts` | Low-poly chibi pilot, animation, cloth, face |
+| `game/avatar.ts` | Paper-airplane pilot (`public/models/pilot.glb`), glow shell, ghosts |
 | `game/camera.ts` | Chase camera, crash fall camera |
 | `game/particles.ts` | GPU particle system |
 | `game/pilotfx.ts` | Wingtip ribbons, motes, roll arcs, boost dust |
@@ -55,6 +101,7 @@ cd frontend && npm install && npm run dev  # http://localhost:5173
 | `game/toon.ts` | Flat material and shared light parameters |
 | `game/world/` | Terrain generation, biomes, courses, trees, water, atmosphere |
 | `game/world/crystals.ts` | Crystal gates |
+| `game/world/deep.ts` | Underwater life: light shafts, fish, jellyfish and their discharge |
 | `game/world/landCollider.ts` | Collision with drawn land meshes |
 | `game/world/terrain/ground.ts` | Ground heightfield, incl. the canyon walls that bound the course |
 | `game/death.ts` | Crash animations |
@@ -70,6 +117,37 @@ Backend: `app.py` endpoints, `rooms.py` race state machine and SSE relay,
 `store.py` SQLite ghosts and runs, `models.py` Pydantic models.
 
 ## Change log
+
+### 2026-10-18: Paper airplane pilot, reef jellyfish, lateral terrain cut (Claude)
+
+- Pilot: `pilot.glb` rebuilt in Blender from the original mesh with hand-layered,
+  tapered paper thickness (Solidify stair-stepped; rejected), cream paper all
+  over. Emissive paper plus an unlit additive glow shell (`FX.pilotGlow`,
+  `FX.glowShell`); the halo sprite is gone. Theme colour `PLAYER_COLOR`
+  `#f2d27a` (light gold), also the first room colour in `rooms.py`.
+- Removed pets, cosmetics, items and the gallery screen (cosmetics remnants).
+  One particle gold (`toon.ts GOLD`); crash burst and dissolve take the
+  pilot's colour. All 20 biome-mood accents re-tuned off neon; accent is for
+  the gates and future biome gameplay pieces only, never the pilot.
+- Camera: `CAMERA.fov` 58, speed stretch 0.2 up to 14 (was wider).
+- Reef jellyfish (`world/deep.ts`): chinabazooka's "Jellyfish" (CC BY 4.0,
+  `CREDITS.md`) decimated to 3.4k tris with bell and tentacle textures, tinted
+  in four per-instance colours. Seeded discharge cycle on the race clock
+  (`DEEP.zapCycle` 4 s, 0.5 s telegraph, 1 s active; `jellyCycle()` is the
+  CPU copy of the shader's phase): a torus shock hoop rolls out, brightness
+  capped under the bloom threshold. Most sit beside the line (`jellyNear`),
+  all collapse past `jellyView` 200 m. Looks only so far: no reaction to
+  touching one yet (that is the next gameplay step). COLOR_0 tags are a
+  normalised uint16 attribute: read them with `getX/Y/Z`, never the raw array.
+- Terrain: `TERRAIN.generateLateral` 280 m; past it no land is generated or
+  drawn. On the reef the wall breaks the water surface at 275 m, so what is
+  cut is above the water (mesh test pins this). On-line triangles ~145k →
+  ~108k. Decoration (past `decorationLateral` 80 m) is the same land at
+  LOD 2, and the wall itself is decoration. Players who climb the walls are
+  not racing: nothing beyond is paid for.
+- Test mode has no keys any more (Shift+S, N/B/V); worlds, light and half
+  speed are panel buttons. Tests: adventure-era actions and chords dropped,
+  look-ahead test rewritten on a node the line runs through.
 
 ### 2026-10-17: Canyon walls replace the air wall (Claude, Sunken Reef first)
 
