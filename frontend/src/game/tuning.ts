@@ -138,6 +138,7 @@ export const TERRAIN = {
   viewDistance: 700, // metres: LOD 2 ceiling; LOD 3 (24 m) is skipped — sky silhouettes fill the far distance
   prefetchDistance: 1200, // metres: the workers generate land ahead out to here, held off screen until it comes within viewDistance
   decorationLateral: 80, // metres from the racing line beyond which land is decoration: never finer than decorationMaxLod
+  generateLateral: 400, // metres from the racing line beyond which no land is generated or drawn at all: the canyon walls (WALLS) stand in front of it, and nothing past them is play
   decorationMaxLod: 2, // the finest level decoration land reaches (2: 12 m cells)
   readyRadius: 260, // the start waits until the land this close has arrived
   arrivalsPerFrame: 12, // arrived land meshes taken in per frame once you're flying (each costs about 0.04 ms)
@@ -327,6 +328,7 @@ export const RANGES: Record<string, [number, number, number?]> = {
   viewDistance: [600, 2500, 10],
   prefetchDistance: [600, 4000, 50],
   decorationLateral: [20, 300, 10],
+  generateLateral: [150, 1400, 10],
   decorationMaxLod: [0, 3, 1],
   readyRadius: [100, 500, 10],
   arrivalsPerFrame: [1, 32, 1],

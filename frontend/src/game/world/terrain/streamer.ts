@@ -41,8 +41,9 @@ import { NODE_SIZE, type TerrainMesh, VOXEL, nodeKey } from "./mesh";
 // Requests are ordered by distance, but the land under the racing line comes first:
 // land more than LINE_LATERAL metres off the line (decoration) is pushed back in the
 // queue, and land past TERRAIN.decorationLateral never splits finer than
-// TERRAIN.decorationMaxLod. The lateral distance is from the node's box to the line
-// at its centre z, in x and y (the plane the air wall is measured in), so a coarse
+// TERRAIN.decorationMaxLod, and past TERRAIN.generateLateral no land is made at all:
+// the canyon walls hide it. The lateral distance is from the node's box to the line
+// at its centre z, in x and y (the plane the walls are measured in), so a coarse
 // node the line runs through counts as on the line.
 
 export const LOD_LEVELS = 4;
@@ -271,6 +272,9 @@ export class LandStreamer {
   }
 
   private visit(node: Node, at: THREE.Vector3) {
+    // Past TERRAIN.generateLateral the land is never made: the canyon walls stand in front
+    // of it, and a pilot who climbs them is not racing (nothing out there is paid for)
+    if (node.lateral > TERRAIN.generateLateral) return;
     const d = node.box.distanceToPoint(at);
     const ahead = d > TERRAIN.viewDistance;
     // Beyond the view: prefetched (loaded, not shown) out to the prefetch distance, and
