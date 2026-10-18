@@ -167,7 +167,7 @@ export const STRUCTURES = {
 /** Rivers, falls and seas */
 export const WATER = {
   glitter: 1, // sun glitter on the water
-  glow: 1, // lava and bioluminescent pools
+  glow: 1, // bioluminescent pools
   spray: 1, // spray when skimming the water, mist at the foot of falls
   fallBlend: 0.2, // short join just below the edge; the flat river keeps its shading
   fallSpeed: 3, // foam flows downward, accelerating as it falls

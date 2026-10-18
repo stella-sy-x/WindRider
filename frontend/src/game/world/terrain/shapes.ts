@@ -77,7 +77,6 @@ export interface IslandStyle {
   stretch?: number; // depth across, as a share of the size (0.85)
   depth?: number; // how far the cone underneath reaches down (1.25)
   taper?: number; // the cone's radius at the top (0.78)
-  crater?: number; // a bowl in the top, as a share of the size (volcanoes)
 }
 
 /** A floating island: a flattened dome of land on top, tapering to a point below */
@@ -92,7 +91,6 @@ export class Island extends BaseShape {
   private readonly stretch: number;
   private readonly depth: number;
   private readonly taper: number;
-  private readonly crater: number;
 
   constructor(x: number, y: number, z: number, size: number, yaw: number, style: IslandStyle = {}, look: ShapeLook = {}) {
     super(look, size * 0.12);
@@ -106,7 +104,6 @@ export class Island extends BaseShape {
     this.stretch = style.stretch ?? 0.85;
     this.depth = style.depth ?? 1.25;
     this.taper = style.taper ?? 0.78;
-    this.crater = style.crater ?? 0;
     const top = y + size * (this.flat - 0.05);
     const bottom = y - size * this.depth;
     this.box(x, (top + bottom) / 2, z, size, (top - bottom) / 2, size);
@@ -127,12 +124,7 @@ export class Island extends BaseShape {
     const t = clamp(-dy / height, 0, 1);
     const side = (Math.hypot(lx, lz) - radius * (1 - t)) * (height / Math.hypot(height, radius));
     const cone = Math.max(side, dy, -dy - height);
-    let d = smin(top, cone, s * 0.3);
-    if (this.crater > 0) {
-      const r = s * this.crater;
-      d = smax(d, r - Math.hypot(lx, dy - s * this.flat * 0.75 - r * 0.55, lz), s * 0.08);
-    }
-    return d;
+    return smin(top, cone, s * 0.3);
   }
 }
 
@@ -476,44 +468,6 @@ export class Bridge extends BaseShape {
     const body = Math.min(Math.max(side, over, end, under), 0) + Math.hypot(Math.max(side, 0), Math.max(over, 0), Math.max(end, 0), Math.max(under, 0));
     const opening = (1 - Math.hypot(u / s.arch[0], v / s.arch[1])) * Math.min(s.arch[0], s.arch[1]);
     return Math.max(body, opening);
-  }
-}
-
-/** A volcanic cone standing on the ground, its flanks curving in to a rim around a crater */
-export class Volcano extends BaseShape {
-  private readonly x: number;
-  private readonly z: number;
-  private readonly base: number;
-  private readonly top: number;
-  private readonly radius: number; // at the foot
-  private readonly rim: number; // radius at the top
-  private readonly slope: number;
-
-  constructor(x: number, z: number, base: number, top: number, radius: number, look: ShapeLook = {}) {
-    super(look, radius * 0.03);
-    this.x = x;
-    this.z = z;
-    this.base = base;
-    this.top = top;
-    this.radius = radius;
-    this.rim = radius * 0.28;
-    const h = top - base;
-    this.slope = h / Math.hypot(h, radius - this.rim);
-    this.box(x, (base + top) / 2, z, radius, h / 2 + this.rim * 0.3, radius);
-  }
-
-  distance(px: number, py: number, pz: number): number {
-    const dx = px - this.x;
-    const dz = pz - this.z;
-    const t = clamp((py - this.base) / (this.top - this.base), 0, 1);
-    // Concave flanks: wide at the foot, steepening towards the rim
-    const r = this.rim + (this.radius - this.rim) * (1 - t) ** 1.6;
-    const side = (Math.hypot(dx, dz) - r) * this.slope;
-    let d = Math.max(side, py - this.top, this.base - py);
-    // The crater, a bowl sunk into the top
-    const bowl = this.rim * 0.85 - Math.hypot(dx, py - (this.top + this.rim * 0.3), dz);
-    d = smax(d, bowl, this.rim * 0.15);
-    return d;
   }
 }
 

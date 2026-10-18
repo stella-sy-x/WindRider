@@ -28,7 +28,7 @@ function edgesOf(positions) {
 const level = biome => makeLevel({ biome, seed: 2, mood: 0 });
 
 test('seeded terrain has no open interior edges after cleanup', () => {
-  for (const biome of ['glacier', 'verdant', 'ember', 'archipelago', 'lagoon', 'twilight', 'aurora']) {
+  for (const biome of ['glacier', 'archipelago', 'lagoon', 'twilight']) {
     for (const seed of [2, 7, 42]) {
       const world = new World(makeLevel({ biome, seed, mood: 0 }));
       for (const dz of [100, 250, 400, 650, 900]) {
@@ -45,7 +45,7 @@ test('seeded terrain has no open interior edges after cleanup', () => {
 });
 
 test('hidden terrain reuses geometry, respects its cache budget and rejects stale work', () => {
-  const world = new World(level('verdant'));
+  const world = new World(level('glacier'));
   const land = new LandStreamer(world, new THREE.Group(), new THREE.MeshBasicMaterial(), null, new LandCollider());
   const saved = TERRAIN.cacheMiB;
   try {
@@ -76,7 +76,7 @@ test('hidden terrain reuses geometry, respects its cache budget and rejects stal
 });
 
 test('LOD hysteresis keeps fine nodes while hovering around the split distance', () => {
-  const world = new World(level('verdant'));
+  const world = new World(level('glacier'));
   const land = new LandStreamer(world, new THREE.Group(), new THREE.MeshBasicMaterial(), null, new LandCollider());
   const node = land.node(2, 0, 0, 0, null);
   const camera = new THREE.Vector3();
@@ -93,7 +93,7 @@ test('LOD hysteresis keeps fine nodes while hovering around the split distance',
 });
 
 test('v2 chunk joins are closed and collision rays hit the same repaired surface', () => {
-  const world = new World(level('verdant'));
+  const world = new World(level('glacier'));
   const distance = (x, y, z) => Math.hypot(x - NODE_SIZE, y - NODE_SIZE, z - NODE_SIZE) - 18;
   world.land = {
     distance, shapes: [], groundSurface: 0, noise: { n2: () => 0.7 },
@@ -125,7 +125,7 @@ test('v2 chunk joins are closed and collision rays hit the same repaired surface
 });
 
 test('fine chunks remain visible until the coarse replacement arrives', () => {
-  const world = new World(level('verdant'));
+  const world = new World(level('glacier'));
   const group = new THREE.Group();
   const land = new LandStreamer(world, group, new THREE.MeshBasicMaterial(), null, new LandCollider());
   const parent = land.node(1, 0, 0, 0, null);
@@ -230,7 +230,7 @@ test('attached narrow tip is shortened without losing faces or reversing their w
 });
 
 test('terrain glow stays within the biome strength at every detail level', () => {
-  const world = new World(level('ember'));
+  const world = new World(level('twilight'));
   const maximum = Math.round(Math.max(...world.biome.terrain.surfaces.map(s => s.glow ?? 0)) * 255);
   for (const lod of [0, 1, 2, 3]) {
     const z = world.course.start.z + 400, x = world.course.x(z) + 100;
@@ -245,7 +245,7 @@ test('terrain glow stays within the biome strength at every detail level', () =>
 
 
 test('mountain roughness cannot create rock far above peaks or air deep inside them', () => {
-  for (const biome of ['ember', 'glacier', 'verdant']) {
+  for (const biome of ['glacier', 'lagoon']) {
     const world = new World(level(biome));
     // Isolate the ground; intentionally floating shape primitives are allowed.
     const field = new TerrainField(world.course, world.land.ground, world.land.groundSurface, world.land.noise);
@@ -314,7 +314,7 @@ test('the lateral generation cut lies past where the reef wall breaks the water 
 });
 
 test('block and point sampling agree on steep mountain slopes at every LOD', () => {
-  const world = new World(level('ember'));
+  const world = new World(level('glacier'));
   for (const step of [3, 6, 12, 24]) {
     const n = 8, out = new Float32Array(n ** 3);
     const [ox, oz] = [528, 120];
@@ -327,7 +327,7 @@ test('block and point sampling agree on steep mountain slopes at every LOD', () 
 });
 
 test('finest detail runs ahead of the pilot along the line, bounded by speed, and never off into the cut', () => {
-  const world = new World(level('ember'));
+  const world = new World(level('glacier'));
   const land = new LandStreamer(world, new THREE.Group(), new THREE.MeshBasicMaterial(), null, new LandCollider());
   try {
     // A 96 m node the racing line runs through, 600 m down the course; the camera sits on the
@@ -370,9 +370,9 @@ test('finest detail runs ahead of the pilot along the line, bounded by speed, an
 
 
 test('crystal optical shading is tagged only on crystal surfaces through meshing', () => {
-  const world = new World(level('aurora'));
+  const world = new World(level('glacier'));
   world.land = {
-    shapes: [], groundSurface: 1, noise: { n2: () => 0.7 },
+    shapes: [], groundSurface: 3 /* the glacier's crystal surface */, noise: { n2: () => 0.7 },
     fill(ox, oy, oz, step, n, out) {
       for (let z=0; z<n; z++) for (let y=0; y<n; y++) for (let x=0; x<n; x++)
         out[x+n*(y+n*z)] = Math.hypot(ox+x*step-24, oy+y*step-24, oz+z*step-24)-10;
@@ -392,7 +392,7 @@ test('crystal optical shading is tagged only on crystal surfaces through meshing
 
 
 test('LOD replacements do not interrupt flight, but genuinely missing terrain does', () => {
-  const world = new World(level('verdant'));
+  const world = new World(level('glacier'));
   const land = new LandStreamer(world, new THREE.Group(), new THREE.MeshBasicMaterial(), null, new LandCollider());
   const parent = land.node(1, 0, 0, 0, null);
   const child = land.node(0, 0, 0, 0, parent);

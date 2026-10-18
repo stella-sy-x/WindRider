@@ -23,7 +23,6 @@ import { SpeedLines } from "./speedlines";
 import { FX_LIGHT as GLOW_LIGHT, GOLD, WHITE } from "./toon";
 import { FX, RANGES, RINGS, TUNING_GROUPS, WATER, loadTuning, resetTuning, saveTuning } from "./tuning";
 import { type Level, levelId, seedLevel } from "./world/biomes";
-import type { WaterKind } from "./world/terrain/river";
 import { type WaterHit, World } from "./world/World";
 import { WorldView } from "./world/WorldView";
 import type { Palette } from "./world/palette";
@@ -40,7 +39,6 @@ const START_SPEED = 32; // m/s
 const AUTOPILOT_LOOP = 40;
 const HUD_INTERVAL = 100; // ms
 const SPRAY = new THREE.Color("#e8f7ff");
-const LAVA_SPARK = new THREE.Color("#ff9a3c");
 
 /** 2: bloom and full resolution, 1: no bloom, 0: lower resolution and fewer particles */
 type Quality = 0 | 1 | 2;
@@ -1066,7 +1064,7 @@ export class Game {
     const gap = rock.distance(x, y, z);
     const water = this.world.waterNear(x, y, z, waterHit);
     if (water && water.distance < 9 && water.distance < gap) {
-      this.waterSpray(dt, water.distance, water.level, water.kind);
+      this.waterSpray(dt, water.distance, water.level);
       return;
     }
     if (gap > 9) return;
@@ -1102,18 +1100,15 @@ export class Game {
     }
   }
 
-  /** Skimming water: a wake of droplets and mist (or sparks off lava) */
-  private waterSpray(dt: number, gap: number, level: number, kind: WaterKind) {
+  /** Skimming water: a wake of droplets and mist */
+  private waterSpray(dt: number, gap: number, level: number) {
     const close = clamp((7 - gap) / 6, 0, 1);
     this.dustDebt += (0.3 + close) * 140 * WATER.spray * this.particles.budget * dt;
-    const lava = kind === "lava";
     for (; this.dustDebt >= 1; this.dustDebt--) {
       at.set(this.flight.position.x + rand(-1.5, 1.5), level + 0.2, this.flight.position.z + rand(-1.5, 1.5));
       const droplet = Math.random() < 0.6;
       vel.copy(this.flight.velocity).multiplyScalar(droplet ? 0.35 : 0.15).add(tmp.set(rand(-3, 3), rand(3, 9) * (0.4 + close), rand(-3, 3)));
-      if (lava) {
-        this.particles.emit(at, vel, fx(rand(0.5, 1), rand(0.25, 0.45), LAVA_SPARK, Kind.Star, 9, 0.8, 2.6));
-      } else if (droplet) {
+      if (droplet) {
         this.particles.emit(at, vel, fx(rand(0.5, 1), rand(0.18, 0.35), SPRAY, Kind.Glow, 12, 0.6, 1.5));
       } else {
         this.softParticles.emit(at, vel, fx(rand(0.8, 1.4), rand(1.5, 3), WHITE, Kind.Glow, -0.5, 2, 0.85));

@@ -297,61 +297,6 @@ function spiritStatue(c: Colors): THREE.BufferGeometry[] {
   return parts;
 }
 
-function forgeTemple(c: Colors): THREE.BufferGeometry[] {
-  const stone: Paint = { color: c.stone, color2: c.stone2, share2: 0.3, shade: [0.7, 1.08] };
-  const lava: Paint = { color: c.light, shade: [1, 1], glow: LIT };
-  const parts = [
-    // Three steps of dark stone
-    piece(block(0.44, 0.39, -0.3, 0.2), stone),
-    piece(block(0.31, 0.27, 0.2, 0.45), stone),
-    piece(block(0.19, 0.16, 0.45, 0.66), stone),
-    // The fire on top, in a bowl of gold
-    piece(new THREE.CylinderGeometry(0.13, 0.07, 0.07, 8).translate(0, 0.695, 0), { color: c.trim, shade: [0.85, 1.1], glow: 0.5 }),
-    piece(new THREE.ConeGeometry(0.1, 0.26, 6).translate(0, 0.86, 0), { ...lava, sway: [0.1, 1] }),
-    piece(new THREE.ConeGeometry(0.06, 0.16, 5).translate(0.03, 0.8, 0.02), { color: c.cloth, shade: [1, 1], glow: LIT, sway: [0.1, 1] }),
-    // The gate of the forge, glowing from inside
-    piece(onFace(0.14, 0.2, 0.03, 0, 0.1, 0.415, 0), lava),
-  ];
-  for (let k = 0; k < 4; k++) {
-    // Lava running down a channel on every side, step by step
-    parts.push(piece(onFace(0.05, 0.21, 0.02, 0, 0.555, 0.178, k), lava));
-    parts.push(piece(onFace(0.05, 0.25, 0.02, k === 0 ? 0.16 : 0, 0.325, 0.292, k), lava));
-    if (k > 0) parts.push(piece(onFace(0.05, 0.5, 0.02, 0, -0.05, 0.418, k), lava));
-    // Obelisks on the corners of the first step
-    const a = (k * Math.PI) / 2 + Math.PI / 4;
-    parts.push(piece(new THREE.ConeGeometry(0.035, 0.22, 4).translate(Math.sin(a) * 0.47, 0.31, Math.cos(a) * 0.47), { color: c.roof, shade: [0.75, 1.15] }));
-  }
-  return parts;
-}
-
-function obelisk(c: Colors): THREE.BufferGeometry[] {
-  const parts = [
-    piece(block(0.14, 0.12, -0.32, 0.05), { color: c.stone2, shade: [0.72, 1.05] }),
-    piece(block(0.085, 0.05, 0.05, 0.88), { color: c.stone, color2: c.roof, share2: 0.3, shade: [0.75, 1.15] }),
-    piece(hipRoof(0.05, 0.88, 1), { color: c.roof, shade: [0.85, 1.2] }),
-  ];
-  // Runes down every face
-  for (let k = 0; k < 4; k++) {
-    for (let i = 0; i < 4; i++) {
-      const y = 0.22 + i * 0.16 + (k % 2) * 0.05;
-      const out = 0.085 - 0.035 * ((y - 0.05) / 0.83) - 0.004;
-      parts.push(piece(onFace(i % 2 ? 0.05 : 0.025, i % 2 ? 0.02 : 0.06, 0.012, 0, y, out, k), { color: c.light, shade: [1, 1], glow: LIT }));
-    }
-  }
-  return parts;
-}
-
-function brazier(c: Colors): THREE.BufferGeometry[] {
-  return [
-    piece(new THREE.CylinderGeometry(0.2, 0.26, 0.42, 6).translate(0, -0.12, 0), { color: c.stone, color2: c.stone2, share2: 0.35, shade: [0.72, 1.08] }),
-    piece(new THREE.CylinderGeometry(0.07, 0.11, 0.36, 6).translate(0, 0.26, 0), { color: c.stone, shade: [0.75, 1.08] }),
-    piece(new THREE.CylinderGeometry(0.26, 0.1, 0.16, 8).translate(0, 0.5, 0), { color: c.trim, shade: [0.8, 1.1], glow: 0.4 }),
-    // The fire: two tongues, flickering in the wind
-    piece(new THREE.ConeGeometry(0.19, 0.42, 6).translate(0, 0.78, 0), { color: c.light, shade: [1, 1], glow: LIT, sway: [0.1, 1] }),
-    piece(new THREE.ConeGeometry(0.11, 0.26, 5).translate(0.06, 0.7, 0.04), { color: c.cloth, shade: [1, 1], glow: LIT, sway: [0.1, 1] }),
-  ];
-}
-
 function observatory(c: Colors): THREE.BufferGeometry[] {
   const stone: Paint = { color: c.stone, color2: c.stone2, share2: 0.25, shade: [0.72, 1.08] };
   const lit: Paint = { color: c.light, shade: [1, 1], glow: LIT };
@@ -402,55 +347,6 @@ function starAltar(c: Colors): THREE.BufferGeometry[] {
   for (let i = 0; i < 6; i++) {
     const a = (i / 6) * Math.PI * 2;
     parts.push(piece(new THREE.ConeGeometry(0.05, 0.22, 4).translate(Math.sin(a) * 0.5, 0.2, Math.cos(a) * 0.5), { color: c.stone2, shade: [0.8, 1.1] }));
-  }
-  return parts;
-}
-
-function ethMainBuilding(c: Colors): THREE.BufferGeometry[] {
-  const stone: Paint = { color: c.stone, shade: [0.84, 1.06] };
-  const base: Paint = { color: c.stone2, shade: [0.75, 1.02] };
-  const roof: Paint = { color: c.roof, color2: c.roof.clone().multiplyScalar(0.86), share2: 0.3, shade: [0.8, 1.12] };
-  const lit: Paint = { color: c.light, shade: [1, 1], glow: 1.5 };
-  const box = (w: number, h: number, d: number, x: number, y: number, z: number) => new THREE.BoxGeometry(w, h, d).translate(x, y, z);
-  const parts = [
-    // A terrace, the long hall on a rusticated ground floor, a cornice and a low roof
-    piece(box(2.3, 0.37, 0.92, 0, -0.135, 0), base),
-    piece(box(2.2, 0.14, 0.78, 0, 0.12, 0), base),
-    piece(box(2.16, 0.28, 0.74, 0, 0.33, 0), stone),
-    piece(box(2.2, 0.02, 0.8, 0, 0.48, 0), { color: c.stone, shade: [1.05, 1.1] }),
-    piece(box(2.1, 0.05, 0.66, 0, 0.515, 0), roof),
-    // The rotunda swelling out of the front, its drum and the ribbed dome
-    piece(new THREE.CylinderGeometry(0.33, 0.33, 0.55, 16).translate(0, 0.325, 0.2), stone),
-    piece(new THREE.CylinderGeometry(0.36, 0.36, 0.025, 16).translate(0, 0.5, 0.2), { color: c.stone, shade: [1.05, 1.1] }),
-    piece(new THREE.CylinderGeometry(0.27, 0.29, 0.14, 16).translate(0, 0.66, 0.12), stone),
-    piece(new THREE.SphereGeometry(0.27, 16, 6, 0, Math.PI * 2, 0, Math.PI / 2).scale(1, 0.82, 1).translate(0, 0.73, 0.12), roof),
-    piece(new THREE.CylinderGeometry(0.035, 0.045, 0.05, 8).translate(0, 0.965, 0.12), stone),
-    piece(new THREE.IcosahedronGeometry(0.02, 0).translate(0, 1, 0.12), { color: c.trim, shade: [1, 1], glow: 0.8 }),
-    // The doors under the columns
-    piece(box(0.1, 0.12, 0.02, 0, 0.11, 0.535), { color: c.wood, shade: [0.8, 1] }),
-  ];
-  // Columns round the rotunda, with tall windows between them
-  for (let i = -4; i <= 4; i++) {
-    const a = (i / 4) * 1.25;
-    parts.push(piece(new THREE.CylinderGeometry(0.014, 0.016, 0.3, 6).translate(Math.sin(a) * 0.35, 0.34, 0.2 + Math.cos(a) * 0.35), { color: c.stone, shade: [0.95, 1.1] }));
-    if (i < 4) {
-      const b = ((i + 0.5) / 4) * 1.25;
-      parts.push(piece(new THREE.BoxGeometry(0.045, 0.16, 0.02).translate(0, 0.35, 0.325).rotateY(b).translate(0, 0, 0.2), lit));
-    }
-  }
-  for (let i = 0; i < 10; i++) parts.push(piece(new THREE.BoxGeometry(0.035, 0.07, 0.02).translate(0, 0.66, 0.272).rotateY((i / 10) * Math.PI * 2).translate(0, 0, 0.12), lit));
-  for (const side of [-1, 1]) {
-    // Pavilions closing the wings, a little taller and further out
-    parts.push(piece(box(0.34, 0.47, 0.84, side * 0.95, 0.285, 0), stone));
-    parts.push(piece(box(0.37, 0.02, 0.87, side * 0.95, 0.53, 0), { color: c.stone, shade: [1.05, 1.1] }));
-    parts.push(piece(box(0.3, 0.045, 0.74, side * 0.95, 0.56, 0), roof));
-    // Two storeys of windows down both long sides
-    for (const face of [-1, 1]) {
-      for (let row = 0; row < 2; row++) {
-        for (let i = 0; i < 6; i++) parts.push(piece(box(0.035, row ? 0.075 : 0.06, 0.02, side * (0.39 + i * 0.066), 0.29 + row * 0.11, face * 0.372), lit));
-        for (let i = 0; i < 3; i++) parts.push(piece(box(0.04, row ? 0.075 : 0.06, 0.02, side * (0.86 + i * 0.09), 0.29 + row * 0.11, face * 0.422), lit));
-      }
-    }
   }
   return parts;
 }
@@ -579,13 +475,9 @@ export function structureGeometry(spec: StructureSpec, spinY: number): THREE.Buf
     ruinColumn: () => ruinColumn(colors),
     shrineGate: () => shrineGate(colors),
     spiritStatue: () => spiritStatue(colors),
-    forgeTemple: () => forgeTemple(colors),
-    obelisk: () => obelisk(colors),
-    brazier: () => brazier(colors),
     observatory: () => observatory(colors),
     pylon: () => pylon(colors),
     starAltar: () => starAltar(colors),
-    ethMainBuilding: () => ethMainBuilding(colors),
     einsteinBust: () => einsteinBust(colors),
     shipwreck: () => shipwreck(colors),
   };

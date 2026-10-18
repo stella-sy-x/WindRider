@@ -6,10 +6,9 @@ import { fbm, type Noise } from "./noise";
 // A valley floor that steps down along the racing line, and the water that
 // fills it: flat pools (sometimes widening into lakes) that spill over a cliff
 // into the next pool. The racing line descends smoothly, so it always flies
-// over the edge of every fall. The same steps make icefalls on a glacier and
-// lava cascades in the Ember Wastes.
+// over the edge of every fall. The same steps make icefalls on a glacier.
 
-export type WaterKind = "water" | "lava" | "ice" | "glow";
+export type WaterKind = "water" | "ice" | "glow";
 
 export interface StepSpec {
   length: [number, number]; // metres of z between falls
@@ -18,7 +17,7 @@ export interface StepSpec {
 
 export interface RiverSpec {
   kind: WaterKind;
-  colors: { deep: string; shallow: string; foam: string }; // for lava: crust, glow, bright edge
+  colors: { deep: string; shallow: string; foam: string };
   width: [number, number]; // metres, per pool
   lakes: number; // share of pools that widen into a lake
   meander: number; // metres the river swings around the line

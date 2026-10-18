@@ -1,24 +1,18 @@
 import { makeRng } from "../../rng";
 import { ARCHIPELAGO } from "./archipelago";
-import { AURORA } from "./aurora";
-import { EMBER } from "./ember";
 import { GLACIER } from "./glacier";
 import { LAGOON } from "./lagoon";
 import { REEF } from "./reef";
 import { TWILIGHT } from "./twilight";
-import { VERDANT } from "./verdant";
 import type { Biome, BiomeId, Level, LevelKey } from "./types";
 
 export type { Biome, BiomeId, Level, LevelKey } from "./types";
 
 export const BIOMES: Record<BiomeId, Biome> = {
-  verdant: VERDANT,
   glacier: GLACIER,
   archipelago: ARCHIPELAGO,
   lagoon: LAGOON,
   twilight: TWILIGHT,
-  ember: EMBER,
-  aurora: AURORA,
   reef: REEF,
 };
 

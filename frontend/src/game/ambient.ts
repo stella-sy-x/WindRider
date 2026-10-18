@@ -7,7 +7,7 @@ import { forestAt } from "./world/flora/placement";
 import type { World } from "./world/World";
 
 // The air of a biome: particles drifting around the camera (fireflies in the
-// shade of the forest, pollen, snow, leaves, embers, spores, ash, glitter,
+// shade of the forest, pollen, snow, leaves, spores, glitter,
 // bubbles under the sea),
 // and the mist and spray at the foot of every waterfall. Spawned ahead of you,
 // so you fly into them. Looks only: nothing here touches the flight.
@@ -41,7 +41,7 @@ export class Ambient {
   private readonly soft: Particles;
   private readonly spec: ParticleSpec = { life: 1, size: 1, color: new THREE.Color(), kind: Kind.Glow };
 
-  /** `glow` adds light (motes, embers); `soft` blends (snow, leaves, mist) */
+  /** `glow` adds light (motes, spores); `soft` blends (snow, leaves, mist) */
   constructor(glow: Particles, soft: Particles) {
     this.glow = glow;
     this.soft = soft;
@@ -112,14 +112,6 @@ export class Ambient {
         this.glow.emit(at, vel.set(0, rand(-0.3, 0.1), 0), s);
         break;
       }
-      case "embers": {
-        at.set(cx + rand(-60, 60), cy + rand(-40, 5), cz + rand(-60, 60));
-        const g = this.groundAt(at.x, at.z);
-        if (!Number.isNaN(g)) at.y = Math.max(at.y, g + rand(0.5, 8));
-        look(s, rand(2.5, 4.5), rand(0.16, 0.3), Kind.Glow, -2.2, 0.5, 2.6);
-        this.glow.emit(at, vel.set(rand(-1.5, 1.5), rand(1, 3), rand(-1.5, 1.5)), s);
-        break;
-      }
       case "spores": {
         at.set(cx + rand(-50, 50), cy + rand(-25, 15), cz + rand(-50, 50));
         look(s, rand(5, 8), rand(0.14, 0.26), Kind.Glow, -0.25, 0.8, 1.8 + night);
@@ -130,12 +122,6 @@ export class Ambient {
         at.set(cx + rand(-50, 50), cy + rand(0, 30), cz + rand(-50, 50));
         look(s, rand(5, 8), rand(0.12, 0.24), Kind.Glow, 0, 0, 1);
         this.soft.emit(at, vel.set(rand(-1.2, 1.2), rand(-2.4, -1.4), rand(-1.2, 1.2)), s);
-        break;
-      }
-      case "ash": {
-        at.set(cx + rand(-50, 50), cy + rand(0, 30), cz + rand(-50, 50));
-        look(s, rand(5, 8), rand(0.18, 0.32), Kind.Glow, 0, 0, 0.7);
-        this.soft.emit(at, vel.set(rand(-1, 1), rand(-1.2, -0.5), rand(-1, 1)), s);
         break;
       }
       case "starfall": {
@@ -170,7 +156,6 @@ export class Ambient {
   private falls(dt: number, camera: THREE.Vector3, budget: number) {
     const steps = this.world?.steps;
     if (!steps || WATER.spray <= 0) return;
-    const lava = steps.river?.kind === "lava";
     if (steps.river?.kind === "ice") return;
     this.fallDebt += 26 * budget * WATER.spray * dt;
     if (this.fallDebt < 1) return;
@@ -187,18 +172,12 @@ export class Ambient {
         this.fallDebt -= 1 / near;
         const w = Math.max(3, fall.width / 2);
         at.set(x + rand(-w, w), fall.bottom + rand(0, 3), z + rand(-3, 6));
-        if (lava) {
-          look(s, rand(2, 3.5), rand(0.2, 0.35), Kind.Glow, -2, 0.6, 2.4);
-          s.color = SPARK;
-          this.glow.emit(at, vel.set(rand(-2, 2), rand(2, 5), rand(-2, 2)), s);
-        } else {
-          look(s, rand(2.5, 4), rand(4, 8), Kind.Glow, -0.4, 1.2, 1);
-          s.color = MIST;
-          this.soft.emit(at, vel.set(rand(-2, 2), rand(1, 3), rand(0, 4)), s);
-          look(s, rand(0.6, 1.2), rand(0.15, 0.3), Kind.Glow, 9, 0.4, 1.6);
-          s.color = SPRAY;
-          this.glow.emit(at, vel.set(rand(-4, 4), rand(3, 8), rand(-2, 6)), s);
-        }
+        look(s, rand(2.5, 4), rand(4, 8), Kind.Glow, -0.4, 1.2, 1);
+        s.color = MIST;
+        this.soft.emit(at, vel.set(rand(-2, 2), rand(1, 3), rand(0, 4)), s);
+        look(s, rand(0.6, 1.2), rand(0.15, 0.3), Kind.Glow, 9, 0.4, 1.6);
+        s.color = SPRAY;
+        this.glow.emit(at, vel.set(rand(-4, 4), rand(3, 8), rand(-2, 6)), s);
       }
     }
     this.fallDebt = Math.min(this.fallDebt, 3);
@@ -207,4 +186,3 @@ export class Ambient {
 
 const MIST = new THREE.Color("#ffffff").multiplyScalar(0.92);
 const SPRAY = new THREE.Color("#e6f6ff");
-const SPARK = new THREE.Color("#ff8a3a");

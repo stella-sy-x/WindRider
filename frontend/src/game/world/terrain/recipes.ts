@@ -6,7 +6,7 @@ import { type Course, TUBE_RADIUS } from "../course";
 import type { TerrainField } from "./field";
 import type { Ground } from "./ground";
 import type { Noise } from "./noise";
-import { Bridge, Cap, Grain, Mesa, NoiseIsland, RockRing, type ShapeLook, Slab, Spire, UP, Volcano, tilted } from "./shapes";
+import { Bridge, Cap, Grain, Mesa, NoiseIsland, RockRing, type ShapeLook, Slab, Spire, UP, tilted } from "./shapes";
 
 // Places a biome's rock shapes: something to thread at every gate, and scenery
 // around the line. Everything comes from the level's seeded streams, in a fixed
@@ -235,15 +235,6 @@ function buildFeature(ctx: LandContext, f: Feature) {
       const axis = tilted(range(rng, 1.1, 1.57), range(rng, 0, Math.PI * 2));
       field.add(new RockRing(new Vector3(x, ctx.course.y(z) + range(rng, f.rise[0], f.rise[1]), z), axis, radius, radius * range(rng, 0.09, 0.14), { ...look, grain: Grain.Sharp }));
     }
-  } else if (f.kind === "volcano") {
-    const { course } = ctx;
-    const z = range(rng, course.start.z + 500, course.endZ - 300);
-    frame(course, z);
-    const s = (rng() < 0.5 ? -1 : 1) * f.lateral;
-    const x = p.x + side.x * s;
-    const vz = p.z + side.z * s;
-    const g = groundAt(ctx, x, vz, p.y - 300);
-    field.add(new Volcano(x, vz, g - 30, g + f.rise, f.radius, { ...look, grain: Grain.Layered }));
   } else if (f.kind === "bridges") {
     const { course } = ctx;
     const steps = ctx.ground?.steps;
@@ -272,6 +263,7 @@ function buildFeature(ctx: LandContext, f: Feature) {
     }
   } else if (f.kind === "summit") {
     // One colossal spire, and a few lesser ones around it
+    if (f.chance !== undefined && rng() > f.chance) return;
     const { course } = ctx;
     const z = course.start.z + (course.endZ - course.start.z) * f.along;
     frame(course, z);

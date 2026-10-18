@@ -19,7 +19,7 @@ the gates and future biome gameplay pieces, never the pilot or its effects.
 ## The game
 
 Wind Rider is a browser wingsuit racer. Seeded procedural courses through
-floating islands and eight biomes, crystal gates, multiplayer race rooms.
+floating islands and seven biomes, crystal gates, multiplayer race rooms.
 React + Three.js frontend, FastAPI backend behind Caddy, `docker compose`.
 
 ### Modes
@@ -125,6 +125,44 @@ structures, sky, particles, music); update it when a biome recipe changes.
 `docs/debug-mode.md` is test mode.
 
 ## Change log
+
+### 2026-10-18: Five biomes: Aurora into Glacier, Verdant into the Archipelago (Claude)
+
+- Glacier Peaks absorbs Aurora Summit: moods Polar day, Summit dawn, Aurora
+  night (Polar night dropped as a duplicate); the glowing crystal surface and
+  the six crystal rings; the summit spire on half the courses (`summit`
+  features take a `chance`); violet crystals beside the blue; observatory as
+  a second landmark (each on half the stretches), pylons, star altars,
+  lanterns; starfall at night.
+- Sky Archipelago absorbs Verdant Highlands: moods Alpine, Misty pines,
+  Autumn, Dusk, Moonlit (Winter and Starlight dropped; Moonlit is Alpine
+  shifted as Verdant's Morning was to its Moonlit); oak, birch and bush
+  among the pines; Verdant's four flower colours; a watchtower landmark per
+  stretch, the Einstein bust (one level in three), windmills on bare tops,
+  shrine gates, lanterns, petals. Everything that stood on a river stays
+  out (bridges, lakeside lanterns). Island structures need `on: "rock"`:
+  the default site is open ground, which islands never have.
+- Deleted `biomes/aurora.ts`, `biomes/verdant.ts` and the ETH main building
+  (model, collider, test). Biome count 7 → 5; seeds remapped again. The
+  test world defaults to the Archipelago; the Reef plays Dewdrop Stream
+  under the key `dewdrop`.
+- Tests: the Einstein bust is checked over 24 island seeds (one level in
+  three, never two, always 25 to 140 m off the line); the crystal-shading
+  test uses the Glacier's crystal surface; the bridge test is gone.
+
+### 2026-10-18: Remove the Ember Wastes biome (Claude)
+
+- Deleted `biomes/ember.ts` and everything only it used: the lava water
+  kind (shader branches, lava falls, spark wakes and spray), the volcano
+  shape and feature and the island `crater` style, the forge temple,
+  obelisk and brazier structures, the dead tree and basalt flora, the
+  embers and ash particles, and the palette's `underglow`. Biome count
+  8 → 7. The track `ember_red-orange-embers.mp3` stays and plays in the
+  Lagoon until it gets its own.
+- `seedMap` picks a biome by its place in the list, so most seeds now stand
+  for a different map (there is no production data to carry over).
+- Tests that used Ember as their sample biome use Glacier, Twilight or
+  Aurora instead.
 
 ### 2026-10-18: Mountains stand on the canyon wall; reef's dead config pruned (Claude)
 

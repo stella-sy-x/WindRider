@@ -28,7 +28,6 @@ export const ATMOSPHERE = {
   clouds: { value: new THREE.Color("#ffffff") },
   night: { value: 0 },
   aurora: { value: 0 },
-  underglow: { value: new THREE.Color("#000000") },
   // Distant land painted on the sky dome around the horizon, 0 (none) to 1 (full): shapes
   // for the real land to arrive into, so it is not seen to pop out of an empty haze
   silhouettes: { value: 1 },
@@ -282,7 +281,6 @@ const skyFragment = /* glsl */ `
   uniform vec3 clouds;
   uniform float night;
   uniform float aurora;
-  uniform vec3 underglow;
   uniform float silhouettes;
   uniform float underwater;
   uniform float surface;
@@ -383,9 +381,6 @@ const skyFragment = /* glsl */ `
       vec3 hue = mix(vec3(0.2, 1.0, 0.55), vec3(0.65, 0.35, 1.0), smoothstep(0.12, top, dir.y));
       color += hue * band * rays * fold * aurora * 1.8 * (1.0 - cover * 0.6);
     }
-    // Light from below the horizon: lava seas and burning lands
-    color += underglow * pow(clamp(1.0 - (dir.y + 0.05) * 4.0, 0.0, 1.0), 2.0) * 0.9;
-
     // Stars at night, twinkling
     if (night > 0.0) {
       vec3 cell = floor(dir * 220.0);
@@ -409,7 +404,6 @@ export function skyMaterial(): THREE.ShaderMaterial {
       clouds: ATMOSPHERE.clouds,
       night: ATMOSPHERE.night,
       aurora: ATMOSPHERE.aurora,
-      underglow: ATMOSPHERE.underglow,
       silhouettes: ATMOSPHERE.silhouettes,
       underwater: ATMOSPHERE.underwater,
       surface: ATMOSPHERE.surface,

@@ -23,7 +23,7 @@ test("a windmill collides with its tower and the disc its sails sweep, turned by
 });
 
 test("structures stand in the same spots at every level of detail, clear of the racing line", () => {
-  const world = new World(makeLevel({ biome: "verdant", seed: 2, mood: 0 }));
+  const world = new World(makeLevel({ biome: "archipelago", seed: 2, mood: 0 }));
   const species = world.biome.vegetation.species.length;
   const built = (box) => {
     const out = [];
@@ -55,29 +55,6 @@ test("structures stand in the same spots at every level of detail, clear of the 
   }
 });
 
-test("bridges span the river with an arch to fly through, well under the racing line", async () => {
-  const { Bridge } = await import("../src/game/world/terrain/shapes.ts");
-  let total = 0;
-  for (const seed of [2, 3, 7]) {
-    const world = new World(makeLevel({ biome: "verdant", seed, mood: 0 }));
-    const steps = world.steps;
-    const bridges = world.land.shapes.filter((s) => s instanceof Bridge);
-    total += bridges.length;
-    for (const b of bridges) {
-      const z = b.cz;
-      const x = steps.center(z);
-      const water = steps.pool(z).level;
-      assert.ok(world.land.distance(x, water + 4, z) > 2, "the arch is open over the water");
-      assert.ok(world.land.distance(x, water + 16, z) < 0, "the crown is solid");
-      // Nothing of it within reach of the racing tube (the shape's distance is a lower bound)
-      for (let cz = z - 40; cz <= z + 40; cz += 2) {
-        assert.ok(b.distance(world.course.x(cz), world.course.y(cz), cz) > 11 + 1, "a bridge crowds the racing line");
-      }
-    }
-  }
-  assert.ok(total >= 4, `only ${total} bridges over three levels`);
-});
-
 test("a shrine gate collides with its posts and lintel, and is open in between", () => {
   const h = 20;
   // Yaw 0: the posts stand 0.36 h either side along x, the opening looks along z
@@ -90,7 +67,7 @@ test("a shrine gate collides with its posts and lintel, and is open in between",
 });
 
 test("every run biome has a landmark and scattered structures, the same at every level of detail", () => {
-  for (const biome of ["glacier", "archipelago", "lagoon", "twilight", "ember", "aurora", "reef"]) {
+  for (const biome of ["glacier", "archipelago", "lagoon", "twilight", "reef"]) {
     const world = new World(makeLevel({ biome, seed: 5, mood: 0 }));
     const species = world.biome.vegetation.species.length;
     const kinds = world.biome.structures;
@@ -122,38 +99,10 @@ test("every run biome has a landmark and scattered structures, the same at every
   }
 });
 
-test("the ETH main building collides along its whole length, and only some levels have one", () => {
-  const h = 30;
-  // Yaw 0: the wings run along x, the rotunda looks along z
-  const eth = new Plant(0, 0, 0, h, h, 0, STRUCTURE_INFO.ethMainBuilding.collider);
-  assert.ok(eth.distance(1.05 * h, 0.3 * h, 0) < 0, "inside the end of a wing");
-  assert.ok(eth.distance(0, 0.85 * h, 0.1 * h) < 0, "inside the dome");
-  assert.ok(eth.distance(1.05 * h, 0.8 * h, 0) > 3, "above the wing's roof");
-  assert.ok(eth.distance(0, 0.3 * h, 0.9 * h) > 3, "in front of the rotunda");
-  const turned = new Plant(0, 0, 0, h, h, Math.PI / 2, STRUCTURE_INFO.ethMainBuilding.collider);
-  assert.ok(turned.distance(0, 0.3 * h, 1.05 * h) < 0 && turned.distance(1.05 * h, 0.3 * h, 0) > 3);
-  // Seed 2 has none, seed 28 has one (about one Verdant level in seven does)
-  const count = (seed) => {
-    const world = new World(makeLevel({ biome: "verdant", seed, mood: 0 }));
-    assert.equal(world.biome.structures[0].id, "ethMainBuilding");
-    const species = world.biome.vegetation.species.length;
-    let n = 0;
-    for (let iz = 0; iz < 7; iz++) {
-      const cx = Math.floor(world.course.x(iz * 384 + 192) / 384), cy = Math.floor(world.course.y(iz * 384 + 192) / 384);
-      for (let ix = cx - 2; ix <= cx + 2; ix++) for (let iy = cy - 1; iy <= cy + 1; iy++) {
-        const { plants } = placeFlora(world, { x0: ix * 384, y0: iy * 384, z0: iz * 384, x1: ix * 384 + 384, y1: iy * 384 + 384, z1: iz * 384 + 384 }, 3);
-        for (let o = 0; o < plants.length; o += PLANT_STRIDE) if (plants[o] === species) n++;
-      }
-    }
-    return n;
-  };
-  assert.equal(count(2), 0);
-  assert.equal(count(28), 1);
-});
-
 test("the Einstein bust is a rare landmark close to the racing line", () => {
+  // On the islands now: about one level in three has one, never more than one, always beside the line
   const find = (seed) => {
-    const world = new World(makeLevel({ biome: "verdant", seed, mood: 0 }));
+    const world = new World(makeLevel({ biome: "archipelago", seed, mood: 0 }));
     assert.equal(world.biome.structures[1].id, "einsteinBust");
     const kind = world.biome.vegetation.species.length + 1;
     const out = [];
@@ -161,15 +110,22 @@ test("the Einstein bust is a rare landmark close to the racing line", () => {
       const cx = Math.floor(world.course.x(iz * 384 + 192) / 384), cy = Math.floor(world.course.y(iz * 384 + 192) / 384);
       for (let ix = cx - 1; ix <= cx + 1; ix++) for (let iy = cy - 1; iy <= cy + 1; iy++) {
         const { plants } = placeFlora(world, { x0: ix * 384, y0: iy * 384, z0: iz * 384, x1: ix * 384 + 384, y1: iy * 384 + 384, z1: iz * 384 + 384 }, 3);
-        for (let o = 0; o < plants.length; o += PLANT_STRIDE) if (plants[o] === kind) out.push(Math.abs(plants[o + 1] - world.course.x(plants[o + 3])));
+        for (let o = 0; o < plants.length; o += PLANT_STRIDE) if (plants[o] === kind && plants[o + 3] < 2400) out.push(Math.abs(plants[o + 1] - world.course.x(plants[o + 3])));
       }
     }
     return out;
   };
-  assert.equal(find(2).length, 0);
-  const near = find(28);
-  assert.equal(near.length, 1);
-  assert.ok(near[0] >= 25 && near[0] <= 140, `${near[0]} m from the line`);
+  // One per 2400 m stretch at most: the scan stops at the first stretch's end
+  let levels = 0;
+  for (let seed = 1; seed <= 24; seed++) {
+    const near = find(seed);
+    assert.ok(near.length <= 1, `seed ${seed}: ${near.length} busts`);
+    if (near.length) {
+      levels++;
+      assert.ok(near[0] >= 25 && near[0] <= 140, `seed ${seed}: ${near[0]} m from the line`);
+    }
+  }
+  assert.ok(levels >= 3 && levels <= 14, `${levels} of 24 levels have the bust`);
 });
 
 test("a shipwreck collides with its hull and its mast, which leans back with the bow up", () => {
