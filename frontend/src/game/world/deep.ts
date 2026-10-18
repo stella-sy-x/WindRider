@@ -196,7 +196,7 @@ const fishFragment = /* glsl */ `
 `;
 
 const jellyVertex = /* glsl */ `
-  attribute vec2 body; // 0: the bell, 1: a tentacle, 2: the shock shell; then how far towards the rim or down the tentacle
+  attribute vec2 body; // 0: the bell, 1: a tentacle, 2: the shock hoop; then how far towards the rim or down the tentacle
   attribute vec4 home; // where it drifts, and its size
   attribute vec4 hue; // color, and its own phase
   uniform float time;
@@ -207,7 +207,7 @@ const jellyVertex = /* glsl */ `
   varying float vHang;
   varying float vCharge;
   varying float vZap;
-  varying float vShell; // 1 on the shock shell; then how far it has spread (0 just born, 1 gone) and its grazing-angle rim light
+  varying float vShell; // 1 on the shock hoop; then how far it has spread (0 just born, 1 gone) and how squarely its tube faces us
   varying float vShellSpread;
   varying float vShellRim;
   #include <fog_pars_vertex>
@@ -223,14 +223,20 @@ const jellyVertex = /* glsl */ `
     float charge = ct < telegraph ? ct / telegraph : (ct < telegraph + burst ? 1.0 : 0.0);
     float zap = (ct >= telegraph && ct < telegraph + burst) ? 1.0 : 0.0;
     vec3 p = position;
-    // The shock shell swells from the bell to 2.5x its size over the first 0.5 s of the
-    // discharge; the rest of the time it sits collapsed at the bell's heart (zero size)
+    // The shock hoop rolls out from the bell's rim to 3.5x its radius over the first 0.5 s of
+    // the discharge, its tube thickening a little as it goes; the rest of the time it sits
+    // collapsed at the bell's heart (zero size)
     float spread = clamp((ct - telegraph) / 0.5, 0.0, 1.0) * zap;
     vShell = body.x > 1.5 ? 1.0 : 0.0;
     vShellSpread = spread;
     vShellRim = 0.0;
+    vec3 hoopNormal = vec3(0.0, 1.0, 0.0);
     if (body.x > 1.5) {
-      p = position * zap * (0.7 + 1.8 * spread) + vec3(0.0, 0.3, 0.0);
+      // Where this vertex sits round the hoop, and its offset from the tube's centre line
+      vec3 spoke = normalize(vec3(position.x, 0.0, position.z) + vec3(1e-5, 0.0, 0.0));
+      vec3 tube = position - spoke;
+      hoopNormal = normalize(tube + vec3(1e-5));
+      p = (spoke * (1.0 + 2.5 * spread) + tube * (1.0 + 1.5 * spread)) * zap + vec3(0.0, 0.1, 0.0);
     } else if (body.x < 0.5) {
       // The bell squeezes in at the rim and springs open again; charging, it draws in tight
       p.xz *= (1.0 - 0.2 * beat * body.y) * (1.0 - 0.15 * charge * (1.0 - zap));
@@ -252,8 +258,8 @@ const jellyVertex = /* glsl */ `
     vec3 normal = normalize(position + vec3(0.0, 0.2, 0.0));
     vec3 toCamera = normalize(cameraPosition - world + vec3(1e-4));
     vEdge = body.x < 0.5 ? 1.0 - abs(dot(normal, toCamera)) : 0.5;
-    // The shell is lit at its rim: bright where the view grazes it, clear where it faces us
-    if (body.x > 1.5) vShellRim = 1.0 - abs(dot(normalize(position), toCamera));
+    // The hoop's tube is shaded round: brightest where it faces us, darker on its flanks
+    if (body.x > 1.5) vShellRim = abs(dot(hoopNormal, toCamera));
     vHang = body.x < 0.5 ? 0.0 : body.y;
     vCharge = charge;
     vZap = zap;
@@ -288,10 +294,10 @@ const jellyFragment = /* glsl */ `
     color = min(color, vec3(1.25));
     float alpha = min(1.0, (0.3 + edge * 0.6) * (1.0 - vHang * 0.7) * (1.0 + vZap * 0.6 + vCharge * 0.2));
     if (vShell > 0.5) {
-      // The shock shell: a bubble of electric light, bright only at its rim, fading as it swells
-      float rim = vShellRim * vShellRim;
-      color = min(vec3(0.78, 0.96, 1.0) * (1.0 + glow) * 1.1, vec3(1.25));
-      alpha = (0.05 + rim * 0.75) * (1.0 - vShellSpread) * vZap;
+      // The shock hoop: a tube of electric light, rounded by its facing, fading as it rolls out
+      float facing = 0.45 + 0.55 * vShellRim;
+      color = min(vec3(0.78, 0.96, 1.0) * (1.0 + glow) * facing * 1.2, vec3(1.25));
+      alpha = (0.35 + 0.5 * vShellRim) * (1.0 - vShellSpread) * vZap;
     }
     #ifdef USE_FOG
       float fogFactor = smoothstep(fogNear, fogFar, vFogDepth);
@@ -355,14 +361,14 @@ function jellyGeometry(): THREE.InstancedBufferGeometry {
       });
     }
   }
-  // The shock shell: a low-poly sphere round the bell that the vertex shader keeps collapsed
-  // to a point until a discharge, then swells and fades: a bubble of electric light rolling
-  // off the burst (unit sphere here; its normal is its position)
-  const shell = new THREE.SphereGeometry(1, 10, 6).toNonIndexed();
-  const shellPositions = shell.getAttribute("position").array as Float32Array;
-  shell.dispose();
-  for (let i = 0; i < shellPositions.length; i += 3) {
-    positions.push(shellPositions[i], shellPositions[i + 1], shellPositions[i + 2]);
+  // The shock hoop: a torus round the bell's rim (major radius 1, in the xz plane) that the
+  // vertex shader keeps collapsed to a point until a discharge, then throws outwards and
+  // fades: a hula hoop of electric light rolling off the burst
+  const hoop = new THREE.TorusGeometry(1, 0.09, 5, 18).rotateX(Math.PI / 2).toNonIndexed();
+  const hoopPositions = hoop.getAttribute("position").array as Float32Array;
+  hoop.dispose();
+  for (let i = 0; i < hoopPositions.length; i += 3) {
+    positions.push(hoopPositions[i], hoopPositions[i + 1], hoopPositions[i + 2]);
     body.push(2, 0);
   }
   const geometry = new THREE.InstancedBufferGeometry();
