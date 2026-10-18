@@ -147,11 +147,14 @@ export const ARCHIPELAGO: Biome = {
       { rock: "#93694a", rock2: "#a47a58", bands: 0, under: "#5e4330", top: "#8cb648", top2: "#9ec255", snow: false },
       // 1: the gates: the same rock a touch greyer so they read against the islands
       { rock: "#8a7360", rock2: "#9a836e", bands: 0, under: "#55423a", top: "#8cb648", snow: false },
+      // 2: worked stone (the bridges): courses of pale masonry, a paved top
+      { rock: "#d6ccb8", rock2: "#c4baa4", bands: 2.5, under: "#a59c89", top: "#cfc6b0", top2: "#bfb69f", snow: false, bare: true },
     ],
     layers: { dirt: "#7a5538", sand: "#c9b48c", snow: "#ffffff", snowLine: 9999, topSlope: 0.45, texture: 0.5, glow: "#ffd98a" },
     land: {
-      gates: { arch: 3, pillars: 2, needles: 1, spur: 1 },
+      gates: { arch: 3, pillars: 2, bridge: 2, needles: 1, spur: 1 },
       gateSurface: 1,
+      named: { bridge: 2 },
       features: [
         // Clean teardrops along the line, no holes, the default soft noise. Dense enough that most islands have a
         // neighbour a bridge's length away (120: about 30 level pairs 12 to 50 m apart per course; 60 gave 8)
@@ -161,6 +164,8 @@ export const ARCHIPELAGO: Biome = {
     islandFalls: { chance: 0.15, colors: { deep: "#3f8fb0", shallow: "#9fdff0", foam: "#ffffff" } },
     // Ponds on the tops of nearly half the islands (apart from the falls: those stay rare, they are for gameplay later)
     islandPonds: { chance: 0.45, colors: { deep: "#2a6a8a", shallow: "#8fd4dc", foam: "#ffffff" } },
+    // Stone bridges between neighbouring islands off the line (the `bridge` gate makes the ones you fly under)
+    islandBridges: { chance: 0.8, surface: 2 },
   },
   vegetation: {
     kind: "flora",

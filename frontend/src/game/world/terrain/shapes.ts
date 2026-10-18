@@ -469,6 +469,7 @@ export interface BridgeSpan {
   foot: number; // …and at its ends
   arch: [number, number]; // the opening underneath: half width and rise above the water
   depth: number; // the abutments reach this far below the water
+  slope?: number; // metres the deck climbs per metre along it (a ramp between islands of different heights)
 }
 
 /**
@@ -477,10 +478,11 @@ export interface BridgeSpan {
  * meshed on a 6 m grid, and anything thinner comes out in tatters.
  */
 export class Bridge extends BaseShape {
-  private readonly water: number;
-  private readonly ax: number;
-  private readonly az: number;
-  private readonly span: BridgeSpan;
+  readonly water: number; // the level the span is measured from (a river's surface, or just a height) at the middle
+  readonly ax: number;
+  readonly az: number;
+  readonly span: BridgeSpan;
+  readonly slope: number;
 
   /** `center` on the water in mid-river, `along` the horizontal unit vector from bank to bank */
   constructor(center: Vector3, along: Vector3, span: BridgeSpan, look: ShapeLook = {}) {
@@ -489,9 +491,11 @@ export class Bridge extends BaseShape {
     this.ax = along.x;
     this.az = along.z;
     this.span = span;
+    this.slope = span.slope ?? 0;
     const hx = Math.abs(along.x) * span.half + Math.abs(along.z) * span.width * 0.5;
     const hz = Math.abs(along.z) * span.half + Math.abs(along.x) * span.width * 0.5;
-    this.box(center.x, center.y + (span.crown - span.depth) / 2, center.z, hx, (span.crown + span.depth) / 2, hz);
+    const climb = Math.abs(this.slope) * span.half;
+    this.box(center.x, center.y + (span.crown - span.depth) / 2, center.z, hx, (span.crown + span.depth) / 2 + climb, hz);
   }
 
   distance(px: number, py: number, pz: number): number {
@@ -500,7 +504,7 @@ export class Bridge extends BaseShape {
     const dz = pz - this.cz;
     const u = dx * this.ax + dz * this.az;
     const w = dz * this.ax - dx * this.az;
-    const v = py - this.water;
+    const v = py - this.water - this.slope * u;
     const k = Math.max(0, 1 - (u / s.half) ** 2);
     const top = s.foot + (s.crown - s.foot) * k;
     // (the deck slopes, so its height difference overstates the distance: scaled down to stay a bound)

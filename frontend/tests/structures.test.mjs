@@ -165,6 +165,42 @@ test("island ponds sit in clean bowls under a rock lip, their water is solid, an
   }
 });
 
+test("island bridges: gate bridges arch over a clear line, scenery bridges join two islands off it", async () => {
+  const { Bridge } = await import("../src/game/world/terrain/shapes.ts");
+  let gateBridges = 0, scenery = 0;
+  for (const seed of [2, 5, 7]) {
+    const world = new World(makeLevel({ biome: "archipelago", seed, mood: 0 }));
+    const field = world.land;
+    const all = field.shapes.filter((s) => s instanceof Bridge);
+    const off = new Set(world.islandBridges);
+    scenery += off.size;
+    for (const b of all) {
+      const top = b.water + b.span.crown;
+      const onLine = !off.has(b);
+      if (onLine) gateBridges++;
+      // The deck: rock under its crown, air over it, the arch open under it
+      assert.ok(field.distance(b.cx, top - 1.5, b.cz) < 0, `${seed}: no deck under the crown`);
+      assert.ok(field.distance(b.cx, top + 2.5, b.cz) > 0, `${seed}: rock over the deck`);
+      assert.ok(field.distance(b.cx, b.water, b.cz) > 2, `${seed}: the arch is closed`);
+      // The ends land in rock (the deck's own, or the island's)
+      for (const s of [-1, 1]) {
+        const u = s * (b.span.half - 1.5);
+        assert.ok(field.distance(b.cx + b.ax * u, b.water + b.slope * u + b.span.foot - 1.5, b.cz + b.az * u) < 0.5, `${seed}: an end hangs in the air`);
+      }
+      if (onLine) {
+        // A gate bridge: its arch centred on the line, and the tube under it clear
+        assert.ok(world.course.distance(b.cx, b.water, b.cz) < 5, `${seed}: a gate bridge off the line`);
+        assert.ok(world.land.distance(world.course.x(b.cz), world.course.y(b.cz), b.cz) >= 10.9, `${seed}: the tube is blocked under a bridge`);
+      } else {
+        // Scenery: nowhere near the tube
+        assert.ok(world.course.distance(b.cx, top, b.cz) >= 20, `${seed}: a scenery bridge crowds the line`);
+      }
+    }
+  }
+  assert.ok(gateBridges >= 3, `only ${gateBridges} gate bridges over three courses`);
+  assert.ok(scenery >= 15, `only ${scenery} scenery bridges over three courses`);
+});
+
 test("a shipwreck collides with its hull and its mast, which leans back with the bow up", () => {
   const h = 26;
   // Yaw 0: the hull runs along x, bow towards +x

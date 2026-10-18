@@ -48,6 +48,7 @@ export type GateKind =
   | "overhang" // a shelf reaching over the line from one side
   | "tunnel" // a floating island on the line, tunnelled through
   | "squeeze" // one island above, one below
+  | "bridge" // a stone bridge between two islands either side of the line: fly under its arch
   | "mushroom" // two giant mushrooms whose caps meet over the line
   | "roots"; // tangled root arches
 
@@ -75,8 +76,8 @@ export interface LandRecipe {
   gates: Partial<Record<GateKind, number>>;
   /** Surface of the rock the gates are made of */
   gateSurface: number;
-  /** Surfaces for gates made of something else: giant mushrooms' stems and caps */
-  named?: { stem?: number; cap?: number };
+  /** Surfaces for gates made of something else: giant mushrooms' stems and caps, the worked stone of bridges */
+  named?: { stem?: number; cap?: number; bridge?: number };
   features: Feature[];
 }
 
@@ -91,6 +92,12 @@ export interface SeaSpec {
 export interface IslandPondsSpec {
   chance: number; // share of islands 20 m and up with a pond
   colors: { deep: string; shallow: string; foam: string };
+}
+
+/** Stone bridges between neighbouring islands off the racing line (World.findIslandBridges) */
+export interface IslandBridgesSpec {
+  chance: number; // share of the pairs 10 to 50 m apart and level enough that get one
+  surface: number; // the worked stone they are painted with
 }
 
 export interface IslandFallsSpec {
@@ -111,6 +118,7 @@ export interface TerrainRecipe {
   sea?: SeaSpec;
   islandFalls?: IslandFallsSpec;
   islandPonds?: IslandPondsSpec;
+  islandBridges?: IslandBridgesSpec;
 }
 
 /** One species in a biome's flora, with its colors and where it grows */

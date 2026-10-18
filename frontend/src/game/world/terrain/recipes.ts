@@ -160,6 +160,22 @@ function buildGate(ctx: LandContext, kind: GateKind, z: number, look: ShapeLook,
     const b = offset(range(rng, -8, 8), -under * 0.25 - 6, 10);
     field.add(new NoiseIsland(a.x, a.y, a.z, over, range(rng, 0, 6.28), ctx.noise, {}, look));
     field.add(new NoiseIsland(b.x, b.y, b.z, under, range(rng, 0, 6.28), ctx.noise, {}, look));
+  } else if (kind === "bridge") {
+    // A stone bridge between two islands either side of the line, its arch centred on the line:
+    // the deck crosses well over the tube and the opening is wider than it on every side
+    const half = range(rng, 24, 32); // from the line to each island's rim
+    const arch: [number, number] = [range(rng, 16, 19), range(rng, 15, 17)];
+    // The deck stays at least 6 m thick over the arch and the piers 5 m wide: thinner comes out in tatters at 3 m voxels
+    const foot = arch[1] + range(rng, 6, 8); // the deck's ends, over the line
+    const crown = foot + range(rng, 3, 5);
+    const center = offset(range(rng, -3, 3), 0);
+    field.add(new Bridge(center, side.clone(), { half, width: range(rng, 8, 11), crown, foot, arch, depth: arch[1] + 4 }, { surface: recipe.named?.bridge ?? look.surface, grain: Grain.Layered }));
+    for (const s of [-1, 1]) {
+      // An island under each end: its dome top (0.27 of its size up) at the deck's end
+      const size = range(rng, 18, 26);
+      const c = offset(s * (half + size * 0.8), 0, range(rng, -4, 4));
+      field.add(new NoiseIsland(c.x, p.y + foot - size * 0.27, c.z, size, range(rng, 0, Math.PI * 2), ctx.noise, {}, look));
+    }
   }
 }
 

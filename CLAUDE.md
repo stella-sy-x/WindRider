@@ -126,6 +126,27 @@ structures, sky, particles, music); update it when a biome recipe changes.
 
 ## Change log
 
+### 2026-10-18: Stone bridges between the floating islands (Claude)
+
+- A `bridge` gate kind (Archipelago only): a humped stone bridge spanning
+  the line between two small islands made for it, its arch centred on the
+  line and wider than the tube on every side; the tube carve keeps the
+  passage clear as for every gate. Painted with the recipe's
+  `named.bridge` surface (worked stone, surface 2).
+- `World.findIslandBridges` (`terrain.islandBridges`): scenery bridges
+  between neighbouring islands off the line, 80 % of the pairs 10 to 50 m
+  apart rim to rim, one bridge per island at most, 20 m or more from the
+  line, the middle of the gap checked empty (a gate's ring or ridge or a
+  third island can stand there). `Bridge` gained a `slope`: the deck ramps
+  where one island stands higher, up to about 24 degrees, which is what
+  makes enough pairs (islands spread 200 m in height; flat decks found
+  only a handful). The hump is tall because the field blends the abutments
+  into the island rock over 6 m and a low arch would close.
+- 120 islands instead of 60, so bridges have somewhere to go.
+- Test over three seeds: deck solid under the crown, air over it, arch
+  open, ends in rock, gate bridges on the line with the tube clear,
+  scenery bridges 20 m from it, at least 3 gate and 15 scenery bridges.
+
 ### 2026-10-18: Ponds on the floating islands (Claude)
 
 - `World.findIslandPonds`: on 45 % of Archipelago islands 20 m and up

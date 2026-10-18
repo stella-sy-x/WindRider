@@ -79,9 +79,10 @@ bridges and lakeside lanterns could not come.
 
 - **Moods**: five. Alpine, Misty pines, Autumn, Dusk (night 0.2), Moonlit (night 0.9). Stella means to trim the three greens.
 - **Ground**: none. Ponds on 45 % of islands 20 m and up (a bowl carved into the top under a flat rock lip, the island's grain smoothed around it; the water is solid like a river pool; `World.islandPonds`). Waterfalls off 15 % of big islands, kept rare for gameplay later; the two are independent.
-- **Surfaces**: 0 the islands (warm brown rock, green cap); 1 the gates (same rock, greyer).
+- **Surfaces**: 0 the islands (warm brown rock, green cap); 1 the gates (same rock, greyer); 2 worked stone (the bridges).
 - **Features**: 120 floating islands (14 to 55 m) without holes, dense enough that most have a neighbour within a bridge's reach.
-- **Gates**: arch 3, pillars 2, needles 1, spur 1.
+- **Gates**: arch 3, pillars 2, bridge 2 (a stone bridge between two islands either side of the line, its arch centred on the line), needles 1, spur 1.
+- **Bridges** (`World.findIslandBridges`): stone bridges between neighbouring islands off the line, 80 % of the pairs 10 to 50 m apart rim to rim, each island in one at most, ramped where one island stands higher (up to about 24 degrees), the gap under the arch checked empty; solid like the land.
 - **Flora**: pine (dominant), oak, birch, bush, boulder. Grass with white, yellow, violet and pink flowers.
 - **Structures** (all on island rock): watchtower (landmark, 18 to 24 m), einsteinBust (landmark, about one level in three, beside the line), windmill (bare island tops), shrineGate (facing), stoneLantern sparse everywhere and dense around the ponds (`wet`).
 - **Sky**: cloud sea 260 m below, 65 puffs above and below, camera mist, fog 80 to 1400 m. **Particles**: motes, petals, fireflies at night.
