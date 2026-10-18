@@ -196,7 +196,7 @@ const fishFragment = /* glsl */ `
 `;
 
 const jellyVertex = /* glsl */ `
-  attribute vec2 body; // 0: the bell, 1: a tentacle; then how far towards the rim, or down the tentacle
+  attribute vec2 body; // 0: the bell, 1: a tentacle, 2: the shock ring; then how far towards the rim, down the tentacle, or across the ring
   attribute vec4 home; // where it drifts, and its size
   attribute vec4 hue; // color, and its own phase
   uniform float time;
@@ -207,6 +207,9 @@ const jellyVertex = /* glsl */ `
   varying float vHang;
   varying float vCharge;
   varying float vZap;
+  varying float vRing; // 1 on the shock ring; then how far it has spread (0 just born, 1 gone)
+  varying float vRingSpread;
+  varying float vRingEdge;
   #include <fog_pars_vertex>
   float jellyHash(float x) { return fract(sin(x * 12.9898) * 43758.5453); }
   void main() {
@@ -220,7 +223,15 @@ const jellyVertex = /* glsl */ `
     float charge = ct < telegraph ? ct / telegraph : (ct < telegraph + burst ? 1.0 : 0.0);
     float zap = (ct >= telegraph && ct < telegraph + burst) ? 1.0 : 0.0;
     vec3 p = position;
-    if (body.x < 0.5) {
+    // The shock ring spreads to 3.5x the bell over the first 0.45 s of the discharge; the
+    // rest of the time it sits collapsed at the centre (zero area, drawing nothing)
+    float spread = clamp((ct - telegraph) / 0.45, 0.0, 1.0) * zap;
+    vRing = body.x > 1.5 ? 1.0 : 0.0;
+    vRingSpread = spread;
+    vRingEdge = body.y;
+    if (body.x > 1.5) {
+      p.xz *= zap * (1.0 + 2.5 * spread);
+    } else if (body.x < 0.5) {
       // The bell squeezes in at the rim and springs open again; charging, it draws in tight
       p.xz *= (1.0 - 0.2 * beat * body.y) * (1.0 - 0.15 * charge * (1.0 - zap));
       p.y *= 1.0 + 0.1 * beat + 0.1 * zap;
@@ -259,6 +270,9 @@ const jellyFragment = /* glsl */ `
   varying float vHang;
   varying float vCharge;
   varying float vZap;
+  varying float vRing;
+  varying float vRingSpread;
+  varying float vRingEdge;
   #include <fog_pars_fragment>
   void main() {
     float edge = vEdge * vEdge;
@@ -271,6 +285,12 @@ const jellyFragment = /* glsl */ `
     color = mix(color, vec3(0.78, 0.96, 1.0) * (1.0 + glow), vZap * 0.55);
     color = min(color, vec3(1.25));
     float alpha = min(1.0, (0.3 + edge * 0.6) * (1.0 - vHang * 0.7) * (1.0 + vZap * 0.6 + vCharge * 0.2));
+    if (vRing > 0.5) {
+      // The shock ring: a soft band of electric light, fading as it spreads
+      float band = 1.0 - abs(vRingEdge * 2.0 - 1.0);
+      color = min(vec3(0.78, 0.96, 1.0) * (1.0 + glow) * 1.1, vec3(1.25));
+      alpha = band * (1.0 - vRingSpread) * 0.55 * vZap;
+    }
     #ifdef USE_FOG
       float fogFactor = smoothstep(fogNear, fogFar, vFogDepth);
       color = mix(color, fogColor, fogFactor);
@@ -332,6 +352,20 @@ function jellyGeometry(): THREE.InstancedBufferGeometry {
         body.push(1, hang[i] / segments);
       });
     }
+  }
+  // The shock ring: a flat band round the bell's rim that the vertex shader keeps collapsed
+  // to a point until a discharge, then throws outwards and fades (body.y: 0 inner edge, 1 outer)
+  const ringSegments = 16;
+  for (let s = 0; s < ringSegments; s++) {
+    const a0 = (s / ringSegments) * Math.PI * 2;
+    const a1 = ((s + 1) / ringSegments) * Math.PI * 2;
+    const at = (a: number, r: number) => [Math.cos(a) * r, 0.05, Math.sin(a) * r];
+    const quad = [at(a0, 0.9), at(a0, 1.3), at(a1, 1.3), at(a0, 0.9), at(a1, 1.3), at(a1, 0.9)];
+    const edge = [0, 1, 1, 0, 1, 0];
+    quad.forEach((p, i) => {
+      positions.push(...p);
+      body.push(2, edge[i]);
+    });
   }
   const geometry = new THREE.InstancedBufferGeometry();
   geometry.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
