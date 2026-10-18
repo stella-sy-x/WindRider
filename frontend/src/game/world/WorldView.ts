@@ -93,7 +93,7 @@ export class WorldView {
     if (underwater) {
       this.shafts = new LightShafts();
       this.seaLife = new SeaLife(world, underwater);
-      this.group.add(this.shafts.mesh, ...this.seaLife.meshes);
+      this.group.add(this.shafts.mesh, this.seaLife.group);
     }
     // Gates in muted stone, tinted a touch by the biome's accent rather than painted in it
     this.gateColors = gateColors(accent);

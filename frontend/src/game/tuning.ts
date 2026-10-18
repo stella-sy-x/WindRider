@@ -174,6 +174,7 @@ export const DEEP = {
   zapActive: 1, // seconds the discharge lasts
   zapGlow: 1.5, // how much brighter it burns while discharging (the shader caps the result just under the bloom threshold)
   jellyNear: 0.6, // share of the small jellyfish placed beside the racing line, in reach; applies to the next map
+  jellyFill: 0.25, // the bell's body between its glowing veins, 0 (veins only) to 1 (solid as before)
 };
 
 /** The autopilot (the menu's chase view): flies the racing line on rails */
@@ -340,6 +341,7 @@ export const RANGES: Record<string, [number, number, number?]> = {
   zapActive: [0.2, 4],
   zapGlow: [0, 5],
   jellyNear: [0, 1],
+  jellyFill: [0, 1],
   railMinSpeed: [15, 45],
   railMaxSpeed: [30, 80],
   railBank: [0, 80],

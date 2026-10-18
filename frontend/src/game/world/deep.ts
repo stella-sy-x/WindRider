@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { sceneryTime as fxTime } from "../particles";
 import { makeRng, range } from "../rng";
 import { FX_LIGHT } from "../toon";
@@ -207,6 +208,8 @@ const jellyVertex = /* glsl */ `
   varying float vHang;
   varying float vCharge;
   varying float vZap;
+  varying float vBell; // 1 on the bell, where the vein texture applies at vUvB
+  varying vec2 vUvB;
   varying float vShell; // 1 on the shock hoop; then how far it has spread (0 just born, 1 gone) and how squarely its tube faces us
   varying float vShellSpread;
   varying float vShellRim;
@@ -264,6 +267,8 @@ const jellyVertex = /* glsl */ `
     vCharge = charge;
     vZap = zap;
     vColor = hue.rgb;
+    vBell = body.x < 0.5 ? 1.0 : 0.0;
+    vUvB = uv;
     vec4 mvPosition = viewMatrix * vec4(world, 1.0);
     gl_Position = projectionMatrix * mvPosition;
     #include <fog_vertex>
@@ -273,11 +278,15 @@ const jellyVertex = /* glsl */ `
 const jellyFragment = /* glsl */ `
   uniform float glow;
   uniform float zapGlow;
+  uniform sampler2D bellMap; // the bell's veins: white lines, transparent between them
+  uniform float bellFill; // how much body the bell keeps between the veins
   varying vec3 vColor;
   varying float vEdge;
   varying float vHang;
   varying float vCharge;
   varying float vZap;
+  varying float vBell;
+  varying vec2 vUvB;
   varying float vShell;
   varying float vShellSpread;
   varying float vShellRim;
@@ -291,8 +300,16 @@ const jellyFragment = /* glsl */ `
     float energy = 1.0 + vCharge * 0.9 + vZap * zapGlow;
     vec3 color = vColor * (0.4 + edge * 1.2) * (1.0 + glow) * energy;
     color = mix(color, vec3(0.78, 0.96, 1.0) * (1.0 + glow), vZap * 0.55);
+    float alpha = (0.3 + edge * 0.6) * (1.0 - vHang * 0.7) * (1.0 + vZap * 0.6 + vCharge * 0.2);
+    if (vBell > 0.5) {
+      // The bell: its veins glow in the jellyfish's colour (brighter still when it discharges),
+      // the body between them a faint tint of it, as much as bellFill allows
+      float veins = texture2D(bellMap, vUvB).a;
+      color *= 0.5 + veins * 0.9;
+      alpha = alpha * bellFill + veins * (0.75 + vZap * 0.25);
+    }
     color = min(color, vec3(1.25));
-    float alpha = min(1.0, (0.3 + edge * 0.6) * (1.0 - vHang * 0.7) * (1.0 + vZap * 0.6 + vCharge * 0.2));
+    alpha = min(1.0, alpha);
     if (vShell > 0.5) {
       // The shock hoop: a tube of electric light, rounded by its facing, fading as it rolls out
       float facing = 0.45 + 0.55 * vShellRim;
@@ -335,12 +352,56 @@ function fishGeometry(): THREE.InstancedBufferGeometry {
 }
 
 /** A jellyfish with a bell 1 m in radius: a dome, and ribbons hanging from under its rim */
-function jellyGeometry(): THREE.InstancedBufferGeometry {
-  const dome = new THREE.SphereGeometry(1, 10, 4, 0, Math.PI * 2, 0, Math.PI / 2).scale(1, 0.8, 1).toNonIndexed();
-  const positions = Array.from(dome.getAttribute("position").array as Float32Array);
-  dome.dispose();
+/** The bell model: n-'s moon jellyfish (CC BY 4.0, see CREDITS.md), one bell at radius 1 with its vein texture, in Vite's public dir */
+const BELL_URL = import.meta.env.BASE_URL + "models/jellyfish-bell.glb";
+
+/** The bell as the builder wants it: non-indexed positions and uvs, and the vein texture */
+interface Bell {
+  positions: Float32Array;
+  uvs: Float32Array;
+  map: THREE.Texture;
+}
+
+let bell: Promise<Bell> | null = null;
+
+/** Fetched once and shared by every level (never disposed) */
+function loadBell(): Promise<Bell> {
+  bell ??= new GLTFLoader().loadAsync(BELL_URL).then((gltf) => {
+    let mesh: THREE.Mesh | null = null;
+    gltf.scene.traverse((o) => {
+      if (!mesh && (o as THREE.Mesh).isMesh) mesh = o as THREE.Mesh;
+    });
+    if (!mesh) throw new Error("jellyfish-bell.glb has no mesh");
+    const found = mesh as THREE.Mesh;
+    const geometry = found.geometry.index ? found.geometry.toNonIndexed() : found.geometry;
+    const map = (found.material as THREE.MeshBasicMaterial).map;
+    if (!map) throw new Error("jellyfish-bell.glb has no texture");
+    return {
+      positions: geometry.getAttribute("position").array as Float32Array,
+      uvs: geometry.getAttribute("uv").array as Float32Array,
+      map,
+    };
+  });
+  return bell;
+}
+
+/**
+ * A jellyfish with a bell 1 m in radius: the model's bell (a flat moon-jelly dome with a
+ * fringe hanging below its rim), ribbons hanging from under the rim, and the shock hoop.
+ * `body` tags each vertex for the shaders; `uv` only means something on the bell
+ */
+function jellyGeometry(dome: Bell): THREE.InstancedBufferGeometry {
+  const positions = Array.from(dome.positions);
+  const uvs = Array.from(dome.uvs);
   const body: number[] = [];
-  for (let i = 1; i < positions.length; i += 3) body.push(0, 1 - positions[i] / 0.8);
+  // How far down the bell each vertex sits: 0 at the crown, 1 at the bottom of the fringe
+  let top = -Infinity;
+  let bottom = Infinity;
+  for (let i = 1; i < positions.length; i += 3) {
+    top = Math.max(top, positions[i]);
+    bottom = Math.min(bottom, positions[i]);
+  }
+  for (let i = 1; i < positions.length; i += 3) body.push(0, (top - positions[i]) / (top - bottom));
   const ribbons = 7;
   const segments = 5;
   for (let r = 0; r < ribbons; r++) {
@@ -358,6 +419,7 @@ function jellyGeometry(): THREE.InstancedBufferGeometry {
       quad.forEach((p, i) => {
         positions.push(...p);
         body.push(1, hang[i] / segments);
+        uvs.push(0, 0);
       });
     }
   }
@@ -370,17 +432,24 @@ function jellyGeometry(): THREE.InstancedBufferGeometry {
   for (let i = 0; i < hoopPositions.length; i += 3) {
     positions.push(hoopPositions[i], hoopPositions[i + 1], hoopPositions[i + 2]);
     body.push(2, 0);
+    uvs.push(0, 0);
   }
   const geometry = new THREE.InstancedBufferGeometry();
   geometry.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
   geometry.setAttribute("body", new THREE.Float32BufferAttribute(body, 2));
+  geometry.setAttribute("uv", new THREE.Float32BufferAttribute(uvs, 2));
   return geometry;
 }
 
 /** Schools of fish and drifting jellyfish along a level's course, placed from its seed */
 export class SeaLife {
+  /** Everything swimming: add this to the scene (the jellyfish join it once their bell model has loaded) */
+  readonly group = new THREE.Group();
   readonly meshes: THREE.Mesh<THREE.InstancedBufferGeometry, THREE.ShaderMaterial>[] = [];
+  private disposed = false;
   private readonly glow = { value: 0 };
+  /** The bell's body between its veins, 0..1 (DEEP.jellyFill) */
+  private readonly bellFill = { value: DEEP.jellyFill };
   /** The race clock the jellyfish discharge on, seconds */
   private readonly raceTime = { value: 0 };
   private readonly zapCycle = { value: new THREE.Vector3(DEEP.zapCycle, DEEP.zapTelegraph, DEEP.zapActive) };
@@ -456,20 +525,36 @@ export class SeaLife {
       hues.push(color.r, color.g, color.b, phase);
     }
     if (home.length) {
-      const geometry = jellyGeometry();
-      geometry.setAttribute("home", new THREE.InstancedBufferAttribute(new Float32Array(home), 4));
-      geometry.setAttribute("hue", new THREE.InstancedBufferAttribute(new Float32Array(hues), 4));
-      geometry.instanceCount = home.length / 4;
-      const material = new THREE.ShaderMaterial({
-        uniforms: { ...fog(), glow: this.glow, time: fxTime, raceTime: this.raceTime, zapCycle: this.zapCycle, zapGlow: this.zapGlow },
-        vertexShader: jellyVertex,
-        fragmentShader: jellyFragment,
-        side: THREE.DoubleSide,
-        transparent: true,
-        depthWrite: false,
-        fog: true,
-      });
-      this.add(geometry, material).renderOrder = 2;
+      // The jellyfish pop in once the shared bell model has arrived
+      loadBell().then(
+        (dome) => {
+          if (this.disposed) return;
+          const geometry = jellyGeometry(dome);
+          geometry.setAttribute("home", new THREE.InstancedBufferAttribute(new Float32Array(home), 4));
+          geometry.setAttribute("hue", new THREE.InstancedBufferAttribute(new Float32Array(hues), 4));
+          geometry.instanceCount = home.length / 4;
+          const material = new THREE.ShaderMaterial({
+            uniforms: {
+              ...fog(),
+              glow: this.glow,
+              time: fxTime,
+              raceTime: this.raceTime,
+              zapCycle: this.zapCycle,
+              zapGlow: this.zapGlow,
+              bellMap: { value: dome.map },
+              bellFill: this.bellFill,
+            },
+            vertexShader: jellyVertex,
+            fragmentShader: jellyFragment,
+            side: THREE.DoubleSide,
+            transparent: true,
+            depthWrite: false,
+            fog: true,
+          });
+          this.add(geometry, material).renderOrder = 2;
+        },
+        () => {},
+      );
     }
   }
 
@@ -477,6 +562,7 @@ export class SeaLife {
     const mesh = new THREE.Mesh(geometry, material);
     mesh.frustumCulled = false;
     this.meshes.push(mesh);
+    this.group.add(mesh);
     return mesh;
   }
 
@@ -489,9 +575,11 @@ export class SeaLife {
     this.raceTime.value = raceTime;
     this.zapCycle.value.set(DEEP.zapCycle, DEEP.zapTelegraph, DEEP.zapActive);
     this.zapGlow.value = DEEP.zapGlow;
+    this.bellFill.value = DEEP.jellyFill;
   }
 
   dispose() {
+    this.disposed = true;
     for (const mesh of this.meshes) {
       mesh.geometry.dispose();
       mesh.material.dispose();

@@ -17,6 +17,12 @@ Continued development by Stella with Claude.
   https://opengameart.org/content/lowpoly-jetpack
   Jetpack model
 
+- **low-poly? jellyfish** by n- (CC BY 4.0)
+  https://skfb.ly/6SEBB
+  One bell of the four, rest pose, with its vein texture: the Sunken Reef
+  jellyfish's bell (`public/models/jellyfish-bell.glb`); tentacles and the
+  discharge are ours
+
 ### Audio
 - Wind, gate rings, countdown and crash sounds are synthesized (Web Audio API)
 - Wingbeat sample and background music tracks are original to the hackathon project
