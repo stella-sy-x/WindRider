@@ -18,7 +18,7 @@ function validSeed(value: string | null): number | null {
 
 /**
  * Screens live in the URL, so a room link can be shared and reloads keep you in place.
- * `test` may be added to any single-player URL (`?test`, `?test=verdant`,
+ * `test` may be added to any single-player URL (`?test`, `?test=glacier`,
  * `?seed=42&test`): it opens the test sandbox there. Rooms ignore it.
  */
 export function screenFromSearch(search: string, hasNickname: boolean): Screen {
@@ -31,7 +31,7 @@ export function screenFromSearch(search: string, hasNickname: boolean): Screen {
   const seed = validSeed(params.get("seed"));
   if (params.has("test")) {
     const biome = params.get("test");
-    return { kind: "test", biome: validBiome(biome) ? biome : "verdant", seed: seed ?? 1 };
+    return { kind: "test", biome: validBiome(biome) ? biome : "archipelago", seed: seed ?? 1 };
   }
   if (seed !== null) return { kind: "solo", seed };
   return { kind: "menu" };

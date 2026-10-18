@@ -11,7 +11,8 @@ Last updated 2026-10-18.
 ## Where things stand
 
 A browser wingsuit racer with a paper-airplane pilot: solo time trials and
-rooms of up to 12, seven biomes from one seeded map pool, crystal gates as
+rooms of up to 12, five biomes from one seeded map pool (glacier canyon,
+lagoon, glowing forest, sunken reef, floating islands), crystal gates as
 optional speed boosts (any order, the finish is the only must), the Sunken
 Reef bounded by canyon walls, the other biomes still by a silent 150 m hold.
 Low-poly flat shading, cream paper and light gold. Adventure mode, pets,
@@ -34,10 +35,11 @@ cosmetics, items and the gallery are gone; the game is racing only.
    `terrain.walls` in each recipe (Reef is done, `WALLS` in tuning.ts).
    Each one needs its own check of `TERRAIN.generateLateral` (280 m, set
    for the Reef where the wall breaks the water surface at 275 m): the
-   reference elsewhere is the fog end or the skyline. Verdant's mesas
-   (520 to 1000 m out) fall past the cut and need a decision: move them in, or let them go.
-   The Archipelago has no ground to build walls from and needs its own
-   boundary scheme.
+   reference elsewhere is the fog end or the skyline. Glacier is the one
+   mountain canyon, so it goes first. The Archipelago has no ground to
+   build walls from and needs its own boundary scheme: a line of tall,
+   close islands either side (an island canyon), or accept it as the open
+   biome with the 150 m hold.
 3. **Desktop HUD into the bottom corners.** With walls on both sides the
    lower corners of the frame show only wall, so they are free for UI; the
    phone layout already uses them (flight meters bottom left, touch pad
@@ -48,14 +50,23 @@ cosmetics, items and the gallery are gone; the game is racing only.
 
 - **Biome gameplay pieces**, grown out of what is already on screen rather
   than new abstract pickups, coloured with the biome's `accent`. Jellyfish
-  first; candidates after: thermals above Twilight's mushroom caps, crosswinds on Glacier and Aurora, buoyancy on the Reef.
+  first; candidates after: thermals above Twilight's mushroom caps,
+  crosswinds on the Glacier, buoyancy on the Reef, updrafts off the islands.
   Per-biome physics would mean `biome.physics?: { gravity, drag, ... }` in
   flight.ts and leaderboards scoped per biome.
 - **Proximity boost feedback.** The skim reward is still nearly invisible:
   colour shift, speed-line burst, camera pull, a sound, a louder HUD bar.
   This is the core risk/reward mechanic.
-- **Music** of their own for Aurora, Lagoon and Reef (they borrow Glacier's
-  and Verdant's tracks).
+- **Music** of their own for Lagoon and Reef (they play the tracks written
+  for the retired Ember Wastes and Verdant Highlands).
+- **Water on the islands.** Stella asked whether the floating islands can
+  carry streams, so the stone bridges and lakeside lanterns can come back.
+  Cheapest: a pond on an island top feeding the existing rim waterfall,
+  lanterns by it via the `wet` rule. A stream with a bridge needs a channel
+  carved into the island and a ribbon of water, best as a set-piece on a
+  few larger islands.
+- **Archipelago moods**: five now (Alpine, Misty pines, Autumn, Dusk,
+  Moonlit); Stella will trim the three greens at the computer.
 - **Gamepad**: no Enter (start race) or pause mapping, no haptics.
 - **Playtesting** with a human on mouse and gamepad in a focused window;
   mouse sensitivity (default 2) and gamepad dead zone (0.12) were tuned by
@@ -80,9 +91,12 @@ cosmetics, items and the gallery are gone; the game is racing only.
 
 ## Done lately
 
-- 2026-10-18: Ember Wastes removed with everything only it used (lava water,
-  volcano, forge structures, dead trees and basalt, embers and ash, underglow);
-  seven biomes, seeds remapped.
+- 2026-10-18: down to five biomes. Ember Wastes removed with everything only
+  it used; Aurora Summit folded into Glacier Peaks (dawn and night moods,
+  crystal rings, a summit on half the courses, observatory, pylons, altars);
+  Verdant Highlands folded into the Sky Archipelago (oak, birch, bush,
+  flowers, watchtower landmark, windmill, shrine gate, Moonlit mood, the
+  Einstein bust; the ETH main building deleted). Seeds remapped.
 - 2026-10-18: terrain generation cut 280 m off the line (nothing beyond the
   walls is made; on-line triangles 145k to 108k); look-ahead test rewritten;
   test mode's keys removed, panel only; biome asset inventory

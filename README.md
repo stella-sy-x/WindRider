@@ -1,8 +1,8 @@
 # Wind Rider
 
 A wingsuit racer for the browser, with multiplayer races. You fly a paper
-airplane down a seeded course: a river valley, a glacier, a lagoon, a sunken
-reef, a field of floating islands, seven biomes in all, threading crystal
+airplane down a seeded course: a glacier canyon, a lagoon, a glowing forest,
+a sunken reef, a field of floating islands, threading crystal
 gates to the finish. Dive for speed, skim the rock for style points and a
 boost, and beat your friends to the last gate.
 
@@ -112,7 +112,7 @@ POST up, plain HTTP (WebSockets didn't survive the hackathon network).
   without that portal in front). Anywhere else they are guests: a nickname
   and a browser id
 
-**Seeded worlds**: a seed picks one of the seven biomes and one of its
+**Seeded worlds**: a seed picks one of the five biomes and one of its
 lighting moods; the racing line descends through it with a crystal gate every
 95 to 130 m. The land is a ground heightfield plus a signed distance field,
 meshed in web workers and streamed in four levels of detail around the
@@ -154,7 +154,7 @@ All routes start with `/api`.
 
 ## Test Mode
 
-`/?test` (or `/?test=verdant&seed=2`): free flight through any biome.
+`/?test` (or `/?test=glacier&seed=2`): free flight through any biome.
 Worlds, lighting and half speed are buttons on its panel (no debug keys).
 Included in production builds, nothing saved. See `docs/debug-mode.md`.
 

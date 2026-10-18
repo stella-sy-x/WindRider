@@ -2,21 +2,24 @@ import type { Palette } from "../palette";
 import type { Biome } from "./types";
 
 // Sky Archipelago: the look of the old Sky Isles, rebuilt on the v2 terrain.
-// Clean teardrop islands, each crowned with a dense single-species pine wood,
-// a two-tone palette of warm rock and green cap, clouds drifting above and
-// below the islands, and a sea of clouds far beneath. Nothing fancy on the
-// rock: no strata, no holes, no arches carved through it; the islands read
-// as simple soft shapes and the forests and clouds do the talking.
+// Clean teardrop islands crowned with woods (pine over most of them, oak,
+// birch and bushes between), a two-tone palette of warm rock and green cap,
+// clouds drifting above and below the islands, and a sea of clouds far
+// beneath. Nothing fancy on the rock: no strata, no holes, no arches carved
+// through it; the islands read as simple soft shapes and the forests, the
+// mills and towers on them, and the clouds do the talking. The green valley
+// biome (Verdant Highlands) was folded in here: its trees, flowers, mills,
+// towers, shrine gates and the Einstein bust; its river and bridges could not
+// come, there is no ground for them.
 //
 // The surfaces and species below are authored in the first mood's colors
 // (Alpine: its rock, grass, forest and trunk are the island rock, its cap, the
 // pine and its trunk). Every other mood repaints them by its palette as the
-// land is meshed and the trees are built (World.mood, palette.ts), so Winter's
-// islands come out white-capped and grey and Starlight's purple, as they did
-// in Sky Isles, besides the mood's light, sky, mist and clouds.
+// land is meshed and the trees are built (World.mood, palette.ts), besides the
+// mood's light, sky, mist and clouds.
 
-// Moods lifted from Sky Isles, with every sun kept between 22° and 34° up and
-// 25°–40° off the course so it never sits straight ahead of the pilot.
+// Every sun kept between 22° and 34° up and 25°–40° off the course so it never
+// sits straight ahead of the pilot.
 const MOODS: readonly Palette[] = [
   {
     // Bright blue sky, green grass, warm brown rock: the archipelago at its crispest
@@ -107,56 +110,33 @@ const MOODS: readonly Palette[] = [
     glow: 1.1,
   },
   {
-    // Pale blue sky, cool white light, snow-white tops
-    name: "Winter",
-    horizon: "#dde8f4",
-    zenith: "#5e86c2",
-    grass: "#e6edf4",
-    forest: "#2e4f48",
-    trunk: "#4d3b30",
-    rock: "#7a8594",
-    snow: "#ffffff",
-    cloud: "#ffffff",
-    accent: "#d96c7a",
-    sun: "#ffffff",
-    sunIntensity: 2.3,
-    ambient: 1.6,
-    sunElevation: 28,
-    sunAzimuth: 25,
-    night: 0,
-    mist: "#eef4fb",
-    mistDensity: 0.55,
-    glow: 1.3,
-  },
-  {
-    // Deep blue night, purple-tinged rock, a faint aurora over the islands
-    name: "Starlight",
-    horizon: "#4a2f6e",
-    zenith: "#0e0b28",
-    grass: "#3f5a6e",
-    forest: "#1f3a44",
-    trunk: "#3a2c3c",
-    rock: "#4b3f6a",
-    snow: "#cfd8ff",
-    cloud: "#6a5aa0",
-    accent: "#b7d98a",
-    sun: "#d8c6ff",
-    sunIntensity: 1.6,
-    ambient: 1.7,
-    sunElevation: 26,
-    sunAzimuth: -28,
-    night: 1,
-    mist: "#5c3f8f",
-    mistDensity: 0.6,
+    // The valley's moonlit night, carried over: Alpine's land shifted as Verdant's Morning was to its Moonlit
+    name: "Moonlit",
+    horizon: "#2d3c60",
+    zenith: "#0a1130",
+    grass: "#5c7b54",
+    forest: "#2f4d38",
+    trunk: "#4a3529",
+    rock: "#6b4e4e",
+    snow: "#d6e0ff",
+    cloud: "#55658c",
+    accent: "#d9c07a",
+    sun: "#c4d6ff",
+    sunIntensity: 1.25,
+    ambient: 1.45,
+    sunElevation: 32,
+    sunAzimuth: -40,
+    night: 0.9,
+    mist: "#3a4d78",
+    mistDensity: 0.65,
     glow: 0.9,
-    aurora: 0.3,
   },
 ];
 
 export const ARCHIPELAGO: Biome = {
   id: "archipelago",
   name: "Sky Archipelago",
-  tagline: "Pine-crowned islands adrift in a sea of clouds",
+  tagline: "Wooded islands adrift in a sea of clouds",
   moods: MOODS,
   terrain: {
     kind: "v2",
@@ -188,20 +168,29 @@ export const ARCHIPELAGO: Biome = {
     treeline: 400,
     minUp: 0.75,
     species: [
-      // One species: dense pine over every island top
+      // Pine over most island tops; oaks and birches among them, bushes and the odd boulder in the open
       { id: "pine", weight: 5, height: [8, 15], foliage: "#3f7a3a", foliage2: "#4d8a40", trunk: "#6b4a2f" },
+      { id: "oak", weight: 3, height: [7, 13], foliage: "#4f8f37", foliage2: "#6aa342", trunk: "#5b4330" },
+      { id: "birch", weight: 2, height: [8, 13], foliage: "#8cbf4a", foliage2: "#a9cd57", trunk: "#e8e4da" },
+      { id: "bush", weight: 2, height: [1.4, 2.6], foliage: "#4d8a35", foliage2: "#6a9d3d", where: { forest: false } },
       { id: "boulder", weight: 0.3, height: [1.2, 2.6], foliage: "#a47a58", foliage2: "#93694a", where: { forest: false } },
     ],
-    grass: { spacing: 2.6, height: [0.5, 0.9], color: "#7aa848", tip: "#c8d070", flowers: ["#ffffff", "#ffd84a"], flowerShare: 0.15 },
+    grass: { spacing: 2.6, height: [0.5, 0.9], color: "#7aa848", tip: "#c8d070", flowers: ["#ffffff", "#ffd84a", "#c58cff", "#ff7a9c"], flowerShare: 0.25 },
   },
   structures: [
-    // The odd stone lantern on an island top, nothing more
-    { id: "stoneLantern", spacing: 60, chance: 0.15, height: [2.6, 3.4], colors: { stone: "#efe6d2", stone2: "#b8c79a", roof: "#3f7fb8" }, where: { lateral: [0, 300], on: "rock" } },
+    // Everything stands on island rock (`on`): a great watchtower on an island per stretch; a bust of Albert Einstein (an Easter egg, in about one level in
+    // three) close by the line; mills on bare island tops, shrine gates turned to the line, lanterns here and there
+    { id: "watchtower", landmark: 1100, spacing: 60, chance: 1, height: [18, 24], colors: { stone: "#cfc6b4", stone2: "#9aa784", roof: "#3f6f8f", cloth: "#d84a4a" }, where: { above: [-15, 150], lateral: [50, 300], on: "rock" } },
+    { id: "einsteinBust", landmark: 2400, spacing: 30, chance: 0.3, height: [6, 7], colors: { stone: "#c9c2b2", stone2: "#a39c8c", roof: "#a07c4c", cloth: "#f3f0e8", wood: "#3a2c20" }, where: { above: [-26, 25], lateral: [25, 140], facing: true, on: "rock" } },
+    { id: "windmill", spacing: 130, chance: 0.9, height: [15, 19], colors: { stone: "#d9cfbb", stone2: "#b9b59a", roof: "#b5533c", cloth: "#f6ecd6" }, where: { above: [-10, 150], lateral: [40, 300], forest: false, hilltop: true, on: "rock" } },
+    { id: "shrineGate", spacing: 130, chance: 0.6, height: [8, 11], colors: { stone: "#bdb6a6", stone2: "#93a07c", roof: "#3a3a44", cloth: "#d84a3a" }, where: { above: [-18, 120], lateral: [30, 300], facing: true, on: "rock" } },
+    { id: "stoneLantern", spacing: 24, chance: 0.4, height: [2.6, 3.4], colors: { stone: "#efe6d2", stone2: "#b8c79a", roof: "#3f7fb8" }, where: { lateral: [0, 300], on: "rock" } },
   ],
   sky: { cloudSea: { depth: 260 }, puffs: 65, puffsBelow: true, puffLift: 200, mist: { mode: "camera" }, fog: [80, 1400] },
   particles: {
     ambient: [
       { kind: "motes", rate: 12, colors: ["#ffe9b0", "#fff6dc"] },
+      { kind: "petals", rate: 3, colors: ["#ffffff", "#ffd6e8"] },
       { kind: "fireflies", rate: 3, colors: ["#fff2a0"], night: 4 },
     ],
   },

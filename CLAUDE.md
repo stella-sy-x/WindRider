@@ -126,6 +126,30 @@ structures, sky, particles, music); update it when a biome recipe changes.
 
 ## Change log
 
+### 2026-10-18: Five biomes: Aurora into Glacier, Verdant into the Archipelago (Claude)
+
+- Glacier Peaks absorbs Aurora Summit: moods Polar day, Summit dawn, Aurora
+  night (Polar night dropped as a duplicate); the glowing crystal surface and
+  the six crystal rings; the summit spire on half the courses (`summit`
+  features take a `chance`); violet crystals beside the blue; observatory as
+  a second landmark (each on half the stretches), pylons, star altars,
+  lanterns; starfall at night.
+- Sky Archipelago absorbs Verdant Highlands: moods Alpine, Misty pines,
+  Autumn, Dusk, Moonlit (Winter and Starlight dropped; Moonlit is Alpine
+  shifted as Verdant's Morning was to its Moonlit); oak, birch and bush
+  among the pines; Verdant's four flower colours; a watchtower landmark per
+  stretch, the Einstein bust (one level in three), windmills on bare tops,
+  shrine gates, lanterns, petals. Everything that stood on a river stays
+  out (bridges, lakeside lanterns). Island structures need `on: "rock"`:
+  the default site is open ground, which islands never have.
+- Deleted `biomes/aurora.ts`, `biomes/verdant.ts` and the ETH main building
+  (model, collider, test). Biome count 7 → 5; seeds remapped again. The
+  test world defaults to the Archipelago; the Reef plays Dewdrop Stream
+  under the key `dewdrop`.
+- Tests: the Einstein bust is checked over 24 island seeds (one level in
+  three, never two, always 25 to 140 m off the line); the crystal-shading
+  test uses the Glacier's crystal surface; the bridge test is gone.
+
 ### 2026-10-18: Remove the Ember Wastes biome (Claude)
 
 - Deleted `biomes/ember.ts` and everything only it used: the lava water

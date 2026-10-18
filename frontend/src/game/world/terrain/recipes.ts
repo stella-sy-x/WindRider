@@ -263,6 +263,7 @@ function buildFeature(ctx: LandContext, f: Feature) {
     }
   } else if (f.kind === "summit") {
     // One colossal spire, and a few lesser ones around it
+    if (f.chance !== undefined && rng() > f.chance) return;
     const { course } = ctx;
     const z = course.start.z + (course.endZ - course.start.z) * f.along;
     frame(course, z);

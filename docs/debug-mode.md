@@ -8,11 +8,11 @@ alone turns it on.
 
 | URL | Opens |
 | :-- | :-- |
-| `/?test` | Verdant Highlands, seed 1 |
+| `/?test` | Sky Archipelago, seed 1 |
 | `/?test=glacier&seed=2` | Glacier Peaks, seed 2 |
-| `/?seed=42&test` | Verdant Highlands, seed 42 |
+| `/?seed=42&test` | Sky Archipelago, seed 42 |
 
-An unknown world falls back to Verdant Highlands.
+An unknown world falls back to the Sky Archipelago.
 
 ## The panel
 
