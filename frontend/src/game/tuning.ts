@@ -172,7 +172,7 @@ export const DEEP = {
   zapCycle: 4, // seconds between a jellyfish's discharges
   zapTelegraph: 0.5, // seconds it visibly charges up before one
   zapActive: 1, // seconds the discharge lasts
-  zapGlow: 2.5, // how much brighter it burns while discharging
+  zapGlow: 1.5, // how much brighter it burns while discharging (the shader caps the result just under the bloom threshold)
   jellyNear: 0.6, // share of the small jellyfish placed beside the racing line, in reach; applies to the next map
 };
 

@@ -265,11 +265,11 @@ const jellyFragment = /* glsl */ `
     // Brightening through the charge-up, then a burst of pale electric light over its own
     // colour while it discharges
     // (brightness and the shift to electric white are separate: zapGlow scales only the
-    // former, and the result is capped so bloom catches the burst without blowing it out)
+    // former, and the result is capped just under the bloom threshold so the burst stays crisp)
     float energy = 1.0 + vCharge * 0.9 + vZap * zapGlow;
     vec3 color = vColor * (0.4 + edge * 1.2) * (1.0 + glow) * energy;
-    color = mix(color, vec3(0.78, 0.96, 1.0) * (1.0 + glow), vZap * 0.7);
-    color = min(color, vec3(1.6));
+    color = mix(color, vec3(0.78, 0.96, 1.0) * (1.0 + glow), vZap * 0.55);
+    color = min(color, vec3(1.25));
     float alpha = min(1.0, (0.3 + edge * 0.6) * (1.0 - vHang * 0.7) * (1.0 + vZap * 0.6 + vCharge * 0.2));
     #ifdef USE_FOG
       float fogFactor = smoothstep(fogNear, fogFar, vFogDepth);
