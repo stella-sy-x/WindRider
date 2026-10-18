@@ -104,8 +104,8 @@ export const TERRAIN_DETAIL = { mountainRelief: 3, facetScatter: 0.16 }; // boun
  * change what you hit, and the land: reload workers after edits
  */
 export const WALLS = {
-  from: 60, // metres from the racing line where the wall begins
-  band: 40, // metres of slope from the foot to the top
+  from: 90, // metres from the racing line where the wall begins
+  band: 70, // metres of slope from the foot to the top
   height: 50, // the top, metres above the racing line
   slope: 0.8, // metres per metre the land keeps rising beyond the top
   wander: 8, // metres the foot drifts in and out along the course
