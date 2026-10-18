@@ -80,7 +80,7 @@ bridges and lakeside lanterns could not come.
 - **Moods**: five. Alpine, Misty pines, Autumn, Dusk (night 0.2), Moonlit (night 0.9). Stella means to trim the three greens.
 - **Ground**: none. Ponds on 45 % of islands 20 m and up (a bowl carved into the top under a flat rock lip, the island's grain smoothed around it; the water is solid like a river pool; `World.islandPonds`). Waterfalls off 15 % of big islands, kept rare for gameplay later; the two are independent.
 - **Surfaces**: 0 the islands (warm brown rock, green cap); 1 the gates (same rock, greyer).
-- **Features**: 60 floating islands (14 to 55 m) without holes.
+- **Features**: 120 floating islands (14 to 55 m) without holes, dense enough that most have a neighbour within a bridge's reach.
 - **Gates**: arch 3, pillars 2, needles 1, spur 1.
 - **Flora**: pine (dominant), oak, birch, bush, boulder. Grass with white, yellow, violet and pink flowers.
 - **Structures** (all on island rock): watchtower (landmark, 18 to 24 m), einsteinBust (landmark, about one level in three, beside the line), windmill (bare island tops), shrineGate (facing), stoneLantern sparse everywhere and dense around the ponds (`wet`).

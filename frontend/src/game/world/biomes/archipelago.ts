@@ -153,8 +153,9 @@ export const ARCHIPELAGO: Biome = {
       gates: { arch: 3, pillars: 2, needles: 1, spur: 1 },
       gateSurface: 1,
       features: [
-        // Clean teardrops along the line, no holes, the default soft noise
-        { kind: "islands", count: 60, size: [14, 55], lateral: [25, 100], rise: [-80, 120], surface: 0, holes: 0 },
+        // Clean teardrops along the line, no holes, the default soft noise. Dense enough that most islands have a
+        // neighbour a bridge's length away (120: about 30 level pairs 12 to 50 m apart per course; 60 gave 8)
+        { kind: "islands", count: 120, size: [14, 55], lateral: [25, 100], rise: [-80, 120], surface: 0, holes: 0 },
       ],
     },
     islandFalls: { chance: 0.15, colors: { deep: "#3f8fb0", shallow: "#9fdff0", foam: "#ffffff" } },
