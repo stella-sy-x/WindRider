@@ -19,7 +19,7 @@ the gates and future biome gameplay pieces, never the pilot or its effects.
 ## The game
 
 Wind Rider is a browser wingsuit racer. Seeded procedural courses through
-floating islands and eight biomes, crystal gates, multiplayer race rooms.
+floating islands and seven biomes, crystal gates, multiplayer race rooms.
 React + Three.js frontend, FastAPI backend behind Caddy, `docker compose`.
 
 ### Modes
@@ -117,6 +117,21 @@ Backend: `app.py` endpoints, `rooms.py` race state machine and SSE relay,
 `store.py` SQLite ghosts and runs, `models.py` Pydantic models.
 
 ## Change log
+
+### 2026-10-18: Remove the Ember Wastes biome (Claude)
+
+- Deleted `biomes/ember.ts` and everything only it used: the lava water
+  kind (shader branches, lava falls, spark wakes and spray), the volcano
+  shape and feature and the island `crater` style, the forge temple,
+  obelisk and brazier structures, the dead tree and basalt flora, the
+  embers and ash particles, and the palette's `underglow`. Biome count
+  8 → 7. The track `ember_red-orange-embers.mp3` stays and plays in the
+  Lagoon until it gets its own.
+- `seedMap` picks a biome by its place in the list, so most seeds now stand
+  for a different map: existing leaderboards and ghosts are invalidated
+  (as when Sky Isles went).
+- Tests that used Ember as their sample biome use Glacier, Twilight or
+  Aurora instead.
 
 ### 2026-10-18: Paper airplane pilot, reef jellyfish, lateral terrain cut (Claude)
 

@@ -42,7 +42,7 @@ flat-shaded art. Cosmetics system removed; fixed pilot livery.
 - Boost kept (re-themed as jetpack exhaust)
 - Speed sources: boost, diving, proximity, gate pass, thermals (TODO)
 - Per-biome physics (TODO):
-  - Canyons (Verdant, Ember): standard gravity, thermals over hot spots
+  - Canyons (Verdant): standard gravity, thermals over hot spots
   - Floating islands (Archipelago): low gravity, floaty/forgiving
   - Ice/aurora (Glacier, Aurora): standard gravity + strong crosswinds
   - Underwater (Reef): buoyancy replaces gravity, high drag, can ascend

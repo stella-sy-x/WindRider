@@ -28,7 +28,7 @@ function edgesOf(positions) {
 const level = biome => makeLevel({ biome, seed: 2, mood: 0 });
 
 test('seeded terrain has no open interior edges after cleanup', () => {
-  for (const biome of ['glacier', 'verdant', 'ember', 'archipelago', 'lagoon', 'twilight', 'aurora']) {
+  for (const biome of ['glacier', 'verdant', 'archipelago', 'lagoon', 'twilight', 'aurora']) {
     for (const seed of [2, 7, 42]) {
       const world = new World(makeLevel({ biome, seed, mood: 0 }));
       for (const dz of [100, 250, 400, 650, 900]) {
@@ -230,7 +230,7 @@ test('attached narrow tip is shortened without losing faces or reversing their w
 });
 
 test('terrain glow stays within the biome strength at every detail level', () => {
-  const world = new World(level('ember'));
+  const world = new World(level('twilight'));
   const maximum = Math.round(Math.max(...world.biome.terrain.surfaces.map(s => s.glow ?? 0)) * 255);
   for (const lod of [0, 1, 2, 3]) {
     const z = world.course.start.z + 400, x = world.course.x(z) + 100;
@@ -245,7 +245,7 @@ test('terrain glow stays within the biome strength at every detail level', () =>
 
 
 test('mountain roughness cannot create rock far above peaks or air deep inside them', () => {
-  for (const biome of ['ember', 'glacier', 'verdant']) {
+  for (const biome of ['glacier', 'verdant', 'aurora']) {
     const world = new World(level(biome));
     // Isolate the ground; intentionally floating shape primitives are allowed.
     const field = new TerrainField(world.course, world.land.ground, world.land.groundSurface, world.land.noise);
@@ -314,7 +314,7 @@ test('the lateral generation cut lies past where the reef wall breaks the water 
 });
 
 test('block and point sampling agree on steep mountain slopes at every LOD', () => {
-  const world = new World(level('ember'));
+  const world = new World(level('glacier'));
   for (const step of [3, 6, 12, 24]) {
     const n = 8, out = new Float32Array(n ** 3);
     const [ox, oz] = [528, 120];
@@ -327,7 +327,7 @@ test('block and point sampling agree on steep mountain slopes at every LOD', () 
 });
 
 test('finest detail runs ahead of the pilot along the line, bounded by speed, and never off into the cut', () => {
-  const world = new World(level('ember'));
+  const world = new World(level('glacier'));
   const land = new LandStreamer(world, new THREE.Group(), new THREE.MeshBasicMaterial(), null, new LandCollider());
   try {
     // A 96 m node the racing line runs through, 600 m down the course; the camera sits on the

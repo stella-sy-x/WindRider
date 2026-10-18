@@ -90,7 +90,7 @@ test("a shrine gate collides with its posts and lintel, and is open in between",
 });
 
 test("every run biome has a landmark and scattered structures, the same at every level of detail", () => {
-  for (const biome of ["glacier", "archipelago", "lagoon", "twilight", "ember", "aurora", "reef"]) {
+  for (const biome of ["glacier", "archipelago", "lagoon", "twilight", "aurora", "reef"]) {
     const world = new World(makeLevel({ biome, seed: 5, mood: 0 }));
     const species = world.biome.vegetation.species.length;
     const kinds = world.biome.structures;

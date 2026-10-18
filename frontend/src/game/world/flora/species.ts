@@ -13,8 +13,6 @@ export type SpeciesId =
   | "jungle"
   | "mushroom"
   | "crystal"
-  | "deadTree"
-  | "basalt"
   | "boulder"
   | "redwood"
   | "kelp"
@@ -61,8 +59,6 @@ export const SPECIES: Record<SpeciesId, SpeciesInfo> = {
   jungle: { aspect: [0.5, 0.65], collider: { trunk: 0.1, top: 0.7, taper: 0.7, canopy: { y: 0.8, r: 0.95, h: 0.18 }, lean: 0 }, sway: 0.05, glows: false },
   mushroom: { aspect: [0.55, 0.75], collider: { trunk: 0.2, top: 0.6, taper: 0.8, canopy: { y: 0.68, r: 0.92, h: 0.16 }, lean: 0 }, sway: 0.02, glows: true },
   crystal: { aspect: [0.32, 0.45], collider: cone(0.8), sway: 0, glows: true },
-  deadTree: { aspect: [0.3, 0.42], collider: { trunk: 0.18, top: 1, taper: 0.4, canopy: null, lean: 0 }, sway: 0.02, glows: false },
-  basalt: { aspect: [0.45, 0.6], collider: { trunk: 0.85, top: 1, taper: 0.9, canopy: null, lean: 0 }, sway: 0, glows: false },
   boulder: { aspect: [1.1, 1.5], collider: { trunk: 0, top: 0, taper: 1, canopy: { y: 0.4, r: 0.85, h: 0.5 }, lean: 0 }, sway: 0, glows: false },
   redwood: { aspect: [0.15, 0.2], collider: { trunk: 0.35, top: 0.6, taper: 0.6, canopy: { y: 0.75, r: 0.9, h: 0.3 }, lean: 0 }, sway: 0.02, glows: false },
   // Under the sea. Kelp sways a lot, so only the middle of the clump collides

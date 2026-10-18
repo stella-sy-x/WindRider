@@ -7,16 +7,15 @@ import type { WaterKind } from "./terrain/river";
 import type { IslandFall, World } from "./World";
 
 // Stylized water for every biome: river pools stepping down the valley, the
-// falls between them, and seas. One shader, four kinds:
+// falls between them, and seas. One shader, three kinds:
 // - water: tinted by depth (the real depth over the carved ground), foam where
 //   it meets the shore and below the falls, flow streaks, the sky reflected by
 //   a Fresnel term, and sun glitter bright enough to bloom;
-// - lava: a dark crust cracked over a glow that pulses and blooms;
 // - ice: frozen pools with cracks, still and reflective;
 // - glow: dark pools with bioluminescent specks (night biomes).
 // All of it takes its light from ATMOSPHERE, glows with the particle boost (FX_LIGHT) and the shared glow light (toon.ts).
 
-const KINDS: Record<WaterKind, number> = { water: 0, lava: 1, ice: 2, glow: 3 };
+const KINDS: Record<WaterKind, number> = { water: 0, ice: 1, glow: 2 };
 
 const NOISE = /* glsl */ `
   float waterHash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
@@ -77,7 +76,7 @@ const FALL_COLOR = /* glsl */ `
     // Advect a fixed pattern through a travel coordinate measured from the lip.
     // Its gradient stays positive at every time, so foam always moves down;
     // the square root stretches the streaks as they accelerate with the drop.
-    float speed = fallSpeed * (kind > 0.5 && kind < 1.5 ? 0.22 : 1.0);
+    float speed = fallSpeed;
     float travel = sqrt(1.0 + max(drop, 0.0)) - 1.0;
     float phase = travel - time * speed;
     float streak = waterFbm(vec2(u * 22.0, phase * 2.0));
@@ -86,21 +85,12 @@ const FALL_COLOR = /* glsl */ `
     // River curtains start at the edge; only island falls fade in from nowhere.
     float lip = mix(1.0, smoothstep(0.0, 0.04, v), fade) * (1.0 - fade * smoothstep(0.3, 1.0, v));
     float spray = smoothstep(0.75, 1.0, v);
-    vec3 color;
-    float alpha;
-    if (kind > 0.5 && kind < 1.5) {
-      // A lava fall: glowing, crusting as it cools down the face
-      vec3 hot = shallow * (2.4 + 1.2 * streak) * glow;
-      color = mix(hot, deep, smoothstep(0.4, 0.9, sheet) * 0.6);
-      alpha = sides * lip * (0.85 + 0.15 * streak);
-    } else {
-      float foam = smoothstep(0.32, 0.72, streak * 0.8 + sheet * 0.2);
-      vec3 water = mix(shallow, foamColor, 0.4 + 0.6 * foam);
-      float sunUp = clamp(atmoSunDirection.y * 1.5 + 0.35, 0.25, 1.0) * mix(1.0, 0.4, night);
-      color = water * (0.7 + 0.45 * sunUp) + atmoSunColor * pow(streak, 6.0) * 0.6 * glitter;
-      if (kind > 2.5) color += foamColor * pow(streak, 4.0) * 1.5 * glow;
-      alpha = sides * lip * (0.65 + 0.3 * foam) * (1.0 - spray * 0.35);
-    }
+    float foam = smoothstep(0.32, 0.72, streak * 0.8 + sheet * 0.2);
+    vec3 water = mix(shallow, foamColor, 0.4 + 0.6 * foam);
+    float sunUp = clamp(atmoSunDirection.y * 1.5 + 0.35, 0.25, 1.0) * mix(1.0, 0.4, night);
+    vec3 color = water * (0.7 + 0.45 * sunUp) + atmoSunColor * pow(streak, 6.0) * 0.6 * glitter;
+    if (kind > 1.5) color += foamColor * pow(streak, 4.0) * 1.5 * glow;
+    float alpha = sides * lip * (0.65 + 0.3 * foam) * (1.0 - spray * 0.35);
     return vec4(color, clamp(alpha, 0.0, 0.95));
   }
 `;
@@ -166,7 +156,7 @@ const poolFragment = /* glsl */ `
     vec3 toFrag = vWorld - cameraPosition;
     vec3 view = toFrag / max(length(toFrag), 0.001);
     float t = time;
-    float still = kind > 1.5 && kind < 2.5 ? 0.0 : 1.0; // ice doesn't move
+    float still = kind > 0.5 && kind < 1.5 ? 0.0 : 1.0; // ice doesn't move
     // Ripples: two noise layers drifting downstream (+z), as a bumped normal
     vec2 p = vWorld.xz * 0.16;
     vec2 drift = vec2(0.0, t * 0.5) * still;
@@ -174,7 +164,7 @@ const poolFragment = /* glsl */ `
     float h0 = waterFbm(p - drift) + 0.5 * waterFbm(p * 2.7 + drift.yx * 0.7);
     float hx = waterFbm(p + vec2(e, 0.0) - drift) + 0.5 * waterFbm((p + vec2(e, 0.0)) * 2.7 + drift.yx * 0.7);
     float hz = waterFbm(p + vec2(0.0, e) - drift) + 0.5 * waterFbm((p + vec2(0.0, e)) * 2.7 + drift.yx * 0.7);
-    float bump = kind > 1.5 && kind < 2.5 ? 0.25 : 0.9;
+    float bump = kind > 0.5 && kind < 1.5 ? 0.25 : 0.9;
     vec3 n = normalize(vNormal + vec3((h0 - hx) / e * 0.12 * bump, 0.0, (h0 - hz) / e * 0.12 * bump));
     float facing = clamp(dot(n, -view), 0.0, 1.0);
     float fresnel = 0.03 + 0.97 * pow(1.0 - facing, 5.0);
@@ -187,7 +177,7 @@ const poolFragment = /* glsl */ `
     vec3 color;
     float alpha = 1.0;
 
-    if (kind < 0.5 || kind > 2.5) {
+    if (kind < 0.5 || kind > 1.5) {
       // Water (and glowing pools): depth tint, sky reflection, glitter, foam
       vec3 body = mix(shallow, deep, depthW) * sunUp;
       // Stylized reflection: capped, and tinted by the water, so a river seen
@@ -213,23 +203,12 @@ const poolFragment = /* glsl */ `
       color = mix(color, foamColor * (0.75 + 0.35 * sunUp), foamW);
       alpha = clamp(smoothstep(-0.15, 0.45, vDepth) * 0.92 + foamW * 0.3, 0.0, 0.97);
       alpha *= mix(1.0, smoothstep(-0.15, 0.45, vDepth), flowing);
-      if (kind > 2.5) {
+      if (kind > 1.5) {
         // Bioluminescence: specks drifting in the water, brightest at night
         float speck = smoothstep(0.82, 0.97, waterNoise(vWorld.xz * 1.3 + vec2(sin(t * 0.3), t * 0.15)));
         float edge = 1.0 - smoothstep(0.0, 2.5, vDepth);
         color += foamColor * (speck * 1.4 + edge * 0.45) * glow;
       }
-    } else if (kind < 1.5) {
-      // Lava: crust plates over a glowing melt, cracks pulsing, bright at the edges
-      vec2 q = vWorld.xz * 0.07 + vec2(0.0, -t * 0.08);
-      float plates = waterFbm(q * 1.4) + 0.4 * waterFbm(q * 4.1 + 3.3);
-      float crack = 1.0 - smoothstep(0.03, 0.12, abs(plates - 0.72));
-      float melt = smoothstep(0.55, 0.85, waterFbm(q * 0.8 - t * 0.02));
-      float pulse = 0.75 + 0.25 * sin(t * 1.7 + plates * 9.0);
-      float edge = 1.0 - smoothstep(0.0, 2.0, vDepth);
-      vec3 hot = shallow * (2.2 + 1.2 * pulse) * glow;
-      color = mix(deep, hot, clamp(crack + melt * 0.6 + edge * 0.7 + vFoam * 0.5, 0.0, 1.0));
-      color += foamColor * pow(clamp(crack * pulse, 0.0, 1.0), 2.0) * 1.5 * glow;
     } else {
       // Ice: frozen pools, white-blue with dark cracks, reflective
       vec2 q = vWorld.xz * 0.05;
@@ -372,7 +351,7 @@ export class WaterView {
     pools.computeVertexNormals();
     pools.computeBoundingSphere();
     this.geometries.push(pools);
-    const poolMaterial = this.material(poolVertex, poolFragment, uniforms, river.kind !== "lava" && river.kind !== "ice");
+    const poolMaterial = this.material(poolVertex, poolFragment, uniforms, river.kind !== "ice");
     // The river must occlude the curtain behind it when viewed from upstream.
     // Dry padded banks are discarded by the shader before they can write depth.
     poolMaterial.depthWrite = true;

@@ -8,7 +8,7 @@ import { SPECIES, type SpeciesInfo } from "../flora/species";
 // true proportions (radius = height), so parts can turn without shearing.
 // No three.js geometry here.
 
-export type StructureId = "watchtower" | "stoneLantern" | "windmill" | "monastery" | "bellPavilion" | "stoneHut" | "prayerPole" | "lighthouse" | "stiltHut" | "ruinColumn" | "shrineGate" | "spiritStatue" | "forgeTemple" | "obelisk" | "brazier" | "observatory" | "pylon" | "starAltar" | "ethMainBuilding" | "einsteinBust" | "shipwreck";
+export type StructureId = "watchtower" | "stoneLantern" | "windmill" | "monastery" | "bellPavilion" | "stoneHut" | "prayerPole" | "lighthouse" | "stiltHut" | "ruinColumn" | "shrineGate" | "spiritStatue" | "observatory" | "pylon" | "starAltar" | "ethMainBuilding" | "einsteinBust" | "shipwreck";
 
 /** A wreck lies bow up on the seabed, pitched by this much (radians): its mast leans back with it */
 export const WRECK_PITCH = 0.14;
@@ -127,33 +127,6 @@ export const STRUCTURE_INFO: Record<StructureId, StructureInfo> = {
     sway: 0,
     glows: true,
     foot: 0.3,
-    sink: 0.3,
-    spin: null,
-  },
-  forgeTemple: {
-    aspect: [1, 1],
-    collider: { trunk: 0.44, top: 0.7, taper: 0.45, canopy: { y: 0.82, r: 0.13, h: 0.17 }, lean: 0 },
-    sway: 0.012,
-    glows: true,
-    foot: 0.4,
-    sink: 0.28,
-    spin: null,
-  },
-  obelisk: {
-    aspect: [1, 1],
-    collider: { trunk: 0.11, top: 1, taper: 0.4, canopy: null, lean: 0 },
-    sway: 0,
-    glows: true,
-    foot: 0.14,
-    sink: 0.3,
-    spin: null,
-  },
-  brazier: {
-    aspect: [1, 1],
-    collider: { trunk: 0.26, top: 0.85, taper: 1, canopy: null, lean: 0 },
-    sway: 0.03,
-    glows: true,
-    foot: 0.26,
     sink: 0.3,
     spin: null,
   },

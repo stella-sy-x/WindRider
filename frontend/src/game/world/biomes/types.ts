@@ -7,7 +7,7 @@ import type { GroundSpec, WallSpec } from "../terrain/ground";
 // the air, and what there is to do. One engine renders them all; nothing here
 // is code that runs per frame.
 
-export type BiomeId = "verdant" | "glacier" | "archipelago" | "lagoon" | "twilight" | "ember" | "aurora" | "reef";
+export type BiomeId = "verdant" | "glacier" | "archipelago" | "lagoon" | "twilight" | "aurora" | "reef";
 
 /**
  * How a kind of land is painted. The mesher picks the rock color per face
@@ -65,7 +65,6 @@ export type Feature =
   | { kind: "mushrooms"; count: number; cap: Range; rise: Range; lateral: Range; stem: number; surface: number }
   | { kind: "islets"; count: number; radius: Range; lateral: Range; surface: number }
   | { kind: "rings"; count: number; radius: Range; lateral: Range; rise: Range; surface: number }
-  | { kind: "volcano"; lateral: number; radius: number; rise: number; surface: number }
   /** Humped stone bridges over the river, a little upstream of some falls (list them last: they are built around everything else) */
   | { kind: "bridges"; chance: number; width: number; surface: number }
   | { kind: "summit"; along: number; lateral: number; radius: number; rise: number; surface: number };
@@ -213,7 +212,7 @@ export interface SkySpec {
   underwater?: UnderwaterSpec;
 }
 
-export type AmbientKind = "fireflies" | "motes" | "snow" | "leaves" | "embers" | "spores" | "ash" | "glitter" | "petals" | "starfall" | "bubbles";
+export type AmbientKind = "fireflies" | "motes" | "snow" | "leaves" | "spores" | "glitter" | "petals" | "starfall" | "bubbles";
 
 /** One kind of particle drifting around the camera */
 export interface Ambient {
@@ -223,7 +222,7 @@ export interface Ambient {
   night?: number; // rate multiplier added at night (fireflies: many more)
 }
 
-/** The air's own particles, drifting around the camera (pollen, snow, embers…) */
+/** The air's own particles, drifting around the camera (pollen, snow, spores…) */
 export interface ParticleStyle {
   ambient: Ambient[];
 }

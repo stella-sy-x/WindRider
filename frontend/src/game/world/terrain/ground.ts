@@ -18,7 +18,7 @@ import { type RiverSpec, type StepSpec, Steps } from "./river";
 export interface GroundSpec {
   depth: number; // valley floor below the racing line (when there are no steps)
   steps: StepSpec | null; // a floor that steps down in flat pools and falls
-  river: RiverSpec | null; // water (or lava, ice…) in the steps
+  river: RiverSpec | null; // water (or ice…) in the steps
   valley: number; // half-width of the valley floor
   wall: number; // the valley sides rise this many metres per metre sideways…
   wallCurve: number; // …plus this per square metre, so they steepen

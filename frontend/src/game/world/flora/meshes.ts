@@ -236,36 +236,6 @@ function crystal(c: Colors): THREE.BufferGeometry[] {
   return parts;
 }
 
-function deadTree(c: Colors): THREE.BufferGeometry[] {
-  const parts = [part(limb(v(0, 0, 0), v(0.06, 1, 0.02), 0.1, 0.03, 5), { color: c.trunk, shade: [0.8, 1.05], sway: [0, 0.3] })];
-  for (let i = 0; i < 5; i++) {
-    const y = rr(0.35, 0.8);
-    const a = random() * 6.28;
-    const tip = v(Math.cos(a) * rr(0.35, 0.6), y + rr(0.15, 0.3), Math.sin(a) * rr(0.35, 0.6));
-    parts.push(part(limb(v(0.03, y, 0), tip, 0.035, 0.012, 4), { color: c.trunk, sway: [0.3, 0.7] }));
-  }
-  return parts;
-}
-
-function basalt(c: Colors): THREE.BufferGeometry[] {
-  const parts: THREE.BufferGeometry[] = [];
-  const spots = [
-    [0, 0],
-    [0.42, 0.1],
-    [-0.4, 0.16],
-    [0.15, 0.42],
-    [-0.2, -0.4],
-    [0.35, -0.35],
-    [-0.5, -0.2],
-  ];
-  spots.forEach(([x, z], i) => {
-    const h = i === 0 ? 1 : rr(0.35, 0.9);
-    const g = new THREE.CylinderGeometry(0.22, 0.24, h, 6).translate(x, h / 2, z);
-    parts.push(part(g, { color: i % 2 ? c.foliage : c.foliage2, shade: [0.65, 1.2], sway: [0, 0] }));
-  });
-  return parts;
-}
-
 function boulder(c: Colors): THREE.BufferGeometry[] {
   const g = blob(0.8, 0.62, 1).translate(0, 0.38, 0);
   return [part(g, { color: c.foliage, color2: c.foliage2, share2: 0.35, shade: [0.65, 1.1], sway: [0, 0] })];
@@ -409,8 +379,6 @@ const FOLLOWS: Record<SpeciesId, "forest" | "rock" | null> = {
   palm: "forest",
   jungle: "forest",
   redwood: "forest",
-  deadTree: "forest",
-  basalt: "rock",
   boulder: "rock",
   mushroom: null,
   crystal: null,
@@ -445,8 +413,6 @@ export function speciesGeometry(spec: FloraSpecies, snow: THREE.Color, mood: Moo
     jungle: () => jungle(colors),
     mushroom: () => mushroom(colors),
     crystal: () => crystal(colors),
-    deadTree: () => deadTree(colors),
-    basalt: () => basalt(colors),
     boulder: () => boulder(colors),
     redwood: () => redwood(colors),
     kelp: () => kelp(colors),

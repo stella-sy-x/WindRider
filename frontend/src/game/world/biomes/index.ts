@@ -1,7 +1,6 @@
 import { makeRng } from "../../rng";
 import { ARCHIPELAGO } from "./archipelago";
 import { AURORA } from "./aurora";
-import { EMBER } from "./ember";
 import { GLACIER } from "./glacier";
 import { LAGOON } from "./lagoon";
 import { REEF } from "./reef";
@@ -17,7 +16,6 @@ export const BIOMES: Record<BiomeId, Biome> = {
   archipelago: ARCHIPELAGO,
   lagoon: LAGOON,
   twilight: TWILIGHT,
-  ember: EMBER,
   aurora: AURORA,
   reef: REEF,
 };

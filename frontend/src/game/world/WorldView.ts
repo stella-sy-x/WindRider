@@ -127,7 +127,6 @@ export class WorldView {
     ATMOSPHERE.clouds.value.set(palette.cloud);
     ATMOSPHERE.night.value = palette.night;
     ATMOSPHERE.aurora.value = palette.aurora ?? 0;
-    ATMOSPHERE.underglow.value.set(palette.underglow ?? "#000000");
     const underwater = world.biome.sky.underwater;
     ATMOSPHERE.underwater.value = underwater ? 1 : 0;
     if (underwater) ATMOSPHERE.surface.value = world.course.start.y + underwater.surface;
