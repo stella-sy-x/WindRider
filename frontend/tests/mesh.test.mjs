@@ -297,6 +297,22 @@ test('canyon walls floor the ground either side of the line, leave the tube clea
   assert.ok(!collider.segment(new THREE.Vector3(lx, ly, z), new THREE.Vector3(lx + walls.from - walls.wander - 4, ly, z), hit), 'the course itself is clear');
 });
 
+test('the lateral generation cut lies past where the reef wall breaks the water surface', () => {
+  // Past TERRAIN.generateLateral no land is made. On the reef, the only biome with walls so far,
+  // the wall must already stand above the water there, so nothing missing is ever under water
+  for (const seed of [2, 3, 7, 42]) {
+    const world = new World(makeLevel({ biome: 'reef', seed, mood: 0 }));
+    const { course } = world, ground = world.land.ground, surface = world.biome.sky.underwater.surface;
+    for (let z = course.start.z; z <= course.endZ; z += 10) {
+      const lx = course.x(z), waterY = course.y(z) + surface;
+      for (const side of [-1, 1]) {
+        const crest = ground.height(lx + side * TERRAIN.generateLateral, z);
+        assert.ok(crest > waterY, `seed ${seed}: at ${TERRAIN.generateLateral} m the wall is ${(waterY - crest).toFixed(1)} m under the surface at z ${z}, side ${side}`);
+      }
+    }
+  }
+});
+
 test('block and point sampling agree on steep mountain slopes at every LOD', () => {
   const world = new World(level('ember'));
   for (const step of [3, 6, 12, 24]) {
