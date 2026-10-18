@@ -7,7 +7,7 @@ import { TerrainField } from "./terrain/field";
 import { Ground } from "./terrain/ground";
 import { makeNoise } from "./terrain/noise";
 import { buildLand } from "./terrain/recipes";
-import { NoiseIsland } from "./terrain/shapes";
+import { type IslandPond, NoiseIsland } from "./terrain/shapes";
 import type { Steps, WaterKind } from "./terrain/river";
 import { TreeIndex } from "./trees";
 
@@ -62,6 +62,8 @@ export class World {
   private seaTable: Float32Array | null = null;
   /** Waterfalls off floating islands */
   readonly islandFalls: IslandFall[] = [];
+  /** Ponds on the tops of floating islands */
+  readonly islandPonds: IslandPond[] = [];
   /** Trees grow on the land; chunks add them as they are meshed */
   readonly trees = new TreeIndex(PROXIMITY_RANGE);
   /** Which way pilots face on the start line */
@@ -86,6 +88,8 @@ export class World {
     this.land = field;
     this.rock = field;
     this.steps = ground?.steps?.river ? ground.steps : null;
+    // Ponds first: they carve the islands, and the falls walk the carved rock
+    if (terrain.islandPonds) this.findIslandPonds(terrain.islandPonds.chance);
     if (terrain.islandFalls) this.findIslandFalls(terrain.islandFalls.chance);
     this.startDirection = this.startHeading();
   }
@@ -159,6 +163,64 @@ export class World {
     }
   }
 
+  /**
+   * A pond on the top of some islands: the bowl is carved into the island (so the meshers and the
+   * collider see it), the water is drawn by WaterView and solid like a river pool. The island's
+   * real top is found by marching down onto the rock: the noise moves it off the nominal level
+   */
+  private findIslandPonds(chance: number) {
+    const rng = makeRng(this.seed, "island ponds");
+    const field = this.land;
+    for (const shape of field.shapes) {
+      if (!(shape instanceof NoiseIsland) || shape.anchor.size < 20) continue;
+      const roll = rng();
+      const r = shape.anchor.size * range(rng, 0.22, 0.32);
+      if (roll > chance) continue;
+      const { x, z, size } = shape.anchor;
+      // Down from well above the dome (its top is 0.27 size up, plus the noise) onto the rock
+      let y = shape.anchor.y + size * 0.55;
+      const floor = shape.anchor.y - size * 0.1;
+      while (y > floor && field.distance(x, y, z) > 0) y -= 0.5;
+      if (y <= floor) continue;
+      // The lip stands a little proud of the rock; the water sits well under the lip, the bowl deeper still
+      const top = y + 1;
+      const pond: IslandPond = { x, z, r, level: top - 1.4, top, depth: 4 };
+      // Never under the racing tube
+      if (this.course.distance(x, pond.level, z) < 24) continue;
+      shape.setPond(pond);
+      // Another shape (a neighbouring island, a gate) can fill the bowl or bury the lip: then no pond here
+      if (this.pondIsClean(pond)) this.islandPonds.push(pond);
+      else shape.setPond(null);
+    }
+  }
+
+  /** Air over the water and in the bowl, rock under the bowl and all around the lip */
+  private pondIsClean(p: IslandPond): boolean {
+    const field = this.land;
+    if (field.distance(p.x, p.level + 0.3, p.z) < 0.5) return false;
+    if (field.distance(p.x, p.level - 4.5, p.z) > 0) return false;
+    for (let k = 0; k < 12; k++) {
+      const a = (k / 12) * Math.PI * 2;
+      const cos = Math.cos(a), sin = Math.sin(a);
+      // (the bowl is an ellipsoid bound, which understates the distance inside: any air will do)
+      if (field.distance(p.x + cos * p.r * 0.5, p.level - 1.5, p.z + sin * p.r * 0.5) <= 0) return false;
+      if (field.distance(p.x + cos * (p.r + 1.8), p.level + 0.3, p.z + sin * (p.r + 1.8)) > 0.2) return false;
+    }
+    return true;
+  }
+
+  /** Distance to a pond's water: the flat disc of its surface (negative under it, inside the bowl) */
+  private pondDistance(x: number, y: number, z: number): number {
+    let d = Infinity;
+    for (const p of this.islandPonds) {
+      const out = Math.hypot(x - p.x, z - p.z) - p.r;
+      const dy = y - p.level;
+      const v = out > 0 ? Math.hypot(out, Math.max(dy, 0)) : dy;
+      if (v < d) d = v;
+    }
+    return d;
+  }
+
   /** Distance from a point to the nearest rock, tree or water surface (negative inside) */
   distance(x: number, y: number, z: number): number {
     return Math.min(this.rock.distance(x, y, z), this.otherDistance(x, y, z));
@@ -168,6 +230,7 @@ export class World {
   otherDistance(x: number, y: number, z: number): number {
     let d = this.trees.distance(x, y, z);
     if (this.steps) d = Math.min(d, this.steps.waterDistance(x, y, z));
+    if (this.islandPonds.length) d = Math.min(d, this.pondDistance(x, y, z));
     const sea = this.seaAt(z);
     if (sea !== null) d = Math.min(d, y - sea);
     return d;

@@ -59,12 +59,16 @@ cosmetics, items and the gallery are gone; the game is racing only.
   This is the core risk/reward mechanic.
 - **Music** of their own for Lagoon and Reef (they play the tracks written
   for the retired Ember Wastes and Verdant Highlands).
-- **Water on the islands.** Stella asked whether the floating islands can
-  carry streams, so the stone bridges and lakeside lanterns can come back.
-  Cheapest: a pond on an island top feeding the existing rim waterfall,
-  lanterns by it via the `wet` rule. A stream with a bridge needs a channel
-  carved into the island and a ribbon of water, best as a set-piece on a
-  few larger islands.
+- **Island water and bridges**, in three steps. Ponds are done (branch
+  `island-water`). Next, bridges between islands: solid distance-field
+  shapes like the river bridges, in two uses, a gate kind (the line flies
+  under the arch, clearance guaranteed by the gate logic) and scenery
+  between two islands on the same side of the line; stone arches first,
+  rope bridges (a two-anchor structure that sways) later for long gaps.
+  Then streams on ordinary islands: a channel from the pond to the rim
+  waterfall with a ribbon of water, no bridge (too small to mesh at 3 m).
+  Waterfalls stay rare: Stella means to hang gameplay on them (getting
+  wet, slowing down), so they must not be everywhere.
 - **Archipelago moods**: five now (Alpine, Misty pines, Autumn, Dusk,
   Moonlit); Stella will trim the three greens at the computer.
 - **Gamepad**: no Enter (start race) or pause mapping, no haptics.

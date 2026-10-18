@@ -23,7 +23,7 @@ A seed picks a biome and one of its lighting moods (`biomes/index.ts`,
 | Structures | `structures/models.ts`, `structures/kinds.ts` | Buildings and monuments. A *landmark* is placed at most once per N metres of course on the best site; the rest are scattered on a jittered grid |
 | Sky | `atmosphere.ts`, `clouds.ts` | Sky dome, sun, stars, aurora, cloud sea, puffs, mist, fog |
 | Particles | `particles.ts`, recipe `particles` | Ambient drift: fireflies, motes, snow, spores, glitter, petals, starfall, bubbles |
-| Water | `water.ts`, recipe `river`, `sea` | River in the valley steps (water, ice, glow), a sea level, waterfalls off islands |
+| Water | `water.ts`, recipe `river`, `sea`, `islandPonds`, `islandFalls` | River in the valley steps (water, ice, glow), a sea level, ponds on and waterfalls off floating islands |
 | Sea life | `deep.ts` | Light shafts, fish schools, jellyfish (Reef only) |
 | Music | `music.ts` | One track per biome; two biomes play tracks written for retired ones |
 
@@ -78,12 +78,12 @@ mills, towers, shrine gates, Moonlit mood and the Einstein bust; its river,
 bridges and lakeside lanterns could not come.
 
 - **Moods**: five. Alpine, Misty pines, Autumn, Dusk (night 0.2), Moonlit (night 0.9). Stella means to trim the three greens.
-- **Ground**: none. Island waterfalls on 15 % of big islands.
+- **Ground**: none. Ponds on 45 % of islands 20 m and up (a bowl carved into the top under a flat rock lip, the island's grain smoothed around it; the water is solid like a river pool; `World.islandPonds`). Waterfalls off 15 % of big islands, kept rare for gameplay later; the two are independent.
 - **Surfaces**: 0 the islands (warm brown rock, green cap); 1 the gates (same rock, greyer).
 - **Features**: 60 floating islands (14 to 55 m) without holes.
 - **Gates**: arch 3, pillars 2, needles 1, spur 1.
 - **Flora**: pine (dominant), oak, birch, bush, boulder. Grass with white, yellow, violet and pink flowers.
-- **Structures** (all on island rock): watchtower (landmark, 18 to 24 m), einsteinBust (landmark, about one level in three, beside the line), windmill (bare island tops), shrineGate (facing), stoneLantern.
+- **Structures** (all on island rock): watchtower (landmark, 18 to 24 m), einsteinBust (landmark, about one level in three, beside the line), windmill (bare island tops), shrineGate (facing), stoneLantern sparse everywhere and dense around the ponds (`wet`).
 - **Sky**: cloud sea 260 m below, 65 puffs above and below, camera mist, fog 80 to 1400 m. **Particles**: motes, petals, fireflies at night.
 - **Music**: Soaring Above the Clouds (file still named `sky-isles_`).
 

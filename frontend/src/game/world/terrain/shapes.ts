@@ -23,6 +23,8 @@ export interface Shape {
   readonly grain: Grain;
   readonly surface: number; // index into the biome's surfaces
   distance(x: number, y: number, z: number): number;
+  /** Roughness here instead of `roughness`, where a shape smooths part of itself (an island around its pond) */
+  roughnessAt?(x: number, y: number, z: number): number;
 }
 
 export interface ShapeLook {
@@ -361,9 +363,26 @@ export class Cap extends BaseShape {
  * envelope eaten by warped 3D noise, so it gets overhangs, ledges and caves,
  * with tunnels bored right through (natural arches) and terraced tops.
  */
+/** A pond on an island's top: a bowl `depth` deep under a flat rock lip, the water `level` just below the lip */
+export interface IslandPond {
+  x: number;
+  z: number;
+  r: number; // the bowl's radius at the lip
+  level: number; // the water's surface
+  top: number; // the lip's level (the bowl is carved down from here)
+  depth: number; // of the bowl below the lip
+}
+
+/** Metres of flat rock around a pond's bowl */
+const LIP_WIDTH = 3.5;
+/** The lip's disc reaches this far down into the island (it only ever adds rock) */
+const LIP_DOWN = 8;
+
 export class NoiseIsland extends BaseShape {
   /** Where the island is: its top's center and its size (waterfalls start from its rim) */
   readonly anchor: { x: number; y: number; z: number; size: number };
+  /** A pond on top, if the world gave it one (setPond) */
+  pond: IslandPond | null = null;
   private readonly island: Island;
   private readonly noise: Noise;
   private readonly amp: number;
@@ -397,6 +416,21 @@ export class NoiseIsland extends BaseShape {
     this.cy = this.island.cy;
   }
 
+  /** Carve a pond into the top: a flat lip of rock around it (so the water never spills over a dip), a bowl inside. Null undoes it */
+  setPond(pond: IslandPond | null) {
+    this.pond = pond;
+  }
+
+  /** The island's grain fades out over the pond and its lip, so the bowl and the rim stay clean */
+  roughnessAt(x: number, y: number, z: number): number {
+    const pond = this.pond;
+    if (!pond || Math.abs(y - pond.top) > pond.depth + LIP_DOWN) return this.roughness;
+    const out = Math.hypot(x - pond.x, z - pond.z) - (pond.r + LIP_WIDTH);
+    if (out >= 6) return this.roughness;
+    const t = Math.max(out, 0) / 6;
+    return this.roughness * (0.12 + 0.88 * t * t);
+  }
+
   distance(px: number, py: number, pz: number): number {
     // Ledges: below the top, step the height so the slopes break into terraces
     let qy = py;
@@ -415,6 +449,15 @@ export class NoiseIsland extends BaseShape {
     const wz = pz + n(px * f * 0.5, py * f * 0.5 - 5.7, pz * f * 0.5) * this.amp;
     d += this.amp * (n(wx * f, wy * f, wz * f) * 0.7 + n(wx * f * 2.3, wy * f * 2.3, wz * f * 2.3) * 0.3);
     for (const hole of this.holes) d = smax(d, hole.r - segmentDistance(px, py, pz, hole.a, hole.b), 3);
+    const pond = this.pond;
+    if (pond) {
+      // The lip: a disc of rock (the bowl's radius plus a rim) up to the lip's level, down into the island
+      const rim = Math.hypot(px - pond.x, pz - pond.z) - (pond.r + LIP_WIDTH);
+      const lip = Math.max(rim, py - pond.top, pond.top - LIP_DOWN - py);
+      d = smin(d, lip, 2);
+      // The bowl: the lower half of an ellipsoid sitting on the lip's level
+      d = smax(d, -ellipsoid(px - pond.x, py - pond.top, pz - pond.z, pond.r, pond.depth, pond.r), 1.5);
+    }
     return d;
   }
 }

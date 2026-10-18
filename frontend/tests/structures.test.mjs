@@ -128,6 +128,43 @@ test("the Einstein bust is a rare landmark close to the racing line", () => {
   assert.ok(levels >= 3 && levels <= 14, `${levels} of 24 levels have the bust`);
 });
 
+test("island ponds sit in clean bowls under a rock lip, their water is solid, and lanterns gather by them", () => {
+  for (const seed of [2, 5]) {
+    const world = new World(makeLevel({ biome: "archipelago", seed, mood: 0 }));
+    const field = world.land;
+    const ponds = world.islandPonds;
+    assert.ok(ponds.length >= 12, `seed ${seed}: only ${ponds.length} ponds`);
+    for (const p of ponds) {
+      assert.ok(field.distance(p.x, p.level + 0.3, p.z) > 0.5, "air over the water");
+      assert.ok(field.distance(p.x, p.level - 1.5, p.z) > 0.3, "the bowl is open under the water");
+      assert.ok(field.distance(p.x, p.level - 4.5, p.z) < 0, "rock under the bowl");
+      for (let k = 0; k < 12; k++) {
+        const a = (k / 12) * Math.PI * 2;
+        assert.ok(field.distance(p.x + Math.cos(a) * (p.r + 1.8), p.level + 0.3, p.z + Math.sin(a) * (p.r + 1.8)) < 0.2, "the lip is rock all round");
+      }
+      // The water is solid like a river pool, though the rock under it is open
+      assert.ok(world.distance(p.x, p.level - 0.5, p.z) < 0, "the water counts as solid");
+      assert.ok(world.course.distance(p.x, p.level, p.z) >= 24, "clear of the racing tube");
+    }
+    // The wet lanterns (the last structure) all stand by a pond
+    const wetKind = world.biome.vegetation.species.length + world.biome.structures.length - 1;
+    assert.equal(world.biome.structures.at(-1).where.wet, true);
+    let lanterns = 0;
+    for (let iz = 0; iz < 6; iz++) {
+      const cx = Math.floor(world.course.x(iz * 384 + 192) / 384), cy = Math.floor(world.course.y(iz * 384 + 192) / 384);
+      for (let ix = cx - 1; ix <= cx + 1; ix++) for (let iy = cy - 1; iy <= cy + 1; iy++) {
+        const { plants } = placeFlora(world, { x0: ix * 384, y0: iy * 384, z0: iz * 384, x1: ix * 384 + 384, y1: iy * 384 + 384, z1: iz * 384 + 384 }, 1);
+        for (let o = 0; o < plants.length; o += PLANT_STRIDE) {
+          if (plants[o] !== wetKind) continue;
+          lanterns++;
+          assert.ok(ponds.some((p) => Math.hypot(plants[o + 1] - p.x, plants[o + 3] - p.z) < p.r + 12), "a wet lantern away from any pond");
+        }
+      }
+    }
+    assert.ok(lanterns >= 10, `seed ${seed}: only ${lanterns} lanterns by the ponds`);
+  }
+});
+
 test("a shipwreck collides with its hull and its mast, which leans back with the bow up", () => {
   const h = 26;
   // Yaw 0: the hull runs along x, bow towards +x

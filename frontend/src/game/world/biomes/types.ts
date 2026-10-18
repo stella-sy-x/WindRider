@@ -87,6 +87,12 @@ export interface SeaSpec {
 }
 
 /** Waterfalls pouring off the rims of floating islands into the void */
+/** Ponds on the tops of floating islands (meshed into the rock, drawn by WaterView, solid like river pools) */
+export interface IslandPondsSpec {
+  chance: number; // share of islands 20 m and up with a pond
+  colors: { deep: string; shallow: string; foam: string };
+}
+
 export interface IslandFallsSpec {
   chance: number; // share of big islands with a fall
   colors: { deep: string; shallow: string; foam: string };
@@ -104,6 +110,7 @@ export interface TerrainRecipe {
   land: LandRecipe;
   sea?: SeaSpec;
   islandFalls?: IslandFallsSpec;
+  islandPonds?: IslandPondsSpec;
 }
 
 /** One species in a biome's flora, with its colors and where it grows */

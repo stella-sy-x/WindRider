@@ -126,6 +126,22 @@ structures, sky, particles, music); update it when a biome recipe changes.
 
 ## Change log
 
+### 2026-10-18: Ponds on the floating islands (Claude)
+
+- `World.findIslandPonds`: on 45 % of Archipelago islands 20 m and up
+  (`terrain.islandPonds`, independent of the rim waterfalls) a bowl is
+  carved into the island's top under a flat rock lip (`NoiseIsland.setPond`:
+  a lip disc unioned, an ellipsoid bowl carved; the island's grain fades
+  out around it via `Shape.roughnessAt`, a new optional hook the field
+  honours). The real top is found by marching down onto the rock; a pond
+  whose bowl or lip another shape spoils is dropped (`pondIsClean`).
+- The water is a still disc in `WaterView.buildPonds` with the pool shader
+  (no current, shore foam from the depth), and solid for collisions like
+  river pools (`World.otherDistance`). `wet` placement counts ponds, so
+  lanterns gather around them (a dense lantern entry on the Archipelago).
+- Test: bowls open, lips rock all round, water solid, clear of the tube,
+  every wet lantern by a pond, over two seeds.
+
 ### 2026-10-18: Five biomes: Aurora into Glacier, Verdant into the Archipelago (Claude)
 
 - Glacier Peaks absorbs Aurora Summit: moods Polar day, Summit dawn, Aurora
