@@ -11,7 +11,8 @@ import { type RiverSpec, type StepSpec, Steps } from "./river";
 // over. Terraces, crevasses and a carved river channel shape it further, and
 // 3D noise on steep slopes adds overhangs. Where the biome has canyon walls,
 // the height has a floor either side of the line that nothing above can dig
-// below: the course's boundary. As a distance field it is
+// below (the course's boundary), and the mountains stand on that wall instead
+// of starting further out. As a distance field it is
 // (y - h) / sqrt(1 + |∇h|²), which stays close to the true distance on slopes,
 // so proximity scoring works on hillsides as well as on the flat.
 
@@ -24,7 +25,8 @@ export interface GroundSpec {
   wallCurve: number; // …plus this per square metre, so they steepen
   floorHills: number; // bumps on the floor, metres
   hills: { amp: number; scale: number } | null; // rolling hills from the valley's edge
-  mountains: { amp: number; scale: number; warp: number; sharpness: number; from: number; ramp: number } | null;
+  /** Domain-warped ridged mountains. Without canyon walls they begin `from` metres out, over `ramp` metres; with walls they stand on the wall and need neither */
+  mountains: { amp: number; scale: number; warp: number; sharpness: number; from?: number; ramp?: number } | null;
   terraces: { step: number; sharpness: number; cover: number } | null; // stepped hillsides (cover: share of the land)
   crevasses: { spacing: number; width: number; depth: number } | null; // cracks across the valley floor
   overhang: number; // metres of 3D noise on cliffs
@@ -58,8 +60,8 @@ export class Ground {
     this.noise = noise;
     this.steps = spec.steps ? new Steps(course, spec.steps, spec.river, rng, noise) : null;
     this.flatLevel = spec.level === null ? 0 : course.y(course.endZ) + spec.level;
-    this.mountainReach = spec.mountains ? spec.mountains.from - 120 : Infinity;
     this.walls = walls ? { ...WALLS, ...walls } : null;
+    this.mountainReach = spec.mountains && !this.walls ? (spec.mountains.from ?? Infinity) - 120 : Infinity;
     // A smoothstep's steepest point is 1.5 times its average slope
     this.wallSteep = this.walls ? Math.max((1.5 * (this.walls.height + spec.depth)) / Math.max(this.walls.band, 1), this.walls.slope) : 0;
   }
@@ -93,15 +95,9 @@ export class Ground {
     }
     if (s.mountains && a > this.mountainReach) {
       const m = s.mountains;
-      const mask = smoothstep(m.from, m.from + m.ramp, a + 90 * n(x * 0.0021 + 3.1, z * 0.0021));
-      if (mask > 0) {
-        h += m.amp * mask * warpedRidged(n, x / m.scale, z / m.scale, m.warp, 5, m.sharpness);
-        // Medium-scale relief lives in the heightfield, so it stays attached
-        // instead of creating disconnected 3D-noise sheets above steep slopes.
-        // All LODs sample this same bounded field; finer cells reveal its facets.
-        h += s.roughness * TERRAIN_DETAIL.mountainRelief * mask *
-          (0.7 * n(x * 0.045, z * 0.045) + 0.3 * n(x * 0.11, z * 0.11));
-      }
+      // Only reached with `from` set: mountainReach is infinite otherwise
+      const mask = smoothstep(m.from!, m.from! + (m.ramp ?? 0), a + 90 * n(x * 0.0021 + 3.1, z * 0.0021));
+      if (mask > 0) h += this.mountains(x, z, mask);
     }
     if (s.terraces) {
       const t = s.terraces;
@@ -138,10 +134,25 @@ export class Ground {
         const rise = smoothstep(0, w.band, into);
         let floor = smooth + (lineY + w.height - smooth) * rise + Math.max(0, into - w.band) * w.slope;
         floor += w.relief * rise * (0.5 + 0.3 * n(x * 0.02 + 9.7, z * 0.02) + 0.2 * n(x * 0.055, z * 0.055 + 4.2));
+        // The biome's mountains stand on the wall: its ridge line
+        if (s.mountains) floor += this.mountains(x, z, rise);
         if (floor > h) h = floor;
       }
     }
     return h;
+  }
+
+  /** The mountains' height at (x, z), faded in by `mask` (0..1) */
+  private mountains(x: number, z: number, mask: number): number {
+    const m = this.spec.mountains!;
+    const n = this.noise.n2;
+    // Medium-scale relief lives in the heightfield, so it stays attached
+    // instead of creating disconnected 3D-noise sheets above steep slopes.
+    // All LODs sample this same bounded field; finer cells reveal its facets.
+    return (
+      m.amp * mask * warpedRidged(n, x / m.scale, z / m.scale, m.warp, 5, m.sharpness) +
+      this.spec.roughness * TERRAIN_DETAIL.mountainRelief * mask * (0.7 * n(x * 0.045, z * 0.045) + 0.3 * n(x * 0.11, z * 0.11))
+    );
   }
 
   /** Signed distance to the ground, with overhangs carved into steep slopes */

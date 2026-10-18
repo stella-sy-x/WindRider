@@ -126,6 +126,18 @@ structures, sky, particles, music); update it when a biome recipe changes.
 
 ## Change log
 
+### 2026-10-18: Mountains stand on the canyon wall; reef's dead config pruned (Claude)
+
+- With canyon walls on, a biome's `mountains` no longer start `from`/`ramp`
+  metres out (that land was under the wall floor or past
+  `TERRAIN.generateLateral`): they rise with the wall's band and sit on top
+  of its floor as the ridge line. `from`/`ramp` are optional and only used
+  without walls. One `Ground.mountains()` serves both paths.
+- Reef: mountains `amp` 250 → 60 (the ridge varies about ±30 m around the
+  wall's profile; 120 doubled the wall's height), `from`/`ramp` dropped,
+  `extent` 1400 → 300, the far `mesas` feature removed, structure `lateral`
+  ranges capped at 110 m (the wall's foot). Land within the foot unchanged.
+
 ### 2026-10-18: Paper airplane pilot, reef jellyfish, lateral terrain cut (Claude)
 
 - Pilot: `pilot.glb` rebuilt in Blender from the original mesh with hand-layered,
