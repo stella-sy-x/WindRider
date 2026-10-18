@@ -3,9 +3,8 @@
 The backlog. `CLAUDE.md` says what the game is and how we work; this file
 says what we are doing now and what comes after. Every window reads both
 before touching code, and updates this one at commit time: finished items
-move to "Done lately", what the work turned up goes under "Now" or "Next",
-and a dropped idea goes to the bottom with the reason, so it is not tried
-twice. Keep "Now" short: it is what is actually in flight.
+move to "Done lately", what the work turned up goes under "Now" or "Next".
+Keep "Now" short: it is what is actually in flight.
 
 Last updated 2026-10-18.
 
@@ -97,16 +96,3 @@ cosmetics, items and the gallery are gone; the game is racing only.
 - Earlier (see `CLAUDE.md` change log): flat shading unified, Sky Isles
   biome and legacy renderer deleted, adventure mode stripped, LOD 3 skipped,
   freeze zone, prefetch, decoration capped at LOD 2.
-
-## Dropped
-
-- Air wall (wind push) and corridor marker posts: the land is the boundary now.
-- Reef geysers, currents and bubble shield (PR #5): reverted; gameplay is
-  to grow from the jellyfish first.
-- Solidify for paper thickness (stair-stepped rims); gold or yellow paper
-  (read as dirty yellow); the halo sprite; cloth membrane wings; the dorsal
-  fin on the helmet; the chibi and jetpack pilots.
-- Procedural jellyfish tentacles and n-'s moon-jelly bell (veins unreadable
-  under water); a flat shock ring and a swelling shell for the discharge.
-- Player colour customisation; segment timing; thick fog or a curtain plane
-  to hide loading; dither dissolve between levels of detail.

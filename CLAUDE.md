@@ -43,8 +43,7 @@ cd frontend && npm install && npm run dev  # http://localhost:5173
 1. Read this file first, then `docs/racing-next-steps.md` (the backlog: what
    is in flight and what comes next). Record changes here at commit time
    (not mid-work), and update the backlog in the same commit: finished
-   items to "Done lately", new findings to "Now" or "Next", dropped ideas
-   with the reason.
+   items to "Done lately", new findings to "Now" or "Next".
 2. Looks never change gameplay. Animation/particles/shaders must not alter
    flight model, collisions, ring checks or timing.
 3. Performance budget: 60 fps on integrated laptop GPU at High quality.
