@@ -17,6 +17,12 @@ Continued development by Stella with Claude.
   https://opengameart.org/content/lowpoly-jetpack
   Jetpack model
 
+- **Jellyfish** by chinabazooka (CC BY 4.0)
+  https://skfb.ly/6RLJD
+  The Sunken Reef jellyfish (`public/models/jellyfish.glb`, decimated from
+  27k to 3.4k triangles, textures reduced to 512px luminance); the pulse,
+  colours and the discharge are ours
+
 ### Audio
 - Wind, gate rings, countdown and crash sounds are synthesized (Web Audio API)
 - Wingbeat sample and background music tracks are original to the hackathon project

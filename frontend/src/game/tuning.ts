@@ -39,7 +39,8 @@ export const FX = {
   skimDust: 1, // spray from the ground while skimming
   speedLines: 1, // wind streaks at speed
   speedLinesFrom: 45, // m/s where the wind streaks start
-  aura: 1, // soft glow around the pilot
+  glowShell: 1, // the pilot's glow: an unlit warm shell over the paper and a bright rim around its outline
+  pilotGlow: 0.3, // the paper's own warm light (emissive), so the biome's sky never muddies it
   vignette: 1, // speed vignette at the screen edges
   bloom: 0.4, // glow strength (0 turns post-processing off)
   bloomRadius: 0.12,
@@ -76,9 +77,9 @@ export const CAMERA = {
   lookAhead: 14,
   stiffness: 7, // how tightly it follows
   rollFollow: 0.18, // share of the pilot's bank the horizon follows
-  fov: 70,
-  fovPerSpeed: 0.25, // extra degrees per m/s above 30
-  fovMax: 18,
+  fov: 58, // vertical degrees at low speed (about 88° across on 16:9)
+  fovPerSpeed: 0.2, // extra degrees per m/s above 30
+  fovMax: 14, // the speed stretch tops out here: 72° vertical, about 104° across
   shake: 0.03, // when skimming the ground at speed
   boostFov: 4,
   boostDistance: 1.2,
@@ -137,6 +138,7 @@ export const TERRAIN = {
   viewDistance: 700, // metres: LOD 2 ceiling; LOD 3 (24 m) is skipped — sky silhouettes fill the far distance
   prefetchDistance: 1200, // metres: the workers generate land ahead out to here, held off screen until it comes within viewDistance
   decorationLateral: 80, // metres from the racing line beyond which land is decoration: never finer than decorationMaxLod
+  generateLateral: 280, // metres from the racing line beyond which no land is generated or drawn at all: the canyon walls (WALLS) stand in front of it, and nothing past them is play. On the reef the wall breaks the water surface at 275 m, so all that is cut is above the water (mesh test)
   decorationMaxLod: 2, // the finest level decoration land reaches (2: 12 m cells)
   readyRadius: 260, // the start waits until the land this close has arrived
   arrivalsPerFrame: 12, // arrived land meshes taken in per frame once you're flying (each costs about 0.04 ms)
@@ -178,6 +180,14 @@ export const DEEP = {
   shafts: 1, // shafts of light slanting down from the surface
   surface: 1, // how bright the water's surface is from below
   life: 1, // how brightly fish and jellyfish glow
+  zapCycle: 4, // seconds between a jellyfish's discharges
+  zapTelegraph: 0.5, // seconds it visibly charges up before one
+  zapActive: 1, // seconds the discharge lasts
+  zapGlow: 1.5, // how much brighter it burns while discharging (the shader caps the result just under the bloom threshold)
+  jellyNear: 0.6, // share of the small jellyfish placed beside the racing line, in reach; applies to the next map
+  jellyFill: 0.85, // the bell's opacity, 0 (clear) to 1 (as painted)
+  jellyTentacle: 0.6, // the tentacles' length as a share of the model's (4.2 bell radii at 1)
+  jellyView: 200, // metres from the camera beyond which jellyfish shrink away (they cost nothing once gone)
 };
 
 /** The autopilot (the menu's chase view): flies the racing line on rails */
@@ -188,9 +198,6 @@ export const AUTOPILOT = {
   railLead: 0.35, // seconds it banks ahead of a turn
 };
 
-/** Companion movement and scale: looks only, independent of all flight rules. */
-/** `spacing`: the orbit's radius (m), `orbit`: seconds per lap, `roam`: seconds of free play after a hoop, `follow`: the spring's stiffness */
-export const PET_LOOKS = { size: 1.8, spacing: 3.2, height: 0.5, trail: 0.8, follow: 5, snapDistance: 30, bob: 0.12, wingbeat: 1, tailSway: 1, lead: 9, sparkle: 1, gallop: 1.6, stride: 1, hoopRange: 80, guideBlend: 0.8, orbit: 5.5, roam: 4 };
 /** Music and sound levels */
 export const AUDIO = {
   music: 0.45, // volume of the background music
@@ -200,7 +207,7 @@ export const AUDIO = {
   nightMuffle: 0.55, // how much the highs are rolled off at night
 };
 
-const GROUPS = { ANIM, FX, RINGS, CAMERA, TERRAIN, FLORA, STRUCTURES, WATER, DEEP, AUTOPILOT, PET_LOOKS, AUDIO } as const;
+const GROUPS = { ANIM, FX, RINGS, CAMERA, TERRAIN, FLORA, STRUCTURES, WATER, DEEP, AUTOPILOT, AUDIO } as const;
 const DEFAULTS = JSON.parse(JSON.stringify(GROUPS)) as typeof GROUPS;
 const STORAGE_KEY = "windrider.tuning.speed-control-v1";
 
@@ -242,25 +249,6 @@ export function resetTuning() {
 
 /** Slider ranges for the ?tune panel; anything missing gets a range from its default */
 export const RANGES: Record<string, [number, number, number?]> = {
-  size: [0, 3],
-  lead: [4, 45],
-  gallop: [0, 4],
-  stride: [0, 2],
-  hoopRange: [0, 150],
-  guideBlend: [0.3, 6],
-  orbit: [2, 12],
-  roam: [0, 8],
-  capeDetail: [0, 2],
-  wingParticles: [0, 50],
-  wingParticleSize: [0.05, 0.5],
-  spacing: [2.5, 4.5],
-  trail: [0, 3],
-  follow: [2, 16],
-  snapDistance: [10, 60],
-  bob: [0, 1],
-  wingbeat: [0, 2],
-  tailSway: [0, 2],
-  sparkle: [0, 3],
   armSpread: [0.3, 1.6],
   spreadBrake: [0, 0.8],
   tuckSpeed: [0, 1],
@@ -294,7 +282,8 @@ export const RANGES: Record<string, [number, number, number?]> = {
   skimDust: [0, 4],
   speedLines: [0, 3],
   speedLinesFrom: [10, 100],
-  aura: [0, 3],
+  glowShell: [0, 3],
+  pilotGlow: [0, 1],
   vignette: [0, 2],
   bloom: [0, 2.5],
   bloomRadius: [0, 1],
@@ -339,6 +328,7 @@ export const RANGES: Record<string, [number, number, number?]> = {
   viewDistance: [600, 2500, 10],
   prefetchDistance: [600, 4000, 50],
   decorationLateral: [20, 300, 10],
+  generateLateral: [150, 1400, 10],
   decorationMaxLod: [0, 3, 1],
   readyRadius: [100, 500, 10],
   arrivalsPerFrame: [1, 32, 1],
@@ -356,6 +346,14 @@ export const RANGES: Record<string, [number, number, number?]> = {
   shafts: [0, 3],
   surface: [0, 2],
   life: [0, 3],
+  zapCycle: [1, 12],
+  zapTelegraph: [0.1, 2],
+  zapActive: [0.2, 4],
+  zapGlow: [0, 5],
+  jellyNear: [0, 1],
+  jellyFill: [0, 1],
+  jellyTentacle: [0.2, 1.5],
+  jellyView: [60, 400],
   railMinSpeed: [15, 45],
   railMaxSpeed: [30, 80],
   railBank: [0, 80],
@@ -383,6 +381,5 @@ export const TUNING_GROUPS: [string, Group][] = [
   ["Water", WATER],
   ["Underwater", DEEP],
   ["Autopilot", AUTOPILOT],
-  ["Companions", PET_LOOKS],
   ["Audio", AUDIO],
 ];

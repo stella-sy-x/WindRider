@@ -1,4 +1,3 @@
-import type { TestAction } from "../game/input";
 import { Game, type HudState } from "../game/Game";
 import { trackFile } from "../game/music";
 import { BIOMES, type BiomeId, makeLevel } from "../game/world/biomes";
@@ -6,8 +5,6 @@ import type { Settings } from "../storage";
 import { Store } from "./store";
 import { makeRng } from "../game/rng";
 import { PLAYER_COLOR } from "../game/toon";
-
-const ORDER = Object.keys(BIOMES) as BiomeId[];
 
 export interface TestState {
   hud: HudState | null;
@@ -21,9 +18,10 @@ export interface TestState {
 }
 
 /**
- * Test mode (`/?test`): free flight through any biome with debug shortcuts. No
- * clock, nothing saved. Worlds and lighting moods can be switched on the spot
- * (the debug panel and keys), without reloading, to check looks and music together.
+ * Test mode (`/?test`): free flight through any biome. No clock, nothing saved.
+ * Worlds, lighting moods and half speed are switched from its panel, without
+ * reloading, to check looks and music together. It has no keys of its own: a
+ * test key would have to be kept clear of every rebindable flight key
  */
 export class TestSession {
   readonly seed: number;
@@ -110,19 +108,7 @@ export class TestSession {
     this.show(biome, mood);
   }
 
-  testAction(action: TestAction) {
-    this.game?.testAction(action);
-  }
-
-  /** The next (or, with -1, previous) world in the list */
-  step(direction: 1 | -1) {
-    const i = ORDER.indexOf(this.store.get().biome);
-    this.show(ORDER[(i + direction + ORDER.length) % ORDER.length]);
-  }
-
-  /** The next (or previous) lighting mood of the current world */
-  stepMood(direction: 1 | -1) {
-    const { biome, mood } = this.store.get();
-    this.show(biome, mood + direction);
+  toggleSpeed() {
+    this.game?.toggleTestSpeed();
   }
 }

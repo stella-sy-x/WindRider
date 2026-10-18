@@ -1,7 +1,9 @@
 import * as THREE from "three";
+import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { sceneryTime as fxTime } from "../particles";
 import { makeRng, range } from "../rng";
 import { FX_LIGHT } from "../toon";
+import { DEEP } from "../tuning";
 import { ATMOSPHERE } from "./atmosphere";
 import type { UnderwaterSpec } from "./biomes/types";
 import type { World } from "./World";
@@ -11,6 +13,40 @@ import type { World } from "./World";
 // slanting down from the surface, schools of fish circling, jellyfish drifting.
 // Each is one instanced draw call animated in its vertex shader. Looks only:
 // nothing here collides or touches the flight.
+//
+// The jellyfish discharge on a fixed cycle (DEEP.zapCycle), each with its own
+// seeded phase: a short charge-up, then a burst of electric light, then rest.
+// The cycle runs on the race clock, so everyone in a room sees the same
+// jellyfish light up at the same moment, and `jellyCycle` is the one formula
+// (shader and CPU alike) a future touch check will read the state from.
+
+const TAU = Math.PI * 2;
+
+/**
+ * The near jellyfish: beside the racing line, in reach of a pilot who wants them (metres from
+ * the line, above or below it), bell radius, and how much open water they need around them
+ * (less than the scenery ones: they are soft, meant to be flown into, and the tube is only
+ * 11 m clear)
+ */
+const NEAR_LATERAL: [number, number] = [4, 14];
+const NEAR_RISE: [number, number] = [-8, 15];
+const NEAR_SIZE: [number, number] = [1.6, 2.8];
+const NEAR_ROOM = 2;
+
+/**
+ * A jellyfish's state at `time` seconds of the race, from its seeded `phase`:
+ * `charge` 0..1 ramps through the telegraph, `zap` is 1 while it discharges.
+ * The same formula as the shaders', so a touch check agrees with what is seen
+ */
+export function jellyCycle(phase: number, time: number): { charge: number; zap: number } {
+  const cycle = Math.max(DEEP.zapCycle, 0.1);
+  const telegraph = Math.min(Math.max(DEEP.zapTelegraph, 0.01), cycle);
+  const active = Math.min(Math.max(DEEP.zapActive, 0.01), cycle - telegraph);
+  const t = (((time + (phase / TAU) * cycle) % cycle) + cycle) % cycle;
+  if (t < telegraph) return { charge: t / telegraph, zap: 0 };
+  if (t < telegraph + active) return { charge: 1, zap: 1 };
+  return { charge: 0, zap: 0 };
+}
 
 /** Shafts stand on a grid of cells this wide, in a patch of SHAFT_GRID × SHAFT_GRID cells around the camera */
 const SHAFT_CELL = 64;
@@ -161,37 +197,88 @@ const fishFragment = /* glsl */ `
 `;
 
 const jellyVertex = /* glsl */ `
-  attribute vec2 body; // 0: the bell, 1: a tentacle; then how far towards the rim, or down the tentacle
+  attribute vec2 body; // 0: the bell, 1: a tentacle, 2: the shock hoop; then how far towards the rim or down the tentacle
   attribute vec4 home; // where it drifts, and its size
   attribute vec4 hue; // color, and its own phase
   uniform float time;
+  uniform float raceTime;
+  uniform vec3 zapCycle; // seconds: the whole cycle, the charge-up telegraph, the discharge
+  uniform float tentacleLength; // the tentacles' length as a share of the model's
+  uniform vec2 viewRange; // metres from the camera: where a jellyfish starts to shrink away, and where it is gone
+  varying float vShow;
   varying vec3 vColor;
   varying float vEdge;
   varying float vHang;
+  varying float vCharge;
+  varying float vZap;
+  attribute float texSel; // which texture this vertex samples (0 bell, 1 tentacle)
+  varying float vBell; // 1 on the bell (the model's dome and what hangs inside it)
+  varying vec2 vUvB;
+  varying float vTexSel;
+  varying float vShell; // 1 on the shock hoop; then how far it has spread (0 just born, 1 gone) and how squarely its tube faces us
+  varying float vShellSpread;
+  varying float vShellRim;
   #include <fog_pars_vertex>
+  float jellyHash(float x) { return fract(sin(x * 12.9898) * 43758.5453); }
   void main() {
     float phase = hue.w;
     float beat = sin(time * 1.5 + phase);
+    // Where in its discharge cycle this one is (the same arithmetic as jellyCycle in deep.ts)
+    float cycle = max(zapCycle.x, 0.1);
+    float telegraph = clamp(zapCycle.y, 0.01, cycle);
+    float burst = clamp(zapCycle.z, 0.01, cycle - telegraph);
+    float ct = mod(raceTime + (phase / ${TAU.toFixed(6)}) * cycle, cycle);
+    float charge = ct < telegraph ? ct / telegraph : (ct < telegraph + burst ? 1.0 : 0.0);
+    float zap = (ct >= telegraph && ct < telegraph + burst) ? 1.0 : 0.0;
     vec3 p = position;
-    if (body.x < 0.5) {
-      // The bell squeezes in at the rim and springs open again
-      p.xz *= 1.0 - 0.2 * beat * body.y;
-      p.y *= 1.0 + 0.1 * beat;
+    // The shock hoop rolls out from the bell's rim to 3.5x its radius over the first 0.5 s of
+    // the discharge, its tube thickening a little as it goes; the rest of the time it sits
+    // collapsed at the bell's heart (zero size)
+    float spread = clamp((ct - telegraph) / 0.5, 0.0, 1.0) * zap;
+    vShell = body.x > 1.5 ? 1.0 : 0.0;
+    vShellSpread = spread;
+    vShellRim = 0.0;
+    vec3 hoopNormal = vec3(0.0, 1.0, 0.0);
+    if (body.x > 1.5) {
+      // Where this vertex sits round the hoop, and its offset from the tube's centre line
+      vec3 spoke = normalize(vec3(position.x, 0.0, position.z) + vec3(1e-5, 0.0, 0.0));
+      vec3 tube = position - spoke;
+      hoopNormal = normalize(tube + vec3(1e-5));
+      p = (spoke * (1.0 + 2.5 * spread) + tube * (1.0 + 1.5 * spread)) * zap + vec3(0.0, 0.1, 0.0);
+    } else if (body.x < 0.5) {
+      // The bell squeezes in at the rim and springs open again; charging, it draws in tight
+      p.xz *= (1.0 - 0.2 * beat * body.y) * (1.0 - 0.15 * charge * (1.0 - zap));
+      p.y *= 1.0 + 0.1 * beat + 0.1 * zap;
     } else {
-      // Tentacles trail the beat and wave about
+      // Tentacles trail the beat and wave about; discharging, they snap straight and shiver
+      float wave = 1.0 - 0.8 * zap;
+      p.y *= tentacleLength;
       p.xz *= 1.0 - 0.2 * beat;
-      p.x += sin(time * 1.2 + body.y * 4.0 + phase) * 0.3 * body.y;
-      p.z += cos(time * 0.9 + body.y * 3.0 + phase * 1.7) * 0.3 * body.y;
-      p.y += sin(time * 1.5 + phase - 0.9) * 0.25 * body.y;
+      p.x += sin(time * 1.2 + body.y * 4.0 + phase) * 0.3 * body.y * wave;
+      p.z += cos(time * 0.9 + body.y * 3.0 + phase * 1.7) * 0.3 * body.y * wave;
+      p.y += sin(time * 1.5 + phase - 0.9) * 0.25 * body.y * wave;
+      float shiver = jellyHash(floor(time * 40.0) + phase + body.y * 7.0) - 0.5;
+      p.x += shiver * 0.18 * body.y * zap;
+      p.z += (jellyHash(floor(time * 40.0) + phase * 3.0 + body.y * 5.0) - 0.5) * 0.18 * body.y * zap;
     }
     vec3 drift = vec3(sin(time * 0.21 + phase) * 2.0, sin(time * 0.33 + phase * 2.0) * 3.0, cos(time * 0.17 + phase) * 2.0);
-    vec3 world = home.xyz + p * home.w + drift;
+    // Out of view range a jellyfish shrinks to nothing and costs no pixels at all
+    float show = 1.0 - smoothstep(viewRange.x, viewRange.y, distance(cameraPosition, home.xyz));
+    vShow = show;
+    vec3 world = home.xyz + p * home.w * show + drift;
     // The bell's edge, seen side on, catches the light
     vec3 normal = normalize(position + vec3(0.0, 0.2, 0.0));
     vec3 toCamera = normalize(cameraPosition - world + vec3(1e-4));
     vEdge = body.x < 0.5 ? 1.0 - abs(dot(normal, toCamera)) : 0.5;
+    // The hoop's tube is shaded round: brightest where it faces us, darker on its flanks
+    if (body.x > 1.5) vShellRim = abs(dot(hoopNormal, toCamera));
     vHang = body.x < 0.5 ? 0.0 : body.y;
+    vCharge = charge;
+    vZap = zap;
     vColor = hue.rgb;
+    vBell = body.x < 0.5 ? 1.0 : 0.0;
+    vUvB = uv;
+    vTexSel = texSel;
     vec4 mvPosition = viewMatrix * vec4(world, 1.0);
     gl_Position = projectionMatrix * mvPosition;
     #include <fog_vertex>
@@ -200,19 +287,56 @@ const jellyVertex = /* glsl */ `
 
 const jellyFragment = /* glsl */ `
   uniform float glow;
+  uniform float zapGlow;
+  uniform sampler2D bellMap; // the model's textures as luminance + alpha: the bell's, and the tentacles'
+  uniform sampler2D tentacleMap;
+  uniform float bellFill; // the bell's opacity
+  uniform float alphaCut; // fragments fainter than this are dropped (the bell's material, which writes depth)
+  varying float vShow;
   varying vec3 vColor;
   varying float vEdge;
   varying float vHang;
+  varying float vCharge;
+  varying float vZap;
+  varying float vBell;
+  varying vec2 vUvB;
+  varying float vTexSel;
+  varying float vShell;
+  varying float vShellSpread;
+  varying float vShellRim;
   #include <fog_pars_fragment>
   void main() {
     float edge = vEdge * vEdge;
-    vec3 color = vColor * (0.4 + edge * 1.2) * (1.0 + glow);
-    float alpha = (0.3 + edge * 0.6) * (1.0 - vHang * 0.7);
+    // Brightening through the charge-up, then a burst of pale electric light over its own
+    // colour while it discharges
+    // (brightness and the shift to electric white are separate: zapGlow scales only the
+    // former, and the result is capped just under the bloom threshold so the burst stays crisp)
+    float energy = 1.0 + vCharge * 0.9 + vZap * zapGlow;
+    vec3 color = vColor * (0.4 + edge * 1.2) * (1.0 + glow) * energy;
+    color = mix(color, vec3(0.78, 0.96, 1.0) * (1.0 + glow), vZap * 0.55);
+    float alpha = (0.3 + edge * 0.6) * (1.0 - vHang * 0.7) * (1.0 + vZap * 0.6 + vCharge * 0.2);
+    if (vShell < 0.5) {
+      // The model's parts: the author's shading (luminance, with its ribs and lines) in the
+      // jellyfish's own colour, its alpha, the bell as opaque as bellFill says
+      vec4 tex = mix(texture2D(bellMap, vUvB), texture2D(tentacleMap, vUvB), vTexSel);
+      color *= 0.3 + tex.r * 1.1;
+      alpha = tex.a * clamp(alpha * 0.5 + 0.5, 0.0, 1.0) * (vBell > 0.5 ? bellFill : 1.0);
+    }
+    color = min(color, vec3(1.25));
+    alpha = min(1.0, alpha);
+    if (vShell > 0.5) {
+      // The shock hoop: a tube of electric light, rounded by its facing, fading as it rolls out
+      float facing = 0.45 + 0.55 * vShellRim;
+      color = min(vec3(0.78, 0.96, 1.0) * (1.0 + glow) * facing * 1.2, vec3(1.25));
+      alpha = (0.35 + 0.5 * vShellRim) * (1.0 - vShellSpread) * vZap;
+    }
     #ifdef USE_FOG
       float fogFactor = smoothstep(fogNear, fogFar, vFogDepth);
       color = mix(color, fogColor, fogFactor);
       alpha *= 1.0 - fogFactor * 0.8;
     #endif
+    alpha *= vShow;
+    if (alpha < alphaCut) discard;
     gl_FragColor = vec4(color, alpha);
     #include <colorspace_fragment>
   }
@@ -243,43 +367,128 @@ function fishGeometry(): THREE.InstancedBufferGeometry {
   return geometry;
 }
 
-/** A jellyfish with a bell 1 m in radius: a dome, and ribbons hanging from under its rim */
-function jellyGeometry(): THREE.InstancedBufferGeometry {
-  const dome = new THREE.SphereGeometry(1, 10, 4, 0, Math.PI * 2, 0, Math.PI / 2).scale(1, 0.8, 1).toNonIndexed();
-  const positions = Array.from(dome.getAttribute("position").array as Float32Array);
-  dome.dispose();
-  const body: number[] = [];
-  for (let i = 1; i < positions.length; i += 3) body.push(0, 1 - positions[i] / 0.8);
-  const ribbons = 7;
-  const segments = 5;
-  for (let r = 0; r < ribbons; r++) {
-    const a = (r / ribbons) * Math.PI * 2;
-    const out = [Math.cos(a), Math.sin(a)];
-    const length = 2 + (r % 3) * 0.5;
-    const point = (s: number, k: number) => {
-      const t = s / segments;
-      const radius = 0.55 + k * 0.06 * (1 - t);
-      return [out[0] * radius, -t * length, out[1] * radius];
-    };
-    for (let s = 0; s < segments; s++) {
-      const quad = [point(s, -1), point(s, 1), point(s + 1, 1), point(s, -1), point(s + 1, 1), point(s + 1, -1)];
-      const hang = [s, s, s + 1, s, s + 1, s + 1];
-      quad.forEach((p, i) => {
-        positions.push(...p);
-        body.push(1, hang[i] / segments);
-      });
+// The jellyfish model: chinabazooka's "Jellyfish" (CC BY 4.0, see CREDITS.md), decimated to
+// 3.4k triangles, bell radius 1 with its rim at y = 0 and the tentacles hanging to y ≈ -4.2.
+// Its COLOR_0 tags each vertex: r 0 bell / 1 tentacle, g how far down that part (0..1),
+// b which texture it samples (0 bell, 1 tentacle). The textures are the author's, reduced
+// to 512 px luminance + alpha, so each jellyfish can wear its own colour
+const MODEL_URL = import.meta.env.BASE_URL + "models/jellyfish.glb";
+const BELL_MAP_URL = import.meta.env.BASE_URL + "models/jellyfish-bell.png";
+const TENTACLE_MAP_URL = import.meta.env.BASE_URL + "models/jellyfish-tentacle.png";
+
+/** The model as the builder wants it: non-indexed positions, uvs and tags, and the two textures */
+interface JellyModel {
+  positions: Float32Array;
+  uvs: Float32Array;
+  /** Per vertex: part, how far down it, texture select (COLOR_0, normalised: read it through getX/Y/Z) */
+  tags: THREE.BufferAttribute;
+  bellMap: THREE.Texture;
+  tentacleMap: THREE.Texture;
+}
+
+let model: Promise<JellyModel> | null = null;
+
+/** Fetched once and shared by every level (never disposed) */
+function loadModel(): Promise<JellyModel> {
+  model ??= Promise.all([
+    new GLTFLoader().loadAsync(MODEL_URL),
+    new THREE.TextureLoader().loadAsync(BELL_MAP_URL),
+    new THREE.TextureLoader().loadAsync(TENTACLE_MAP_URL),
+  ]).then(([gltf, bellMap, tentacleMap]) => {
+    let mesh: THREE.Mesh | null = null;
+    gltf.scene.traverse((o) => {
+      if (!mesh && (o as THREE.Mesh).isMesh) mesh = o as THREE.Mesh;
+    });
+    if (!mesh) throw new Error("jellyfish.glb has no mesh");
+    const found = mesh as THREE.Mesh;
+    const geometry = found.geometry.index ? found.geometry.toNonIndexed() : found.geometry;
+    const tags = geometry.getAttribute("color") as THREE.BufferAttribute | undefined;
+    if (!tags) throw new Error("jellyfish.glb has no COLOR_0 tags");
+    for (const map of [bellMap, tentacleMap]) {
+      map.colorSpace = THREE.SRGBColorSpace;
+      map.wrapS = map.wrapT = THREE.RepeatWrapping;
     }
+    return {
+      positions: geometry.getAttribute("position").array as Float32Array,
+      uvs: geometry.getAttribute("uv").array as Float32Array,
+      tags,
+      bellMap,
+      tentacleMap,
+    };
+  });
+  return model;
+}
+
+/**
+ * A jellyfish with a bell 1 m in radius: the model (bell, the structure inside it, the
+ * tentacles) and the shock hoop. `body` tags each vertex for the shaders, `texSel` picks
+ * its texture, `uv` only means something on the model's parts
+ */
+function jellyGeometry(source: JellyModel): THREE.InstancedBufferGeometry {
+  const uvs = source.uvs;
+  // Two draw groups: the bell (and what hangs inside it) first, drawn solid, front faces
+  // only, writing depth, so the nearest bell hides what is behind it; then the tentacles
+  // and the hoop, blended. Triangles are sorted into that order here
+  const positions: number[] = [];
+  const bodyOut: number[] = [];
+  const uvOut: number[] = [];
+  const texOut: number[] = [];
+  const triangles = source.positions.length / 9;
+  let bellVertices = 0;
+  for (const wantTentacle of [false, true]) {
+    for (let t = 0; t < triangles; t++) {
+      const tentacle = source.tags.getX(t * 3) > 0.5;
+      if (tentacle !== wantTentacle) continue;
+      for (let v = 0; v < 3; v++) {
+        const i = t * 3 + v;
+        positions.push(source.positions[i * 3], source.positions[i * 3 + 1], source.positions[i * 3 + 2]);
+        uvOut.push(uvs[i * 2], uvs[i * 2 + 1]);
+        bodyOut.push(tentacle ? 1 : 0, source.tags.getY(i));
+        texOut.push(source.tags.getZ(i) > 0.5 ? 1 : 0);
+      }
+    }
+    if (!wantTentacle) bellVertices = positions.length / 3;
+  }
+  // The shock hoop: a torus round the bell's rim (major radius 1, in the xz plane) that the
+  // vertex shader keeps collapsed to a point until a discharge, then throws outwards and
+  // fades: a hula hoop of electric light rolling off the burst
+  const hoop = new THREE.TorusGeometry(1, 0.09, 5, 18).rotateX(Math.PI / 2).toNonIndexed();
+  const hoopPositions = hoop.getAttribute("position").array as Float32Array;
+  hoop.dispose();
+  for (let i = 0; i < hoopPositions.length; i += 3) {
+    positions.push(hoopPositions[i], hoopPositions[i + 1], hoopPositions[i + 2]);
+    bodyOut.push(2, 0);
+    uvOut.push(0, 0);
+    texOut.push(0);
   }
   const geometry = new THREE.InstancedBufferGeometry();
   geometry.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
-  geometry.setAttribute("body", new THREE.Float32BufferAttribute(body, 2));
+  geometry.setAttribute("body", new THREE.Float32BufferAttribute(bodyOut, 2));
+  geometry.setAttribute("uv", new THREE.Float32BufferAttribute(uvOut, 2));
+  geometry.setAttribute("texSel", new THREE.Float32BufferAttribute(texOut, 1));
+  const total = positions.length / 3;
+  geometry.addGroup(0, bellVertices, 0);
+  geometry.addGroup(bellVertices, total - bellVertices, 1);
   return geometry;
 }
 
 /** Schools of fish and drifting jellyfish along a level's course, placed from its seed */
 export class SeaLife {
-  readonly meshes: THREE.Mesh<THREE.InstancedBufferGeometry, THREE.ShaderMaterial>[] = [];
+  /** Everything swimming: add this to the scene (the jellyfish join it once their bell model has loaded) */
+  readonly group = new THREE.Group();
+  readonly meshes: THREE.Mesh<THREE.InstancedBufferGeometry, THREE.ShaderMaterial | THREE.ShaderMaterial[]>[] = [];
+  private disposed = false;
   private readonly glow = { value: 0 };
+  /** The bell's opacity, 0..1 (DEEP.jellyFill) */
+  private readonly bellFill = { value: DEEP.jellyFill };
+  /** The tentacles' length as a share of the model's (DEEP.jellyTentacle) */
+  private readonly tentacleLength = { value: DEEP.jellyTentacle };
+  /** Metres from the camera where a jellyfish starts to shrink away, and where it is gone (DEEP.jellyView) */
+  private readonly viewRange = { value: new THREE.Vector2(DEEP.jellyView - 40, DEEP.jellyView) };
+  /** The race clock the jellyfish discharge on, seconds */
+  private readonly raceTime = { value: 0 };
+  private readonly zapCycle = { value: new THREE.Vector3(DEEP.zapCycle, DEEP.zapTelegraph, DEEP.zapActive) };
+  private readonly zapGlow = { value: DEEP.zapGlow };
 
   constructor(world: World, spec: UnderwaterSpec) {
     const { course } = world;
@@ -336,9 +545,13 @@ export class SeaLife {
     const home: number[] = [];
     const hues: number[] = [];
     for (let i = 0; i < spec.jellyfish; i++) {
-      // Mostly small, now and then a giant further out
-      const size = rng() < 0.12 ? range(rng, 4, 7) : range(rng, 0.8, 2.4);
-      const at = spot([size > 3 ? 40 : 8, 190], [-18, 60], size * 3 + 4);
+      // Mostly small, now and then a giant further out. A share of them (DEEP.jellyNear, for the
+      // next map) hang beside the racing line where a pilot can reach them, bigger than the small
+      // scenery ones so they read at speed; the rest, and every giant, drift further out as scenery
+      const giant = rng() < 0.12;
+      const near = !giant && rng() < DEEP.jellyNear;
+      const size = giant ? range(rng, 2.5, 4) : near ? range(rng, NEAR_SIZE[0], NEAR_SIZE[1]) : range(rng, 0.8, 1.8);
+      const at = near ? spot(NEAR_LATERAL, NEAR_RISE, size + NEAR_ROOM) : spot([giant ? 40 : 8, 190], [-18, 60], size * 3 + 4);
       const hue = spec.jelly[Math.floor(rng() * spec.jelly.length)];
       const phase = rng() * Math.PI * 2;
       if (!at) continue;
@@ -347,39 +560,82 @@ export class SeaLife {
       hues.push(color.r, color.g, color.b, phase);
     }
     if (home.length) {
-      const geometry = jellyGeometry();
-      geometry.setAttribute("home", new THREE.InstancedBufferAttribute(new Float32Array(home), 4));
-      geometry.setAttribute("hue", new THREE.InstancedBufferAttribute(new Float32Array(hues), 4));
-      geometry.instanceCount = home.length / 4;
-      const material = new THREE.ShaderMaterial({
-        uniforms: { ...fog(), glow: this.glow, time: fxTime },
-        vertexShader: jellyVertex,
-        fragmentShader: jellyFragment,
-        side: THREE.DoubleSide,
-        transparent: true,
-        depthWrite: false,
-        fog: true,
-      });
-      this.add(geometry, material).renderOrder = 2;
+      // The jellyfish pop in once the shared bell model has arrived
+      loadModel().then(
+        (source) => {
+          if (this.disposed) return;
+          const geometry = jellyGeometry(source);
+          geometry.setAttribute("home", new THREE.InstancedBufferAttribute(new Float32Array(home), 4));
+          geometry.setAttribute("hue", new THREE.InstancedBufferAttribute(new Float32Array(hues), 4));
+          geometry.instanceCount = home.length / 4;
+          const uniforms = () => ({
+            ...fog(),
+            glow: this.glow,
+            time: fxTime,
+            raceTime: this.raceTime,
+            zapCycle: this.zapCycle,
+            zapGlow: this.zapGlow,
+            bellMap: { value: source.bellMap },
+            tentacleMap: { value: source.tentacleMap },
+            bellFill: this.bellFill,
+            tentacleLength: this.tentacleLength,
+            viewRange: this.viewRange,
+          });
+          // The bell: solid enough to write depth and cut its faint edges, front faces only, so
+          // one bell in front hides the ones behind instead of blending over them
+          const bell = new THREE.ShaderMaterial({
+            uniforms: { ...uniforms(), alphaCut: { value: 0.3 } },
+            vertexShader: jellyVertex,
+            fragmentShader: jellyFragment,
+            side: THREE.FrontSide,
+            transparent: true,
+            depthWrite: true,
+            fog: true,
+          });
+          // The tentacles and the hoop: blended, no depth
+          const soft = new THREE.ShaderMaterial({
+            uniforms: { ...uniforms(), alphaCut: { value: 0.0 } },
+            vertexShader: jellyVertex,
+            fragmentShader: jellyFragment,
+            side: THREE.DoubleSide,
+            transparent: true,
+            depthWrite: false,
+            fog: true,
+          });
+          this.add(geometry, [bell, soft]).renderOrder = 2;
+        },
+        () => {},
+      );
     }
   }
 
-  private add(geometry: THREE.InstancedBufferGeometry, material: THREE.ShaderMaterial) {
+  private add(geometry: THREE.InstancedBufferGeometry, material: THREE.ShaderMaterial | THREE.ShaderMaterial[]) {
     const mesh = new THREE.Mesh(geometry, material);
     mesh.frustumCulled = false;
     this.meshes.push(mesh);
+    this.group.add(mesh);
     return mesh;
   }
 
-  /** `life`: how brightly they glow, on top of the level's own light (dim by day, bright at night) */
-  update(life: number) {
+  /**
+   * `life`: how brightly they glow, on top of the level's own light (dim by day, bright at
+   * night). `raceTime`: seconds on the race clock, which the jellyfish discharge on
+   */
+  update(life: number, raceTime: number) {
     this.glow.value = FX_LIGHT.glow.value * life;
+    this.raceTime.value = raceTime;
+    this.zapCycle.value.set(DEEP.zapCycle, DEEP.zapTelegraph, DEEP.zapActive);
+    this.zapGlow.value = DEEP.zapGlow;
+    this.bellFill.value = DEEP.jellyFill;
+    this.tentacleLength.value = DEEP.jellyTentacle;
+    this.viewRange.value.set(Math.max(DEEP.jellyView - 40, 1), Math.max(DEEP.jellyView, 2));
   }
 
   dispose() {
+    this.disposed = true;
     for (const mesh of this.meshes) {
       mesh.geometry.dispose();
-      mesh.material.dispose();
+      for (const material of Array.isArray(mesh.material) ? mesh.material : [mesh.material]) material.dispose();
     }
   }
 }

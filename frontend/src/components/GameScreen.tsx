@@ -1,4 +1,4 @@
-import { IconArrowLeft, IconChevronDown, IconChevronUp, IconSettings } from "@tabler/icons-react";
+import { IconArrowLeft, IconSettings } from "@tabler/icons-react";
 import { type ReactNode, useEffect, useEffectEvent, useRef, useState, useSyncExternalStore } from "react";
 import type { Screen } from "../App";
 import { holdGame } from "../game/hold";
@@ -9,11 +9,8 @@ import { keyboardBinding } from "../game/bindings";
 import { webglAvailable } from "../game/webgl";
 import { BIOMES, type BiomeId } from "../game/world/biomes";
 import { TestSession } from "../session/TestSession";
-import { ITEMS } from "../game/items/models";
-import type { ItemGallery } from "../game/items/gallery";
 import { RoomSession } from "../session/RoomSession";
 import { SoloSession } from "../session/SoloSession";
-import { useMediaToggle } from "../media";
 import { type Settings, clientId } from "../storage";
 import { usePaletteTheme, useUiTheme } from "../theme";
 import Coach from "./Coach";
@@ -159,42 +156,6 @@ const TopBar = ({ title, onExit, controls, children }: { title: string; onExit: 
 );
 
 const noop = () => {};
-
-// Roomy screens show panels in full; narrow ones only the heading and the main buttons until opened
-const ROOMY = "(min-width: 700px)";
-
-interface PanelProps {
-  head: ReactNode;
-  /** Above the main buttons, while open */
-  intro?: ReactNode;
-  /** The main buttons: shown even when the panel is folded */
-  actions?: ReactNode;
-  className?: string;
-  /** Below the main buttons, while open */
-  children?: ReactNode;
-}
-
-const Panel = ({ head, intro, actions, className = "", children }: PanelProps) => {
-  const [open, setOpen] = useMediaToggle(ROOMY);
-  return (
-    <aside className={`panel glass ${className}`}>
-      <header className="panel-head">
-        <div>{head}</div>
-        <button
-          className="panel-toggle"
-          aria-label={open ? "Show less" : "Show more"}
-          aria-expanded={open}
-          onClick={() => setOpen(!open)}
-        >
-          {open ? <IconChevronUp size={18} /> : <IconChevronDown size={18} />}
-        </button>
-      </header>
-      {open && intro}
-      {actions}
-      {open && children}
-    </aside>
-  );
-};
 
 /** Before a race, where the race timer will be: just the button that starts it (`start-cta` draws the eye) */
 const ReadyCard = ({ children }: { children: ReactNode }) => <div className="ready-card glass">{children}</div>;
@@ -407,13 +368,6 @@ const TestScreen = ({ biome, seed, settings, onSettings, onExit }: ScreenProps &
 
   const moods = BIOMES[current].moods;
 
-  // The mouse is often locked to the game, so everything has a key
-  useHotkeys({
-    KeyN: () => session.step(1),
-    KeyB: () => session.step(-1),
-    KeyV: () => session.stepMood(1),
-  });
-
   return (
     <div className={`game${idle ? " ui-idle" : ""}`}>
       <div ref={ref} className="game-view" />
@@ -438,65 +392,10 @@ const TestScreen = ({ biome, seed, settings, onSettings, onExit }: ScreenProps &
             </button>
           ))}
         </div>
-        <div className="debug-row touch-only">
-          <button onClick={() => session.testAction("speed")}>{speed === 1 ? "Half speed" : "Normal speed"}</button>
+        <div className="debug-row">
+          <button onClick={() => session.toggleSpeed()}>{speed === 1 ? "Half speed" : "Normal speed"}</button>
         </div>
-        <ul className="debug-keys no-touch">
-          <li><kbd>N</kbd> next world · <kbd>B</kbd> previous · <kbd>V</kbd> next light</li>
-          <li><kbd>Shift+S</kbd> {speed === 1 ? "half speed" : "normal speed"}</li>
-        </ul>
       </aside>
-    </div>
-  );
-};
-
-// --- Item gallery ------------------------------------------------------------------
-
-/** Every item model, and the pilot showing how they're taken out, worn and used */
-const GalleryScreen = ({ onExit }: { onExit: () => void }) => {
-  const ref = useRef<HTMLDivElement>(null);
-  const gallery = useRef<ItemGallery | null>(null);
-  const [demo, setDemo] = useState(true);
-  useEffect(() => {
-    let disposed = false;
-    void import("../game/items/gallery").then(({ ItemGallery }) => {
-      if (disposed || !ref.current) return;
-      gallery.current = new ItemGallery(ref.current);
-      if (import.meta.env.DEV) Object.assign(window, { __gallery: gallery.current });
-    });
-    return () => {
-      disposed = true;
-      gallery.current?.dispose();
-      gallery.current = null;
-    };
-  }, []);
-  const act = (f: (g: ItemGallery) => void) => {
-    if (!gallery.current) return;
-    f(gallery.current);
-    setDemo(false);
-  };
-  return (
-    <div className="game">
-      <div ref={ref} className="game-view" />
-      <TopBar title="Item gallery" onExit={onExit} />
-      <Panel className="gallery-panel" head={<><small>Models and animations{demo ? " · demo playing" : ""}</small><h2>Items</h2></>}>
-
-        <p className="hint">Preview the models here.</p>
-        <div className="gallery-items">
-          {ITEMS.map((item) => (
-            <button key={item.id} onClick={() => act((g) => g.equip(item.id))}>
-              {item.name}
-              <small>{item.slot === "back" ? "on the back" : item.slot === "head" ? "on the head" : item.slot === "feet" ? "on the feet" : "in hand"}</small>
-            </button>
-          ))}
-        </div>
-        <div className="row">
-          <button onClick={() => act((g) => g.use())}>Eat / use</button>
-          <button onClick={() => act((g) => g.thrust(true))}>Firework on</button>
-          <button onClick={() => act((g) => g.thrust(false))}>Off</button>
-          <button onClick={() => act((g) => g.clear())}>Put away</button>
-        </div>
-      </Panel>
     </div>
   );
 };
@@ -535,7 +434,6 @@ const NoWebGL = ({ onExit }: { onExit: () => void }) => (
 const GameScreen = ({ screen, ...props }: ScreenProps & { screen: Exclude<Screen, { kind: "menu" }> }) => {
   if (!webglAvailable()) return <NoWebGL onExit={props.onExit} />;
   if (screen.kind === "test") return <TestScreen biome={screen.biome} seed={screen.seed} {...props} />;
-  if (screen.kind === "gallery") return <GalleryScreen onExit={props.onExit} />;
   return screen.kind === "solo" ? (
     <SoloScreen seed={screen.seed} {...props} />
   ) : (

@@ -35,7 +35,7 @@ export class CameraRig {
   private range = 10;
 
   constructor(aspect: number) {
-    this.camera = new PerspectiveCamera(70, aspect, 0.5, 6000);
+    this.camera = new PerspectiveCamera(CAMERA.fov, aspect, 0.5, 6000);
   }
 
   private desiredOffset(forward: Vector3, up: Vector3, speed: number): Vector3 {

@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import type { Avatar } from "./avatar";
 import { Kind, type Particles, fx } from "./particles";
-import { WHITE } from "./toon";
+import { GOLD, WHITE } from "./toon";
 import { Trail } from "./trail";
 import { FX } from "./tuning";
 
@@ -36,7 +36,7 @@ export class PilotFx {
   private readonly ghost: boolean;
   private readonly head = new THREE.Color();
   private readonly body = new THREE.Color();
-  private readonly gold = new THREE.Color("#ffd779");
+  private readonly gold = GOLD;
   private readonly ivory = new THREE.Color("#fff4d6");
   private debtL = 0;
   private debtR = 0;

@@ -23,21 +23,21 @@ test("held controls, repeat handling, focus loss and gamepad disconnect", () => 
     key("Space"); assert.equal(input.sample(1/60).brake, 1);
     assert.equal(key("Space", "keydown", true).defaultPrevented, true);
     assert.deepEqual(actions, []);
-    key("KeyC"); assert.deepEqual(actions, ["flap"]);
+    key("KeyQ"); assert.deepEqual(actions, ["barrelLeft"]);
     key("KeyA"); key("KeyA", "keyup"); key("KeyA");
-    assert.deepEqual(actions, ["flap"]);
+    assert.deepEqual(actions, ["barrelLeft"], "movement keys are not actions");
     win.dispatchEvent(new Event("blur"));
     key("ShiftLeft", "keydown", true); assert.equal(input.sample(1/60).boost, 0);
-    pads = [{connected:true, axes:[0,0], buttons:Array.from({length:8}, (_, i) => ({pressed:i===1, value:i===7?0.5:0}))}];
-    assert.ok(input.sample(1/60).boost > 0.3); assert.equal(actions.filter(a => a === "hover").length, 1);
-    assert.ok(input.sample(1/60).boost > 0.3); assert.equal(actions.filter(a => a === "hover").length, 1, "B hover-stalls once per press");
+    pads = [{connected:true, axes:[0,0], buttons:Array.from({length:8}, (_, i) => ({pressed:i===4, value:i===7?0.5:0}))}];
+    assert.ok(input.sample(1/60).boost > 0.3); assert.equal(actions.filter(a => a === "barrelLeft").length, 2);
+    assert.ok(input.sample(1/60).boost > 0.3); assert.equal(actions.filter(a => a === "barrelLeft").length, 2, "the left bumper dodges once per press");
     pads = []; assert.equal(input.sample(1/60).boost, 0);
     key("KeyP"); key("KeyP", "keydown", true);
     assert.equal(actions.filter(action => action === "pause").length, 1);
     input.reset();
     assert.equal(input.sample(1/60).brake, 0);
-    key("KeyX"); key("KeyZ"); key("KeyF");
-    assert.deepEqual(actions.slice(-3), ["plunge", "burst", "hover"]);
+    key("KeyR"); key("KeyE"); key("KeyM");
+    assert.deepEqual(actions.slice(-3), ["respawn", "barrelRight", "mute"]);
     key("ShiftLeft"); focused = false; assert.equal(input.sample(1/60).boost, 0);
     focused = true; assert.equal(input.sample(1/60).boost, 0);
 
@@ -59,7 +59,7 @@ test("held controls, repeat handling, focus loss and gamepad disconnect", () => 
     doc.querySelector=()=>({open:true});
     const before=actions.length; key("KeyO"); key("KeyG");
     pads=[{connected:true,axes:[1,1],buttons:Array.from({length:8},()=>({pressed:true,value:1}))}];
-    assert.deepEqual(input.sample(0),{pitch:0,roll:0,boost:0,brake:0,use:0});
+    assert.deepEqual(input.sample(0),{pitch:0,roll:0,boost:0,brake:0});
     assert.equal(actions.length,before,"a settings dialog blocks keyboard and gamepad actions");
   } finally {
     input.dispose(); delete globalThis.window; delete globalThis.document;
@@ -77,11 +77,11 @@ test("touch stick and buttons, with or without page focus", () => {
   const actions = []; input.onAction = action => actions.push(action);
   try {
     input.touchX = 0.5; input.touchY = -1; input.touchBoost = true;
-    assert.deepEqual(input.sample(0), {pitch:-1, roll:0.5, boost:1, brake:0, use:0}, "thumb up dives, like a stick pushed forward");
+    assert.deepEqual(input.sample(0), {pitch:-1, roll:0.5, boost:1, brake:0}, "thumb up dives, like a stick pushed forward");
     input.settings.invertTouch = true;
     assert.equal(input.sample(0).pitch, 1);
     input.reset();
-    assert.deepEqual(input.sample(0), {pitch:0, roll:0, boost:0, brake:0, use:0});
+    assert.deepEqual(input.sample(0), {pitch:0, roll:0, boost:0, brake:0});
     // Some phone browsers report no focus: a finger on a button counts anyway
     focused = false;
     input.touchBrake = true; assert.equal(input.sample(0).brake, 1);

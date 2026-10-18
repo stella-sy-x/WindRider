@@ -457,32 +457,6 @@
   }
 }
 
-.gallery-items {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 0.4rem;
-}
-
-.gallery-items button {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  padding: 0.45rem 0.7rem;
-  border-radius: 14px;
-  font-weight: 700;
-  text-align: left;
-}
-
-.gallery-items button small {
-  font-weight: 500;
-  font-size: 0.72rem;
-  color: var(--ink-45);
-}
-
-.gallery-panel .row {
-  flex-wrap: wrap;
-}
-
 /* In game every glass panel shows only while the mouse moves or after a tap (useIdleUi), and fades
    once it rests. The :not() list is what stays: the pause box, results, the tutorial and the no-WebGL
    page (the compass, gate marker, level title and touch controls aren't glass). All of it shows while

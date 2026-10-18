@@ -90,7 +90,7 @@ export class WorldView {
     if (underwater) {
       this.shafts = new LightShafts();
       this.seaLife = new SeaLife(world, underwater);
-      this.group.add(this.shafts.mesh, ...this.seaLife.meshes);
+      this.group.add(this.shafts.mesh, this.seaLife.group);
     }
     // Gates in muted stone, tinted a touch by the biome's accent rather than painted in it
     this.gateColors = gateColors(accent);
@@ -268,7 +268,8 @@ export class WorldView {
   }
 
   /** Per frame: stream rock around the camera, the sky follows it, the gates animate */
-  update(camera: THREE.Camera, dt: number, velocity?: THREE.Vector3) {
+  /** `raceTime`: seconds on the race clock, for what animates in step with everyone in the room (the jellyfish) */
+  update(camera: THREE.Camera, dt: number, velocity?: THREE.Vector3, raceTime = 0) {
     // The clock arriving land fades in by: the wall clock, so it also runs while the game's is slowed
     ATMOSPHERE.now.value = performance.now() / 1000;
     ATMOSPHERE.revealRate.value = 1 / Math.max(TERRAIN.fadeIn, 1e-3);
@@ -282,7 +283,7 @@ export class WorldView {
       ATMOSPHERE.caustics.value = DEEP.caustics * dim;
       ATMOSPHERE.surfaceGlow.value = DEEP.surface;
       this.shafts!.update(DEEP.shafts * dim);
-      this.seaLife!.update(DEEP.life);
+      this.seaLife!.update(DEEP.life, raceTime);
     }
     this.land.update(camera.position, this.dispatch, velocity);
     this.ready = this.land.ready;

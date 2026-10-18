@@ -78,11 +78,10 @@ flat-shaded art. Cosmetics system removed; fixed pilot livery.
   cutting through air). NOT a solid ribbon.
 - **Exhaust trails**: two cylindrical/conical plumes from jetpack
   nozzles. Solid trails, round cross-section. Brighter/longer on boost.
-- **Trail colors**: currently neon pink (#ff5d73). Change to:
+- **Trail colors**: light gold `#f2d27a` (done: `PLAYER_COLOR` and the
+  first room colour in `rooms.py`). Still to consider:
   - Exhaust: gold → white (matching accent trim)
   - Wingtip particles: pale white/transparent wisps
-- **PLAYER_COLOR cleanup**: `fx.setColor()` and `debris.setColor()`
-  still pass neon pink. Update to gold `#f3c869`.
 - **Gate colors**: muted (done). Verify across all biomes.
 
 ### Performance (done)

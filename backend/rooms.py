@@ -37,19 +37,22 @@ MIN_RACE_MS = 25_000
 MAX_PLAYERS = 12
 MAX_PENDING_EVENTS = 100
 
+# Pilot colours, handed out in this order (they colour trails, debris and name tags, so
+# neighbours in the list should stay easy to tell apart). The first is the light gold the
+# solo pilot wears (frontend toon.ts PLAYER_COLOR).
 COLORS = [
-    "#ff5d73",
-    "#4da3ff",
-    "#ffc145",
-    "#4cd6a0",
-    "#b67cff",
-    "#ff8a3d",
-    "#5ee0e6",
-    "#ff7ad9",
-    "#c6e85a",
-    "#ffffff",
-    "#8f9bff",
-    "#e0a872",
+    "#f2d27a",  # light gold
+    "#4da3ff",  # sky blue
+    "#ff5d73",  # coral
+    "#4cd6a0",  # mint
+    "#b67cff",  # violet
+    "#ff8a3d",  # orange
+    "#5ee0e6",  # cyan
+    "#ff7ad9",  # pink
+    "#c6e85a",  # lime
+    "#ffffff",  # white
+    "#8f9bff",  # periwinkle
+    "#62d66a",  # leaf green
 ]
 
 
