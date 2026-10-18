@@ -40,7 +40,10 @@ cd frontend && npm install && npm run dev  # http://localhost:5173
 
 ### Key rules
 
-1. Read this file first. Record changes here at commit time (not mid-work).
+1. Read this file first, then `docs/racing-next-steps.md` (the backlog: what
+   is in flight and what comes next). Record changes here at commit time
+   (not mid-work), and update the backlog in the same commit: finished
+   items to "Done lately", new findings to "Now" or "Next".
 2. Looks never change gameplay. Animation/particles/shaders must not alter
    flight model, collisions, ring checks or timing.
 3. Performance budget: 60 fps on integrated laptop GPU at High quality.
@@ -116,6 +119,11 @@ cd frontend && npm install && npm run dev  # http://localhost:5173
 Backend: `app.py` endpoints, `rooms.py` race state machine and SSE relay,
 `store.py` SQLite ghosts and runs, `models.py` Pydantic models.
 
+Docs: `docs/racing-next-steps.md` is the backlog (rule 1). `docs/biomes.md`
+is the inventory of every biome's assets (surfaces, features, gates, flora,
+structures, sky, particles, music); update it when a biome recipe changes.
+`docs/debug-mode.md` is test mode.
+
 ## Change log
 
 ### 2026-10-18: Remove the Ember Wastes biome (Claude)
@@ -132,6 +140,18 @@ Backend: `app.py` endpoints, `rooms.py` race state machine and SSE relay,
   (as when Sky Isles went).
 - Tests that used Ember as their sample biome use Glacier, Twilight or
   Aurora instead.
+
+### 2026-10-18: Mountains stand on the canyon wall; reef's dead config pruned (Claude)
+
+- With canyon walls on, a biome's `mountains` no longer start `from`/`ramp`
+  metres out (that land was under the wall floor or past
+  `TERRAIN.generateLateral`): they rise with the wall's band and sit on top
+  of its floor as the ridge line. `from`/`ramp` are optional and only used
+  without walls. One `Ground.mountains()` serves both paths.
+- Reef: mountains `amp` 250 → 60 (the ridge varies about ±30 m around the
+  wall's profile; 120 doubled the wall's height), `from`/`ramp` dropped,
+  `extent` 1400 → 300, the far `mesas` feature removed, structure `lateral`
+  ranges capped at 110 m (the wall's foot). Land within the foot unchanged.
 
 ### 2026-10-18: Paper airplane pilot, reef jellyfish, lateral terrain cut (Claude)
 

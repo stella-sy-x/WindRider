@@ -100,8 +100,9 @@ export const TERRAIN_DETAIL = { mountainRelief: 3, facetScatter: 0.16 }; // boun
  * racing line the ground has a floor it can never drop below, rising from the
  * valley at `from` metres sideways to `height` metres above the line over
  * `band` metres (a scree slope at the foot, a cliff above), then on and up at
- * `slope` metres per metre, so there is no air to fly in beyond. A biome's
- * terrain recipe turns them on (`walls`) and may override any of these; they
+ * `slope` metres per metre, so there is no air to fly in beyond; the biome's
+ * mountains stand on the wall as its ridge line. A biome's terrain recipe
+ * turns them on (`walls`) and may override any of these; they
  * change what you hit, and the land: reload workers after edits
  */
 export const WALLS = {
