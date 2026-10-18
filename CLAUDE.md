@@ -136,8 +136,7 @@ structures, sky, particles, music); update it when a biome recipe changes.
   8 → 7. The track `ember_red-orange-embers.mp3` stays and plays in the
   Lagoon until it gets its own.
 - `seedMap` picks a biome by its place in the list, so most seeds now stand
-  for a different map: existing leaderboards and ghosts are invalidated
-  (as when Sky Isles went).
+  for a different map (there is no production data to carry over).
 - Tests that used Ember as their sample biome use Glacier, Twilight or
   Aurora instead.
 

@@ -82,7 +82,7 @@ cosmetics, items and the gallery are gone; the game is racing only.
 
 - 2026-10-18: Ember Wastes removed with everything only it used (lava water,
   volcano, forge structures, dead trees and basalt, embers and ash, underglow);
-  seven biomes, seeds remapped, old leaderboards void.
+  seven biomes, seeds remapped.
 - 2026-10-18: terrain generation cut 280 m off the line (nothing beyond the
   walls is made; on-line triangles 145k to 108k); look-ahead test rewritten;
   test mode's keys removed, panel only; biome asset inventory
