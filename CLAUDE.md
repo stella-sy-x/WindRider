@@ -40,7 +40,10 @@ cd frontend && npm install && npm run dev  # http://localhost:5173
 
 ### Key rules
 
-1. Read this file first. Record changes here at commit time (not mid-work).
+1. Read this file first, then `docs/racing-next-steps.md` (the backlog: what
+   is in flight and what comes next). Record changes here at commit time
+   (not mid-work), and update the backlog in the same commit: finished
+   items to "Done lately", new findings to "Now" or "Next".
 2. Looks never change gameplay. Animation/particles/shaders must not alter
    flight model, collisions, ring checks or timing.
 3. Performance budget: 60 fps on integrated laptop GPU at High quality.
@@ -115,6 +118,11 @@ cd frontend && npm install && npm run dev  # http://localhost:5173
 
 Backend: `app.py` endpoints, `rooms.py` race state machine and SSE relay,
 `store.py` SQLite ghosts and runs, `models.py` Pydantic models.
+
+Docs: `docs/racing-next-steps.md` is the backlog (rule 1). `docs/biomes.md`
+is the inventory of every biome's assets (surfaces, features, gates, flora,
+structures, sky, particles, music); update it when a biome recipe changes.
+`docs/debug-mode.md` is test mode.
 
 ## Change log
 

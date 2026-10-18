@@ -12,14 +12,15 @@ alone turns it on.
 | `/?test=ember&seed=2` | Ember, seed 2 |
 | `/?seed=42&test` | Verdant Highlands, seed 42 |
 
-An unknown world falls back to Verdant Highlands. N/B/V switch between biomes.
+An unknown world falls back to Verdant Highlands.
 
-## Shortcuts
+## The panel
 
-| Keys | Does |
-| :-- | :-- |
-| `Shift+S` | Half speed / normal speed for physics, animation, shaders, camera and CSS animations |
-| `N` `B` `V` | Switch biome / previous biome / cycle lighting |
+Test mode has no keys of its own (they fought the rebindable flight keys).
+Its panel, top right, has a button per world, a button per lighting mood of
+the current world, and a half-speed toggle (physics, animation, shaders,
+camera and CSS animations all slow together). On desktop the mouse is locked
+to the game while flying: press Esc to free it before clicking the panel.
 
 ## How it's built
 
@@ -27,4 +28,4 @@ An unknown world falls back to Verdant Highlands. N/B/V switch between biomes.
 - `testPlayback.ts`: the playback rate. `Game.loop` scales its frame delta
   (adaptive quality still reads the real one); CSS animations follow through
   the Web Animations API.
-- Tests: `frontend/tests/test-mode.test.mjs` (URL parsing, chord handling).
+- Tests: `frontend/tests/test-mode.test.mjs` (URL parsing).
