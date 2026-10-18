@@ -1,4 +1,4 @@
-import { TERRAIN_DETAIL } from "../../tuning";
+import { TERRAIN_DETAIL, WALLS } from "../../tuning";
 import { smoothstep } from "../../math";
 import type { Rng } from "../../rng";
 import type { Course } from "../course";
@@ -9,7 +9,9 @@ import { type RiverSpec, type StepSpec, Steps } from "./river";
 // under the line (stepped into pools and falls if the biome has them), its
 // sides rise into hills, and further out domain-warped ridged mountains take
 // over. Terraces, crevasses and a carved river channel shape it further, and
-// 3D noise on steep slopes adds overhangs. As a distance field it is
+// 3D noise on steep slopes adds overhangs. Where the biome has canyon walls,
+// the height has a floor either side of the line that nothing above can dig
+// below: the course's boundary. As a distance field it is
 // (y - h) / sqrt(1 + |∇h|²), which stays close to the true distance on slopes,
 // so proximity scoring works on hillsides as well as on the flat.
 
@@ -32,24 +34,34 @@ export interface GroundSpec {
   extent: number; // the land reaches this far either side of the line
 }
 
+/** The canyon walls (WALLS in tuning.ts has the defaults and what each means) */
+export type WallSpec = typeof WALLS;
+
 /** Metres either side of the river where its banks rise to the valley floor */
 const BANK_WIDTH = 12;
 
 export class Ground {
   readonly spec: GroundSpec;
   readonly steps: Steps | null;
+  /** The canyon walls, if the biome has them */
+  readonly walls: WallSpec | null;
   private readonly course: Course;
   private readonly noise: Noise;
   private readonly flatLevel: number;
   private readonly mountainReach: number;
+  /** The walls' steepest slope, metres per metre, for the column ranges */
+  private readonly wallSteep: number;
 
-  constructor(course: Course, spec: GroundSpec, rng: Rng, noise: Noise) {
+  constructor(course: Course, spec: GroundSpec, rng: Rng, noise: Noise, walls?: Partial<WallSpec>) {
     this.course = course;
     this.spec = spec;
     this.noise = noise;
     this.steps = spec.steps ? new Steps(course, spec.steps, spec.river, rng, noise) : null;
     this.flatLevel = spec.level === null ? 0 : course.y(course.endZ) + spec.level;
     this.mountainReach = spec.mountains ? spec.mountains.from - 120 : Infinity;
+    this.walls = walls ? { ...WALLS, ...walls } : null;
+    // A smoothstep's steepest point is 1.5 times its average slope
+    this.wallSteep = this.walls ? Math.max((1.5 * (this.walls.height + spec.depth)) / Math.max(this.walls.band, 1), this.walls.slope) : 0;
   }
 
   /** The ground's height at (x, z) */
@@ -114,6 +126,21 @@ export class Ground {
         if (channel < h) h = channel;
       }
     }
+    const w = this.walls;
+    if (w) {
+      // The canyon wall: a floor under everything above. From the valley's level at
+      // the foot (drifting in and out along the course) up to `height` over the
+      // line across the band, a scree slope steepening into a cliff and rounding
+      // over the top, then on up at `slope`. Its own relief is added to the floor,
+      // never taken from it, so the noise cannot open a gap
+      const into = a - w.from - w.wander * n(x * 0.006 + 5.5, z * 0.006);
+      if (into > 0) {
+        const rise = smoothstep(0, w.band, into);
+        let floor = smooth + (lineY + w.height - smooth) * rise + Math.max(0, into - w.band) * w.slope;
+        floor += w.relief * rise * (0.5 + 0.3 * n(x * 0.02 + 9.7, z * 0.02) + 0.2 * n(x * 0.055, z * 0.055 + 4.2));
+        if (floor > h) h = floor;
+      }
+    }
     return h;
   }
 
@@ -162,8 +189,9 @@ export class Ground {
         if (h > hi) hi = h;
       }
     }
-    // Ridges and cracks can sit between samples
-    const pad = 12 + this.spec.overhang * 2 + this.spec.roughness * 2 + (this.spec.mountains ? this.spec.mountains.amp * 0.18 : 0);
+    // Ridges, cracks and the canyon walls can sit between samples
+    const pad = 12 + this.spec.overhang * 2 + this.spec.roughness * 2 + (this.spec.mountains ? this.spec.mountains.amp * 0.18 : 0) +
+      (this.wallSteep * Math.max(x1 - x0, z1 - z0)) / steps;
     return [lo - pad - (this.spec.crevasses?.depth ?? 0) - (this.spec.river?.bed ?? 0), hi + pad];
   }
 }

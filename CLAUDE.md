@@ -55,6 +55,7 @@ cd frontend && npm install && npm run dev  # http://localhost:5173
 | `game/world/` | Terrain generation, biomes, courses, trees, water, atmosphere |
 | `game/world/crystals.ts` | Crystal gates |
 | `game/world/landCollider.ts` | Collision with drawn land meshes |
+| `game/world/terrain/ground.ts` | Ground heightfield, incl. the canyon walls that bound the course |
 | `game/death.ts` | Crash animations |
 | `game/autopilot.ts` | Racing-line autopilot for menu backdrop and victory |
 | `game/audio.ts` | Wind, events, wingbeat sample, music player |
@@ -68,6 +69,26 @@ Backend: `app.py` endpoints, `rooms.py` race state machine and SSE relay,
 `store.py` SQLite ghosts and runs, `models.py` Pydantic models.
 
 ## Change log
+
+### 2026-10-17: Canyon walls replace the air wall (Claude, Sunken Reef first)
+
+- The course's boundary is now the land: `Ground.heightAt` has a floor either
+  side of the racing line (`WALLS` in tuning.ts: foot at 90 m, a 70 m scree
+  slope and cliff up to +50 m over the line, then +0.8 m/m on up; the first
+  cut at 60/40 felt cramped). Noise only
+  adds to the floor, never digs below it; the tube still carves the line.
+  Per-biome opt-in/override via `TerrainRecipe.walls`; only `reef` has it so
+  far, the other seven follow one at a time. Archipelago (no ground) needs
+  its own scheme. Reload workers after editing `WALLS`.
+- `FLIGHT.lateralClamp` (150 m, a silent hard hold in `Game.lateralClamp`)
+  stays only as the last resort behind the land.
+- Removed the wind push (`lateralLimit/lateralWall/lateralPush`, `airWall`)
+  and the corridor marker posts (`world/corridor.ts`, `CORRIDOR` tuning).
+- Reef triangles per 400 m of course (seed 2): LOD 0 within ±80 m
+  unchanged (~43k), LOD 1 within ±150 m ~29k → ~34k, LOD 2 within ±300 m
+  ~15k → ~16k.
+- New mesh test: wall floor, tube clearance, and horizontal rays from the
+  line hitting the drawn wall at LOD 0.
 
 ### 2026-10-12: Unify visual style (Claude)
 

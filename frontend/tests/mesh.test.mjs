@@ -259,6 +259,44 @@ test('mountain roughness cannot create rock far above peaks or air deep inside t
   }
 });
 
+test('canyon walls floor the ground either side of the line, leave the tube clear, and are hit as drawn', () => {
+  const world = new World(level('reef'));
+  const { course } = world, ground = world.land.ground, walls = ground.walls;
+  assert.ok(walls, 'reef has canyon walls');
+  const top = walls.from + walls.band;
+  // The same land without walls, to show the course inside the foot is untouched
+  const bare = new World({ ...world.level, biome: { ...world.biome, terrain: { ...world.biome.terrain, walls: undefined } } });
+  for (let z = course.start.z; z <= course.endZ; z += 10) {
+    const lx = course.x(z), ly = course.y(z);
+    assert.ok(world.land.distance(lx, ly, z) >= 10.9, `tube carved at z ${z}`);
+    for (const side of [-1, 1]) {
+      // Past the top of the band the land is never below the wall's height, and keeps rising
+      assert.ok(ground.height(lx + side * (top + walls.wander), z) - ly > walls.height - walls.relief - 1, `wall top at z ${z}, side ${side}`);
+      assert.ok(ground.height(lx + side * 150, z) - ly > walls.height + (150 - top - walls.wander) * walls.slope - walls.relief - 1, `wall keeps rising at z ${z}`);
+      // Inside the foot the land is exactly what it was without walls
+      const inside = lx + side * (walls.from - walls.wander - 2);
+      assert.equal(ground.height(inside, z), bare.land.ground.height(inside, z), `land inside the foot untouched at z ${z}`);
+    }
+  }
+  // The drawn wall: mesh the finest nodes across one side and cast rays from the line
+  const collider = new LandCollider();
+  const z = course.start.z + 500, lx = course.x(z), ly = course.y(z);
+  let key = 1;
+  const reach = top + walls.wander + 40;
+  for (let x = lx - 10; x <= lx + reach; x += NODE_SIZE) for (let y = ly - 60; y <= ly + 120; y += NODE_SIZE) for (let zz = z - NODE_SIZE; zz <= z + NODE_SIZE; zz += NODE_SIZE) {
+    const mesh = meshNode(world, 0, Math.floor(x / NODE_SIZE), Math.floor(y / NODE_SIZE), Math.floor(zz / NODE_SIZE));
+    if (mesh.positions.length) collider.add(key++, mesh.positions, 3);
+  }
+  const hit = { point: new THREE.Vector3(), normal: new THREE.Vector3() };
+  for (const rise of [0, 20, 40]) {
+    const a = new THREE.Vector3(lx, ly + rise, z), b = new THREE.Vector3(lx + reach, ly + rise, z);
+    assert.ok(collider.segment(a, b, hit), `a ray ${rise} m over the line hits the drawn wall`);
+    const lateral = hit.point.x - lx;
+    assert.ok(lateral > walls.from - walls.wander - 4 && lateral < top + walls.wander + 4, `hit at ${lateral.toFixed(1)} m, ${rise} m up`);
+  }
+  assert.ok(!collider.segment(new THREE.Vector3(lx, ly, z), new THREE.Vector3(lx + walls.from - walls.wander - 4, ly, z), hit), 'the course itself is clear');
+});
+
 test('block and point sampling agree on steep mountain slopes at every LOD', () => {
   const world = new World(level('ember'));
   for (const step of [3, 6, 12, 24]) {
