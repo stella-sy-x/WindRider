@@ -326,27 +326,45 @@ test('block and point sampling agree on steep mountain slopes at every LOD', () 
   }
 });
 
-test('finest detail follows approaches to side mountains with bounded speed look-ahead', () => {
+test('finest detail runs ahead of the pilot along the line, bounded by speed, and never off into the cut', () => {
   const world = new World(level('ember'));
   const land = new LandStreamer(world, new THREE.Group(), new THREE.MeshBasicMaterial(), null, new LandCollider());
   try {
-    const node = land.node(1, 10, 3, 2, null); // 960 m sideways, far off the racing line
-    const at = new THREE.Vector3(node.box.min.x - 250, node.box.min.y + 48, node.box.min.z + 48);
+    // A 96 m node the racing line runs through, 600 m down the course; the camera sits on the
+    // line 250 m short of it, outside the finest tier (lodDetail 140 m) when stationary
+    const { course } = world, size = NODE_SIZE << 1;
+    const z = course.start.z + 600, lx = course.x(z), ly = course.y(z);
+    const node = land.node(1, Math.floor(lx / size), Math.floor(ly / size), Math.floor(z / size), null);
+    assert.ok(node.lateral <= TERRAIN.decorationLateral, 'the node is on the line, so it may reach the finest level');
+    const at = new THREE.Vector3(lx, ly, node.box.min.z - 250);
     land.visit(node, at);
     assert.equal(node.split, false, 'stationary, outside the close-detail zone');
-    land.update(at, () => false, new THREE.Vector3(100, 0, 0));
+    // Flying towards it at 60 m/s: the look-ahead point is 3 s on, 180 m, inside the zone
+    land.update(at, () => false, new THREE.Vector3(0, 0, 60));
+    assert.equal(land.lookAhead.distanceTo(at), 60 * TERRAIN.lodLookAheadSeconds);
     land.visit(node, at);
-    assert.equal(node.split, true, 'approaching side mountain loads finest detail ahead');
-    assert.equal(land.lookAhead.distanceTo(at), 200);
-    land.update(at, () => false, new THREE.Vector3(300, 0, 0));
+    assert.equal(node.split, true, 'approaching land on the line loads finest detail ahead');
+    // Faster still, the look-ahead is capped
+    land.update(at, () => false, new THREE.Vector3(0, 0, 300));
     assert.equal(land.lookAhead.distanceTo(at), TERRAIN.lodLookAheadMax);
-    land.update(at, () => false, new THREE.Vector3(-100, 0, 0));
+    // Flying away: the detail request is withdrawn without the camera moving
+    land.update(at, () => false, new THREE.Vector3(0, 0, -60));
     land.visit(node, at);
     assert.equal(node.split, false, 'turning away updates detail requests without moving the camera');
-    at.x = node.box.min.x - 100;
+    // Close by, the land is detailed with no prediction at all
+    at.z = node.box.min.z - 100;
     land.update(at, () => false);
     land.visit(node, at);
     assert.equal(node.split, true, 'nearby terrain stays detailed even without forward prediction');
+    // Off to the side, past TERRAIN.generateLateral, the land is never made however fast you
+    // fly at it: the canyon walls stand in front of it (the 'walls are not for hackers' rule)
+    const side = land.node(1, 10, 3, 2, null); // 960 m sideways
+    assert.ok(side.lateral > TERRAIN.generateLateral);
+    const near = new THREE.Vector3(side.box.min.x - 100, side.box.min.y + 48, side.box.min.z + 48);
+    land.update(near, () => false, new THREE.Vector3(100, 0, 0));
+    land.visit(side, near);
+    assert.equal(side.split, false, 'land past the cut never splits');
+    assert.ok(!land.desired.includes(side) && !land.prefetch.includes(side), 'and is never wanted');
   } finally { land.dispose(); }
 });
 
