@@ -122,7 +122,8 @@ Backend: `app.py` endpoints, `rooms.py` race state machine and SSE relay,
 Docs: `docs/racing-next-steps.md` is the backlog (rule 1). `docs/biomes.md`
 is the inventory of every biome's assets (surfaces, features, gates, flora,
 structures, sky, particles, music); update it when a biome recipe changes.
-`docs/debug-mode.md` is test mode.
+`docs/debug-mode.md` is test mode. `docs/leaderboard.md` is the design of
+the ranked daily and the boards around it (not built).
 
 ## Change log
 

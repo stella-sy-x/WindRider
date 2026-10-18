@@ -62,9 +62,12 @@ cosmetics, items and the gallery are gone; the game is racing only.
 - **Playtesting** with a human on mouse and gamepad in a focused window;
   mouse sensitivity (default 2) and gamepad dead zone (0.12) were tuned by
   tests only. Log real frame times on an integrated GPU.
-- **Progression and matchmaking**: daily or all-time leaderboards (new
-  backend endpoints), weekly challenges, a "Quick Race" that matches 2 to 4
-  players on a random seed, 3 to 5 featured seeds as the competitive pool.
+- **Ranked daily and leaderboards**: designed in `docs/leaderboard.md` (a
+  seed of the day flown in a 15-minute window, a hidden rating that gains
+  or loses points against expectation, tiers with floors, autopilot pacers
+  for small fields; the per-seed and featured-seed boards stay). Not built.
+  Still open beyond it: a "Quick Race" that matches 2 to 4 players on a
+  random seed.
 - **Wind currents or thermals** as visible columns that make route choices.
   Speed-feel posts along the track are no longer needed: the walls give the
   motion reference.
