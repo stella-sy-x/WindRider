@@ -30,7 +30,7 @@ const TAU = Math.PI * 2;
  */
 const NEAR_LATERAL: [number, number] = [4, 14];
 const NEAR_RISE: [number, number] = [-8, 15];
-const NEAR_SIZE: [number, number] = [2.5, 4.5];
+const NEAR_SIZE: [number, number] = [1.6, 2.8];
 const NEAR_ROOM = 2;
 
 /**
@@ -203,6 +203,9 @@ const jellyVertex = /* glsl */ `
   uniform float time;
   uniform float raceTime;
   uniform vec3 zapCycle; // seconds: the whole cycle, the charge-up telegraph, the discharge
+  uniform float tentacleLength; // the tentacles' length as a share of the model's
+  uniform vec2 viewRange; // metres from the camera: where a jellyfish starts to shrink away, and where it is gone
+  varying float vShow;
   varying vec3 vColor;
   varying float vEdge;
   varying float vHang;
@@ -249,6 +252,7 @@ const jellyVertex = /* glsl */ `
     } else {
       // Tentacles trail the beat and wave about; discharging, they snap straight and shiver
       float wave = 1.0 - 0.8 * zap;
+      p.y *= tentacleLength;
       p.xz *= 1.0 - 0.2 * beat;
       p.x += sin(time * 1.2 + body.y * 4.0 + phase) * 0.3 * body.y * wave;
       p.z += cos(time * 0.9 + body.y * 3.0 + phase * 1.7) * 0.3 * body.y * wave;
@@ -258,7 +262,10 @@ const jellyVertex = /* glsl */ `
       p.z += (jellyHash(floor(time * 40.0) + phase * 3.0 + body.y * 5.0) - 0.5) * 0.18 * body.y * zap;
     }
     vec3 drift = vec3(sin(time * 0.21 + phase) * 2.0, sin(time * 0.33 + phase * 2.0) * 3.0, cos(time * 0.17 + phase) * 2.0);
-    vec3 world = home.xyz + p * home.w + drift;
+    // Out of view range a jellyfish shrinks to nothing and costs no pixels at all
+    float show = 1.0 - smoothstep(viewRange.x, viewRange.y, distance(cameraPosition, home.xyz));
+    vShow = show;
+    vec3 world = home.xyz + p * home.w * show + drift;
     // The bell's edge, seen side on, catches the light
     vec3 normal = normalize(position + vec3(0.0, 0.2, 0.0));
     vec3 toCamera = normalize(cameraPosition - world + vec3(1e-4));
@@ -284,6 +291,8 @@ const jellyFragment = /* glsl */ `
   uniform sampler2D bellMap; // the model's textures as luminance + alpha: the bell's, and the tentacles'
   uniform sampler2D tentacleMap;
   uniform float bellFill; // the bell's opacity
+  uniform float alphaCut; // fragments fainter than this are dropped (the bell's material, which writes depth)
+  varying float vShow;
   varying vec3 vColor;
   varying float vEdge;
   varying float vHang;
@@ -326,6 +335,8 @@ const jellyFragment = /* glsl */ `
       color = mix(color, fogColor, fogFactor);
       alpha *= 1.0 - fogFactor * 0.8;
     #endif
+    alpha *= vShow;
+    if (alpha < alphaCut) discard;
     gl_FragColor = vec4(color, alpha);
     #include <colorspace_fragment>
   }
@@ -416,15 +427,31 @@ function loadModel(): Promise<JellyModel> {
  * its texture, `uv` only means something on the model's parts
  */
 function jellyGeometry(source: JellyModel): THREE.InstancedBufferGeometry {
-  const positions = Array.from(source.positions);
-  const uvs = Array.from(source.uvs);
-  const body: number[] = [];
-  const texSel: number[] = [];
-  const count = source.positions.length / 3;
-  for (let i = 0; i < count; i++) {
-    const k = i * source.tagSize;
-    body.push(source.tags[k] > 0.5 ? 1 : 0, source.tags[k + 1]);
-    texSel.push(source.tags[k + 2] > 0.5 ? 1 : 0);
+  const uvs = source.uvs;
+  // Two draw groups: the bell (and what hangs inside it) first, drawn solid, front faces
+  // only, writing depth, so the nearest bell hides what is behind it; then the tentacles
+  // and the hoop, blended. Triangles are sorted into that order here
+  const positions: number[] = [];
+  const bodyOut: number[] = [];
+  const uvOut: number[] = [];
+  const texOut: number[] = [];
+  const triangles = source.positions.length / 9;
+  let bellVertices = 0;
+  for (const wantTentacle of [false, true]) {
+    for (let t = 0; t < triangles; t++) {
+      const k = t * 3 * source.tagSize;
+      const tentacle = source.tags[k] > 0.5;
+      if (tentacle !== wantTentacle) continue;
+      for (let v = 0; v < 3; v++) {
+        const i = t * 3 + v;
+        const tag = i * source.tagSize;
+        positions.push(source.positions[i * 3], source.positions[i * 3 + 1], source.positions[i * 3 + 2]);
+        uvOut.push(uvs[i * 2], uvs[i * 2 + 1]);
+        bodyOut.push(tentacle ? 1 : 0, source.tags[tag + 1]);
+        texOut.push(source.tags[tag + 2] > 0.5 ? 1 : 0);
+      }
+    }
+    if (!wantTentacle) bellVertices = positions.length / 3;
   }
   // The shock hoop: a torus round the bell's rim (major radius 1, in the xz plane) that the
   // vertex shader keeps collapsed to a point until a discharge, then throws outwards and
@@ -434,15 +461,18 @@ function jellyGeometry(source: JellyModel): THREE.InstancedBufferGeometry {
   hoop.dispose();
   for (let i = 0; i < hoopPositions.length; i += 3) {
     positions.push(hoopPositions[i], hoopPositions[i + 1], hoopPositions[i + 2]);
-    body.push(2, 0);
-    uvs.push(0, 0);
-    texSel.push(0);
+    bodyOut.push(2, 0);
+    uvOut.push(0, 0);
+    texOut.push(0);
   }
   const geometry = new THREE.InstancedBufferGeometry();
   geometry.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
-  geometry.setAttribute("body", new THREE.Float32BufferAttribute(body, 2));
-  geometry.setAttribute("uv", new THREE.Float32BufferAttribute(uvs, 2));
-  geometry.setAttribute("texSel", new THREE.Float32BufferAttribute(texSel, 1));
+  geometry.setAttribute("body", new THREE.Float32BufferAttribute(bodyOut, 2));
+  geometry.setAttribute("uv", new THREE.Float32BufferAttribute(uvOut, 2));
+  geometry.setAttribute("texSel", new THREE.Float32BufferAttribute(texOut, 1));
+  const total = positions.length / 3;
+  geometry.addGroup(0, bellVertices, 0);
+  geometry.addGroup(bellVertices, total - bellVertices, 1);
   return geometry;
 }
 
@@ -450,11 +480,15 @@ function jellyGeometry(source: JellyModel): THREE.InstancedBufferGeometry {
 export class SeaLife {
   /** Everything swimming: add this to the scene (the jellyfish join it once their bell model has loaded) */
   readonly group = new THREE.Group();
-  readonly meshes: THREE.Mesh<THREE.InstancedBufferGeometry, THREE.ShaderMaterial>[] = [];
+  readonly meshes: THREE.Mesh<THREE.InstancedBufferGeometry, THREE.ShaderMaterial | THREE.ShaderMaterial[]>[] = [];
   private disposed = false;
   private readonly glow = { value: 0 };
   /** The bell's opacity, 0..1 (DEEP.jellyFill) */
   private readonly bellFill = { value: DEEP.jellyFill };
+  /** The tentacles' length as a share of the model's (DEEP.jellyTentacle) */
+  private readonly tentacleLength = { value: DEEP.jellyTentacle };
+  /** Metres from the camera where a jellyfish starts to shrink away, and where it is gone (DEEP.jellyView) */
+  private readonly viewRange = { value: new THREE.Vector2(DEEP.jellyView - 40, DEEP.jellyView) };
   /** The race clock the jellyfish discharge on, seconds */
   private readonly raceTime = { value: 0 };
   private readonly zapCycle = { value: new THREE.Vector3(DEEP.zapCycle, DEEP.zapTelegraph, DEEP.zapActive) };
@@ -520,7 +554,7 @@ export class SeaLife {
       // scenery ones so they read at speed; the rest, and every giant, drift further out as scenery
       const giant = rng() < 0.12;
       const near = !giant && rng() < DEEP.jellyNear;
-      const size = giant ? range(rng, 4, 7) : near ? range(rng, NEAR_SIZE[0], NEAR_SIZE[1]) : range(rng, 0.8, 2.4);
+      const size = giant ? range(rng, 2.5, 4) : near ? range(rng, NEAR_SIZE[0], NEAR_SIZE[1]) : range(rng, 0.8, 1.8);
       const at = near ? spot(NEAR_LATERAL, NEAR_RISE, size + NEAR_ROOM) : spot([giant ? 40 : 8, 190], [-18, 60], size * 3 + 4);
       const hue = spec.jelly[Math.floor(rng() * spec.jelly.length)];
       const phase = rng() * Math.PI * 2;
@@ -538,18 +572,33 @@ export class SeaLife {
           geometry.setAttribute("home", new THREE.InstancedBufferAttribute(new Float32Array(home), 4));
           geometry.setAttribute("hue", new THREE.InstancedBufferAttribute(new Float32Array(hues), 4));
           geometry.instanceCount = home.length / 4;
-          const material = new THREE.ShaderMaterial({
-            uniforms: {
-              ...fog(),
-              glow: this.glow,
-              time: fxTime,
-              raceTime: this.raceTime,
-              zapCycle: this.zapCycle,
-              zapGlow: this.zapGlow,
-              bellMap: { value: source.bellMap },
-              tentacleMap: { value: source.tentacleMap },
-              bellFill: this.bellFill,
-            },
+          const uniforms = () => ({
+            ...fog(),
+            glow: this.glow,
+            time: fxTime,
+            raceTime: this.raceTime,
+            zapCycle: this.zapCycle,
+            zapGlow: this.zapGlow,
+            bellMap: { value: source.bellMap },
+            tentacleMap: { value: source.tentacleMap },
+            bellFill: this.bellFill,
+            tentacleLength: this.tentacleLength,
+            viewRange: this.viewRange,
+          });
+          // The bell: solid enough to write depth and cut its faint edges, front faces only, so
+          // one bell in front hides the ones behind instead of blending over them
+          const bell = new THREE.ShaderMaterial({
+            uniforms: { ...uniforms(), alphaCut: { value: 0.3 } },
+            vertexShader: jellyVertex,
+            fragmentShader: jellyFragment,
+            side: THREE.FrontSide,
+            transparent: true,
+            depthWrite: true,
+            fog: true,
+          });
+          // The tentacles and the hoop: blended, no depth
+          const soft = new THREE.ShaderMaterial({
+            uniforms: { ...uniforms(), alphaCut: { value: 0.0 } },
             vertexShader: jellyVertex,
             fragmentShader: jellyFragment,
             side: THREE.DoubleSide,
@@ -557,14 +606,14 @@ export class SeaLife {
             depthWrite: false,
             fog: true,
           });
-          this.add(geometry, material).renderOrder = 2;
+          this.add(geometry, [bell, soft]).renderOrder = 2;
         },
         () => {},
       );
     }
   }
 
-  private add(geometry: THREE.InstancedBufferGeometry, material: THREE.ShaderMaterial) {
+  private add(geometry: THREE.InstancedBufferGeometry, material: THREE.ShaderMaterial | THREE.ShaderMaterial[]) {
     const mesh = new THREE.Mesh(geometry, material);
     mesh.frustumCulled = false;
     this.meshes.push(mesh);
@@ -582,13 +631,15 @@ export class SeaLife {
     this.zapCycle.value.set(DEEP.zapCycle, DEEP.zapTelegraph, DEEP.zapActive);
     this.zapGlow.value = DEEP.zapGlow;
     this.bellFill.value = DEEP.jellyFill;
+    this.tentacleLength.value = DEEP.jellyTentacle;
+    this.viewRange.value.set(Math.max(DEEP.jellyView - 40, 1), Math.max(DEEP.jellyView, 2));
   }
 
   dispose() {
     this.disposed = true;
     for (const mesh of this.meshes) {
       mesh.geometry.dispose();
-      mesh.material.dispose();
+      for (const material of Array.isArray(mesh.material) ? mesh.material : [mesh.material]) material.dispose();
     }
   }
 }

@@ -175,6 +175,8 @@ export const DEEP = {
   zapGlow: 1.5, // how much brighter it burns while discharging (the shader caps the result just under the bloom threshold)
   jellyNear: 0.6, // share of the small jellyfish placed beside the racing line, in reach; applies to the next map
   jellyFill: 0.85, // the bell's opacity, 0 (clear) to 1 (as painted)
+  jellyTentacle: 0.6, // the tentacles' length as a share of the model's (4.2 bell radii at 1)
+  jellyView: 200, // metres from the camera beyond which jellyfish shrink away (they cost nothing once gone)
 };
 
 /** The autopilot (the menu's chase view): flies the racing line on rails */
@@ -342,6 +344,8 @@ export const RANGES: Record<string, [number, number, number?]> = {
   zapGlow: [0, 5],
   jellyNear: [0, 1],
   jellyFill: [0, 1],
+  jellyTentacle: [0.2, 1.5],
+  jellyView: [60, 400],
   railMinSpeed: [15, 45],
   railMaxSpeed: [30, 80],
   railBank: [0, 80],
