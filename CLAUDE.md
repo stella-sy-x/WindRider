@@ -18,8 +18,9 @@ React + Three.js frontend, FastAPI backend behind Caddy, `docker compose`.
 
 - **Solo**: time trials on any seed. Practice mode — no progression.
 - **Multiplayer rooms**: race the same map at the same time. Up to 12 pilots.
-- **Test** (`/?test`): free flight through any biome with debug shortcuts
-  (Shift+P/O/S, N/B/V world switching). Not exposed to players.
+- **Test** (`/?test`): free flight through any biome; worlds, light and
+  half speed from its panel (no debug keys: they fought the flight
+  bindings). Not exposed to players.
 
 ### Running it
 

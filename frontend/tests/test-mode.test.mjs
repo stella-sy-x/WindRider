@@ -1,7 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { screenFromSearch, urlFor } from "../src/route.ts";
-import { Input } from "../src/game/input.ts";
 
 test("?test opens the test sandbox, however it is added to a URL", () => {
   const screen = (search) => screenFromSearch(search, true);
@@ -17,39 +16,4 @@ test("?test opens the test sandbox, however it is added to a URL", () => {
   assert.deepEqual(screen("?seed=42"), { kind: "solo", seed: 42 });
   assert.deepEqual(screen(""), { kind: "menu" });
   assert.equal(urlFor({ kind: "test", biome: "verdant", seed: 2 }), "/?test=verdant&seed=2");
-});
-
-test("test chords are consumed before ordinary bindings, once per press", () => {
-  const win = new EventTarget(), doc = new EventTarget();
-  doc.body = win; doc.hasFocus = () => true;
-  globalThis.window = win; globalThis.document = doc;
-  const input = new Input({}, { invertPitch: false, mouseSensitivity: 1 });
-  const actions = [], tests = [];
-  input.onAction = (a) => actions.push(a);
-  const key = (code, { shift = false, repeat = false, type = "keydown" } = {}) => {
-    const e = new Event(type, { cancelable: true });
-    const character = code.startsWith("Key") ? (shift ? code.slice(3) : code.slice(3).toLowerCase()) : code.startsWith("Shift") ? "Shift" : code;
-    Object.defineProperties(e, { code: { value: code }, key: { value: character }, shiftKey: { value: shift }, ctrlKey: { value: false }, altKey: { value: false }, metaKey: { value: false }, repeat: { value: repeat } });
-    win.dispatchEvent(e);
-    return e;
-  };
-  try {
-    // Without test mode, Shift+P is just P: pause
-    key("KeyP", { shift: true }); key("KeyP", { type: "keyup" });
-    assert.deepEqual(actions, ["pause"]);
-    input.onTestAction = (a) => tests.push(a);
-    key("ShiftLeft");
-    assert.equal(key("KeyP", { shift: true }).defaultPrevented, true);
-    key("KeyO", { shift: true });
-    key("KeyS", { shift: true });
-    key("KeyS", { shift: true, repeat: true });
-    assert.deepEqual(tests, ["portal", "win", "speed"]);
-    assert.deepEqual(actions, ["pause"]);
-    // The chord drops held Shift boost and never pitches with S
-    const sample = input.sample(1 / 60);
-    assert.equal(sample.boost, 0);
-    assert.equal(sample.pitch, 0);
-  } finally {
-    input.dispose();
-  }
 });

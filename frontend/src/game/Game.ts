@@ -13,7 +13,7 @@ import { TouchControls } from "./touch";
 import { FLIGHT, Flight, type FlightInput, type HitPart, hitboxWorld, touching } from "./flight";
 import { GlideIn } from "./glidein";
 import { type GhostData, GhostRecorder, type GhostRun, ghostSamples } from "./ghost";
-import { type ControlSettings, type InputObserver, type TestAction, Input, controlsBlocked } from "./input";
+import { type ControlSettings, type InputObserver, Input, controlsBlocked } from "./input";
 import { FX_LIGHT, Kind, Particles, fx, fxTime, sceneryTime } from "./particles";
 import { PilotFx } from "./pilotfx";
 import { INTERPOLATION_DELAY_MS, Pilot, type PilotSample } from "./pilots";
@@ -286,15 +286,7 @@ export class Game {
       if (action === "respawn") this.respawnNow();
       if (action === "barrelLeft" || action === "barrelRight") this.barrelRoll(action === "barrelLeft" ? -1 : 1);
     };
-    if (options.testMode) {
-      this.testPlayback = new TestPlayback(container.parentElement ?? container);
-      this.input.onTestAction = (action) => {
-        if (action === "speed") {
-          const rate = this.testPlayback!.toggle();
-          this.events.testSpeed?.(rate);
-        }
-      };
-    }
+    if (options.testMode) this.testPlayback = new TestPlayback(container.parentElement ?? container);
     if (!this.attract) {
       this.touch = new TouchControls(container, this.renderer.domElement, this.input);
       this.renderer.domElement.addEventListener("click", this.engage);
@@ -551,10 +543,11 @@ export class Game {
     this.debris.setColor(color);
   }
 
-  testAction(action: TestAction) {
-    if (controlsBlocked()) return;
+  /** Test mode only (from its panel): half speed on, or back to normal. No key does this */
+  toggleTestSpeed() {
+    if (!this.testPlayback || controlsBlocked()) return;
     this.input.reset();
-    this.input.onTestAction?.(action);
+    this.events.testSpeed?.(this.testPlayback.toggle());
   }
 
   observeInput(observer: InputObserver): () => void {

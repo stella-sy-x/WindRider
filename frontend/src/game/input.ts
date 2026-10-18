@@ -19,9 +19,6 @@ export interface ControlSettings {
   muted?: boolean;
 }
 
-/** URL test mode only: Shift+S */
-export type TestAction = "speed";
-
 /** One-off presses dispatched by keyboard, gamepad or touch */
 export type InputAction = "pause" | "respawn" | "mute" | "barrelLeft" | "barrelRight";
 
@@ -53,8 +50,6 @@ function isTyping(event: KeyboardEvent): boolean {
 export class Input {
   settings: ControlSettings;
   onAction?: (action: InputAction) => void;
-  /** Installed only by the URL test mode. */
-  onTestAction?: (action: TestAction) => void;
   locked = false;
   private readonly element: HTMLElement;
   // Release by physical identity: the character can change while held (Shift, Caps Lock, layout).
@@ -121,16 +116,6 @@ export class Input {
     if (event.defaultPrevented || controlsBlocked() || isTyping(event)) return;
     const binding = keyboardBinding(event);
     if (!binding) return;
-    if (this.onTestAction && event.shiftKey && !event.ctrlKey && !event.altKey && !event.metaKey) {
-      const action = binding === "KeyS" ? "speed" : null;
-      if (action) {
-        event.preventDefault();
-        // Consume the chord before P pauses or S pitches, including held Shift boost.
-        this.reset();
-        if (!event.repeat) this.onTestAction(action);
-        return;
-      }
-    }
     if (event.repeat && !this.keys.has(event.code)) return;
     // Arrow keys would scroll the page; leave them alone on buttons and panels
     const target = event.target as HTMLElement | null;

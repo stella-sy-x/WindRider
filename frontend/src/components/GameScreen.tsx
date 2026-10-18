@@ -368,13 +368,6 @@ const TestScreen = ({ biome, seed, settings, onSettings, onExit }: ScreenProps &
 
   const moods = BIOMES[current].moods;
 
-  // The mouse is often locked to the game, so everything has a key
-  useHotkeys({
-    KeyN: () => session.step(1),
-    KeyB: () => session.step(-1),
-    KeyV: () => session.stepMood(1),
-  });
-
   return (
     <div className={`game${idle ? " ui-idle" : ""}`}>
       <div ref={ref} className="game-view" />
@@ -399,13 +392,9 @@ const TestScreen = ({ biome, seed, settings, onSettings, onExit }: ScreenProps &
             </button>
           ))}
         </div>
-        <div className="debug-row touch-only">
-          <button onClick={() => session.testAction("speed")}>{speed === 1 ? "Half speed" : "Normal speed"}</button>
+        <div className="debug-row">
+          <button onClick={() => session.toggleSpeed()}>{speed === 1 ? "Half speed" : "Normal speed"}</button>
         </div>
-        <ul className="debug-keys no-touch">
-          <li><kbd>N</kbd> next world · <kbd>B</kbd> previous · <kbd>V</kbd> next light</li>
-          <li><kbd>Shift+S</kbd> {speed === 1 ? "half speed" : "normal speed"}</li>
-        </ul>
       </aside>
     </div>
   );
