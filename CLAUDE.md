@@ -116,6 +116,10 @@ cd frontend && npm install && npm run dev  # http://localhost:5173
 Backend: `app.py` endpoints, `rooms.py` race state machine and SSE relay,
 `store.py` SQLite ghosts and runs, `models.py` Pydantic models.
 
+Docs: `docs/biomes.md` is the inventory of every biome's assets (surfaces,
+features, gates, flora, structures, sky, particles, music); update it when a
+biome recipe changes. `docs/debug-mode.md` is test mode.
+
 ## Change log
 
 ### 2026-10-18: Paper airplane pilot, reef jellyfish, lateral terrain cut (Claude)

@@ -129,6 +129,6 @@ All routes start with `/api`.
 
 ## Test Mode
 
-`/?test` (or `/?test=verdant&seed=2`): free flight through any biome with
-debug shortcuts. Shift+S for speed toggle, N/B/V to switch
-biomes. Included in production builds, nothing saved.
+`/?test` (or `/?test=verdant&seed=2`): free flight through any biome.
+Worlds, lighting and half speed are buttons on its panel (no debug keys).
+Included in production builds, nothing saved. See `docs/debug-mode.md`.
