@@ -77,7 +77,7 @@ Verdant Highlands was folded in here on 2026-10-18: its trees, flowers,
 mills, towers, shrine gates, Moonlit mood and the Einstein bust; its river,
 bridges and lakeside lanterns could not come.
 
-- **Moods**: five. Alpine, Misty pines, Autumn, Dusk (night 0.2), Moonlit (night 0.9). Stella means to trim the three greens.
+- **Moods**: Alpine; Autumn. (No night mood: the islands are a daytime biome.)
 - **Ground**: none. Ponds on 45 % of islands 20 m and up (a bowl carved into the top under a flat rock lip, the island's grain smoothed around it; the water is solid like a river pool; `World.islandPonds`). Waterfalls off 15 % of big islands, kept rare for gameplay later; the two are independent.
 - **Surfaces**: 0 the islands (warm brown rock, green cap); 1 the gates (same rock, greyer); 2 worked stone (the bridges).
 - **Features**: 120 floating islands (14 to 55 m) without holes, dense enough that most have a neighbour within a bridge's reach.

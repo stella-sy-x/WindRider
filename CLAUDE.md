@@ -126,6 +126,11 @@ structures, sky, particles, music); update it when a biome recipe changes.
 
 ## Change log
 
+### 2026-10-19: Archipelago moods trimmed to Alpine and Autumn (Claude)
+
+- Misty pines, Dusk and Moonlit dropped after Stella looked at the islands:
+  one crisp green day and one amber one. The Archipelago has no night mood.
+
 ### 2026-10-18: Stone bridges between the floating islands (Claude)
 
 - A `bridge` gate kind (Archipelago only): a humped stone bridge spanning

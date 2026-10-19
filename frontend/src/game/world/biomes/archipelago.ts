@@ -18,8 +18,9 @@ import type { Biome } from "./types";
 // land is meshed and the trees are built (World.mood, palette.ts), besides the
 // mood's light, sky, mist and clouds.
 
-// Every sun kept between 22° and 34° up and 25°–40° off the course so it never
-// sits straight ahead of the pilot.
+// Two moods: Alpine and Autumn (Misty pines, Dusk, Moonlit, Winter and Starlight
+// were tried and trimmed). Every sun kept between 22° and 34° up and 25°–40° off
+// the course so it never sits straight ahead of the pilot.
 const MOODS: readonly Palette[] = [
   {
     // Bright blue sky, green grass, warm brown rock: the archipelago at its crispest
@@ -44,28 +45,6 @@ const MOODS: readonly Palette[] = [
     glow: 1.25,
   },
   {
-    // Soft grey-blue, lower sun, the pines fading into haze
-    name: "Misty pines",
-    horizon: "#e2e9d6",
-    zenith: "#9fbcac",
-    grass: "#6e8e55",
-    forest: "#355a3e",
-    trunk: "#5a4634",
-    rock: "#b3ab8e",
-    snow: "#eeeee2",
-    cloud: "#f4f6ee",
-    accent: "#d9956a",
-    sun: "#fff8e8",
-    sunIntensity: 2.0,
-    ambient: 1.7,
-    sunElevation: 22,
-    sunAzimuth: -35,
-    night: 0,
-    mist: "#e9eee0",
-    mistDensity: 0.75,
-    glow: 1.2,
-  },
-  {
     // Amber light, warm gold horizon
     name: "Autumn",
     horizon: "#ffe2bd",
@@ -86,50 +65,6 @@ const MOODS: readonly Palette[] = [
     mist: "#ffe8cc",
     mistDensity: 0.45,
     glow: 1.2,
-  },
-  {
-    // Warm pink horizon under a purple zenith, golden sun low over the clouds
-    name: "Dusk",
-    horizon: "#ffb894",
-    zenith: "#5a4fc0",
-    grass: "#6f8a4c",
-    forest: "#36503c",
-    trunk: "#4a3530",
-    rock: "#8a5c5e",
-    snow: "#ffe8e2",
-    cloud: "#ffd6cc",
-    accent: "#6fc9d0",
-    sun: "#ffe0c8",
-    sunIntensity: 2.0,
-    ambient: 1.5,
-    sunElevation: 22,
-    sunAzimuth: -28,
-    night: 0.2,
-    mist: "#ffc4a3",
-    mistDensity: 0.55,
-    glow: 1.1,
-  },
-  {
-    // The valley's moonlit night, carried over: Alpine's land shifted as Verdant's Morning was to its Moonlit
-    name: "Moonlit",
-    horizon: "#2d3c60",
-    zenith: "#0a1130",
-    grass: "#5c7b54",
-    forest: "#2f4d38",
-    trunk: "#4a3529",
-    rock: "#6b4e4e",
-    snow: "#d6e0ff",
-    cloud: "#55658c",
-    accent: "#d9c07a",
-    sun: "#c4d6ff",
-    sunIntensity: 1.25,
-    ambient: 1.45,
-    sunElevation: 32,
-    sunAzimuth: -40,
-    night: 0.9,
-    mist: "#3a4d78",
-    mistDensity: 0.65,
-    glow: 0.9,
   },
 ];
 

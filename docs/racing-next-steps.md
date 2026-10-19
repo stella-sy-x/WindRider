@@ -67,8 +67,6 @@ cosmetics, items and the gallery are gone; the game is racing only.
   the rim waterfall with a ribbon of water, no bridge (too small to mesh
   at 3 m). Waterfalls stay rare: Stella means to hang gameplay on them
   (getting wet, slowing down), so they must not be everywhere.
-- **Archipelago moods**: five now (Alpine, Misty pines, Autumn, Dusk,
-  Moonlit); Stella will trim the three greens at the computer.
 - **Gamepad**: no Enter (start race) or pause mapping, no haptics.
 - **Playtesting** with a human on mouse and gamepad in a focused window;
   mouse sensitivity (default 2) and gamepad dead zone (0.12) were tuned by
