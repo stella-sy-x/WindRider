@@ -77,7 +77,7 @@ export class TerrainField {
         const ds = shape.distance(x, y, z);
         if (ds < nearest) {
           nearest = ds;
-          rough = shape.roughness;
+          rough = shape.roughnessAt ? shape.roughnessAt(x, y, z) : shape.roughness;
           grain = shape.grain;
         }
         d = smin(d, ds, BLEND);

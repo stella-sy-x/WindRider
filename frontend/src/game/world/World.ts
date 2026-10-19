@@ -7,7 +7,7 @@ import { TerrainField } from "./terrain/field";
 import { Ground } from "./terrain/ground";
 import { makeNoise } from "./terrain/noise";
 import { buildLand } from "./terrain/recipes";
-import { NoiseIsland } from "./terrain/shapes";
+import { Bridge, Grain, type IslandPond, NoiseIsland } from "./terrain/shapes";
 import type { Steps, WaterKind } from "./terrain/river";
 import { TreeIndex } from "./trees";
 
@@ -62,6 +62,10 @@ export class World {
   private seaTable: Float32Array | null = null;
   /** Waterfalls off floating islands */
   readonly islandFalls: IslandFall[] = [];
+  /** Ponds on the tops of floating islands */
+  readonly islandPonds: IslandPond[] = [];
+  /** Stone bridges between neighbouring islands, off the line (the bridge gates are not listed here) */
+  readonly islandBridges: Bridge[] = [];
   /** Trees grow on the land; chunks add them as they are meshed */
   readonly trees = new TreeIndex(PROXIMITY_RANGE);
   /** Which way pilots face on the start line */
@@ -86,6 +90,9 @@ export class World {
     this.land = field;
     this.rock = field;
     this.steps = ground?.steps?.river ? ground.steps : null;
+    // Ponds first: they carve the islands, and the falls walk the carved rock
+    if (terrain.islandPonds) this.findIslandPonds(terrain.islandPonds.chance);
+    if (terrain.islandBridges) this.findIslandBridges(terrain.islandBridges.chance, terrain.islandBridges.surface);
     if (terrain.islandFalls) this.findIslandFalls(terrain.islandFalls.chance);
     this.startDirection = this.startHeading();
   }
@@ -159,6 +166,136 @@ export class World {
     }
   }
 
+  /**
+   * A pond on the top of some islands: the bowl is carved into the island (so the meshers and the
+   * collider see it), the water is drawn by WaterView and solid like a river pool. The island's
+   * real top is found by marching down onto the rock: the noise moves it off the nominal level
+   */
+  private findIslandPonds(chance: number) {
+    const rng = makeRng(this.seed, "island ponds");
+    const field = this.land;
+    for (const shape of field.shapes) {
+      if (!(shape instanceof NoiseIsland) || shape.anchor.size < 20) continue;
+      const roll = rng();
+      const r = shape.anchor.size * range(rng, 0.22, 0.32);
+      if (roll > chance) continue;
+      const { x, z, size } = shape.anchor;
+      // Down from well above the dome (its top is 0.27 size up, plus the noise) onto the rock
+      let y = shape.anchor.y + size * 0.55;
+      const floor = shape.anchor.y - size * 0.1;
+      while (y > floor && field.distance(x, y, z) > 0) y -= 0.5;
+      if (y <= floor) continue;
+      // The lip stands a little proud of the rock; the water sits well under the lip, the bowl deeper still
+      const top = y + 1;
+      const pond: IslandPond = { x, z, r, level: top - 1.4, top, depth: 4 };
+      // Never under the racing tube
+      if (this.course.distance(x, pond.level, z) < 24) continue;
+      shape.setPond(pond);
+      // Another shape (a neighbouring island, a gate) can fill the bowl or bury the lip: then no pond here
+      if (this.pondIsClean(pond)) this.islandPonds.push(pond);
+      else shape.setPond(null);
+    }
+  }
+
+  /** The rock's top under (x, z) on an island, by marching down from above its dome; NaN if there is none */
+  private islandTop(island: NoiseIsland, x: number, z: number): number {
+    const { y: ay, size } = island.anchor;
+    let y = ay + size * 0.55;
+    const floor = ay - size * 0.1;
+    while (y > floor && this.land.distance(x, y, z) > 0) y -= 0.5;
+    return y > floor ? y : NaN;
+  }
+
+  /**
+   * Stone bridges between neighbouring islands: pairs 10 to 50 m apart rim to rim and level
+   * enough, each island in one bridge at most, never near the racing line (the gate kind
+   * `bridge` makes the ones the line flies under). A humped deck from rim to rim, an arch
+   * under it, the abutments sunk into the islands; the field blends it into their rock
+   */
+  private findIslandBridges(chance: number, surface: number) {
+    const rng = makeRng(this.seed, "island bridges");
+    const field = this.land;
+    const islands = field.shapes.filter((s): s is NoiseIsland => s instanceof NoiseIsland && s.anchor.size >= 16);
+    const used = new Set<NoiseIsland>();
+    for (let i = 0; i < islands.length; i++) {
+      for (let j = i + 1; j < islands.length; j++) {
+        const A = islands[i], B = islands[j];
+        if (used.has(A) || used.has(B)) continue;
+        const a = A.anchor, b = B.anchor;
+        const dx = b.x - a.x, dz = b.z - a.z;
+        const dist = Math.hypot(dx, dz);
+        const gap = dist - a.size - b.size;
+        if (gap < 10 || gap > 50 || Math.abs(a.y - b.y) > 24) continue;
+        if (rng() > chance) continue;
+        const ux = dx / dist, uz = dz / dist;
+        // The ends: well inside each island's rim
+        const ax = a.x + ux * a.size * 0.9, az = a.z + uz * a.size * 0.9;
+        const bx = b.x - ux * b.size * 0.9, bz = b.z - uz * b.size * 0.9;
+        const ya = this.islandTop(A, ax, az), yb = this.islandTop(B, bx, bz);
+        if (Number.isNaN(ya) || Number.isNaN(yb)) continue;
+        const level = (ya + yb) / 2;
+        // Off the line: nothing of the deck near the tube
+        let clear = true;
+        for (let k = 0; k <= 6 && clear; k++) {
+          const f = k / 6;
+          if (this.course.distance(ax + (bx - ax) * f, level + 6, az + (bz - az) * f) < 20) clear = false;
+        }
+        if (!clear) continue;
+        const half = Math.hypot(bx - ax, bz - az) / 2 + 2.5;
+        // A ramp where one island stands higher, up to about 24 degrees
+        const slope = (yb - ya) / (2 * half);
+        if (Math.abs(slope) > 0.45) continue;
+        // A tall hump: the field blends the abutments into the island rock over 6 m, so a low arch would close;
+        // the deck over the arch stays 5 m thick and the piers 0.45 of the half span, for the 3 m voxels
+        const foot = 2.5;
+        const crown = foot + Math.min(14, Math.max(8, half * 0.5));
+        const arch: [number, number] = [Math.max(4, half * 0.55), crown - 5];
+        // The middle of the gap must be empty: a gate's ring or ridge, or a third island, can stand in it
+        // (near the ends the islands' own domes may rise over the deck: the bridge runs into the hillside)
+        const cx = (ax + bx) / 2, cz = (az + bz) / 2, y0 = level - foot;
+        if (field.distance(cx, y0, cz) < arch[1] - 1 || field.distance(cx, y0 + crown + 2, cz) < 4) continue;
+        let empty = true;
+        for (const f of [0.3, 0.4, 0.6, 0.7]) {
+          const y = y0 + slope * (f - 0.5) * 2 * half + crown + 1.5;
+          if (field.distance(ax + (bx - ax) * f, y, az + (bz - az) * f) < 2.5) empty = false;
+        }
+        if (!empty) continue;
+        const bridge = new Bridge(new Vector3(cx, y0, cz), new Vector3(ux, 0, uz), { half, width: range(rng, 6, 7.5), crown, foot, arch, depth: arch[1] + 4, slope }, { surface, grain: Grain.Layered });
+        if (!field.add(bridge)) continue;
+        used.add(A);
+        used.add(B);
+        this.islandBridges.push(bridge);
+      }
+    }
+  }
+
+  /** Air over the water and in the bowl, rock under the bowl and all around the lip */
+  private pondIsClean(p: IslandPond): boolean {
+    const field = this.land;
+    if (field.distance(p.x, p.level + 0.3, p.z) < 0.5) return false;
+    if (field.distance(p.x, p.level - 4.5, p.z) > 0) return false;
+    for (let k = 0; k < 12; k++) {
+      const a = (k / 12) * Math.PI * 2;
+      const cos = Math.cos(a), sin = Math.sin(a);
+      // (the bowl is an ellipsoid bound, which understates the distance inside: any air will do)
+      if (field.distance(p.x + cos * p.r * 0.5, p.level - 1.5, p.z + sin * p.r * 0.5) <= 0) return false;
+      if (field.distance(p.x + cos * (p.r + 1.8), p.level + 0.3, p.z + sin * (p.r + 1.8)) > 0.2) return false;
+    }
+    return true;
+  }
+
+  /** Distance to a pond's water: the flat disc of its surface (negative under it, inside the bowl) */
+  private pondDistance(x: number, y: number, z: number): number {
+    let d = Infinity;
+    for (const p of this.islandPonds) {
+      const out = Math.hypot(x - p.x, z - p.z) - p.r;
+      const dy = y - p.level;
+      const v = out > 0 ? Math.hypot(out, Math.max(dy, 0)) : dy;
+      if (v < d) d = v;
+    }
+    return d;
+  }
+
   /** Distance from a point to the nearest rock, tree or water surface (negative inside) */
   distance(x: number, y: number, z: number): number {
     return Math.min(this.rock.distance(x, y, z), this.otherDistance(x, y, z));
@@ -168,6 +305,7 @@ export class World {
   otherDistance(x: number, y: number, z: number): number {
     let d = this.trees.distance(x, y, z);
     if (this.steps) d = Math.min(d, this.steps.waterDistance(x, y, z));
+    if (this.islandPonds.length) d = Math.min(d, this.pondDistance(x, y, z));
     const sea = this.seaAt(z);
     if (sea !== null) d = Math.min(d, y - sea);
     return d;

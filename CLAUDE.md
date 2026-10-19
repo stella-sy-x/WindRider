@@ -19,7 +19,9 @@ the gates and future biome gameplay pieces, never the pilot or its effects.
 ## The game
 
 Wind Rider is a browser wingsuit racer. Seeded procedural courses through
-floating islands and seven biomes, crystal gates, multiplayer race rooms.
+five biomes (a glacier canyon, a lagoon, a glowing forest, a sunken reef,
+floating islands with ponds and stone bridges), crystal gates, multiplayer
+race rooms.
 React + Three.js frontend, FastAPI backend behind Caddy, `docker compose`.
 
 ### Modes
@@ -125,6 +127,48 @@ structures, sky, particles, music); update it when a biome recipe changes.
 `docs/debug-mode.md` is test mode.
 
 ## Change log
+
+### 2026-10-19: Archipelago moods trimmed to Alpine and Autumn (Claude)
+
+- Misty pines, Dusk and Moonlit dropped after Stella looked at the islands:
+  one crisp green day and one amber one. The Archipelago has no night mood.
+
+### 2026-10-18: Stone bridges between the floating islands (Claude)
+
+- A `bridge` gate kind (Archipelago only): a humped stone bridge spanning
+  the line between two small islands made for it, its arch centred on the
+  line and wider than the tube on every side; the tube carve keeps the
+  passage clear as for every gate. Painted with the recipe's
+  `named.bridge` surface (worked stone, surface 2).
+- `World.findIslandBridges` (`terrain.islandBridges`): scenery bridges
+  between neighbouring islands off the line, 80 % of the pairs 10 to 50 m
+  apart rim to rim, one bridge per island at most, 20 m or more from the
+  line, the middle of the gap checked empty (a gate's ring or ridge or a
+  third island can stand there). `Bridge` gained a `slope`: the deck ramps
+  where one island stands higher, up to about 24 degrees, which is what
+  makes enough pairs (islands spread 200 m in height; flat decks found
+  only a handful). The hump is tall because the field blends the abutments
+  into the island rock over 6 m and a low arch would close.
+- 120 islands instead of 60, so bridges have somewhere to go.
+- Test over three seeds: deck solid under the crown, air over it, arch
+  open, ends in rock, gate bridges on the line with the tube clear,
+  scenery bridges 20 m from it, at least 3 gate and 15 scenery bridges.
+
+### 2026-10-18: Ponds on the floating islands (Claude)
+
+- `World.findIslandPonds`: on 45 % of Archipelago islands 20 m and up
+  (`terrain.islandPonds`, independent of the rim waterfalls) a bowl is
+  carved into the island's top under a flat rock lip (`NoiseIsland.setPond`:
+  a lip disc unioned, an ellipsoid bowl carved; the island's grain fades
+  out around it via `Shape.roughnessAt`, a new optional hook the field
+  honours). The real top is found by marching down onto the rock; a pond
+  whose bowl or lip another shape spoils is dropped (`pondIsClean`).
+- The water is a still disc in `WaterView.buildPonds` with the pool shader
+  (no current, shore foam from the depth), and solid for collisions like
+  river pools (`World.otherDistance`). `wet` placement counts ponds, so
+  lanterns gather around them (a dense lantern entry on the Archipelago).
+- Test: bowls open, lips rock all round, water solid, clear of the tube,
+  every wet lantern by a pond, over two seeds.
 
 ### 2026-10-18: Five biomes: Aurora into Glacier, Verdant into the Archipelago (Claude)
 

@@ -5,6 +5,7 @@ import { WATER } from "../tuning";
 import { ATMOSPHERE, MIST } from "./atmosphere";
 import type { WaterKind } from "./terrain/river";
 import type { IslandFall, World } from "./World";
+import type { IslandPond } from "./terrain/shapes";
 
 // Stylized water for every biome: river pools stepping down the valley, the
 // falls between them, and seas. One shader, three kinds:
@@ -285,6 +286,9 @@ export class WaterView {
     if (world.islandFalls.length && terrain.islandFalls) {
       this.buildIslandFalls(world.islandFalls, this.uniforms("water", terrain.islandFalls.colors, world.palette.night, 1, 1));
     }
+    if (world.islandPonds.length && terrain.islandPonds) {
+      this.buildPonds(world.islandPonds, this.uniforms("water", terrain.islandPonds.colors, world.palette.night, 0, 0));
+    }
     const steps = world.steps;
     const river = steps?.river;
     if (!steps || !river || !world.land?.ground) return;
@@ -494,6 +498,57 @@ export class WaterView {
     geometry.setAttribute("fall", new THREE.BufferAttribute(new Float32Array(depth.length * 2), 2));
     geometry.setAttribute("fallDrop", new THREE.BufferAttribute(new Float32Array(depth.length), 1));
     geometry.setIndex(index);
+    geometry.computeBoundingSphere();
+    this.geometries.push(geometry);
+    const mesh = new THREE.Mesh(geometry, this.material(poolVertex, poolFragment, uniforms, true));
+    mesh.renderOrder = 1;
+    this.group.add(mesh);
+  }
+
+  /** Still discs of water in the islands' bowls: the pool shader with no current, the shore foam from the depth */
+  private buildPonds(ponds: IslandPond[], uniforms: Record<string, THREE.IUniform>) {
+    const SIDES = 20;
+    // Rings of vertices out from the middle: how far out (share of the radius) and how deep the water reads there.
+    // The outermost ring overlaps the lip a little, where the depth goes negative and the shader fades the water out
+    const RINGS: [number, number][] = [[0, 2], [0.55, 1.6], [0.85, 0.7], [1, 0.12], [1.12, -0.3]];
+    const positions: number[] = [];
+    const depth: number[] = [];
+    const index: number[] = [];
+    let base = 0;
+    for (const p of ponds) {
+      positions.push(p.x, p.level, p.z);
+      depth.push(RINGS[0][1]);
+      for (let ring = 1; ring < RINGS.length; ring++) {
+        const [share, deep] = RINGS[ring];
+        for (let s = 0; s < SIDES; s++) {
+          const a = (s / SIDES) * Math.PI * 2;
+          positions.push(p.x + Math.cos(a) * p.r * share, p.level, p.z + Math.sin(a) * p.r * share);
+          depth.push(deep);
+        }
+      }
+      // The fan around the middle, then quads between rings (counter-clockwise seen from above)
+      for (let s = 0; s < SIDES; s++) index.push(base, base + 1 + ((s + 1) % SIDES), base + 1 + s);
+      for (let ring = 1; ring + 1 < RINGS.length; ring++) {
+        const inner = base + 1 + (ring - 1) * SIDES;
+        const outer = inner + SIDES;
+        for (let s = 0; s < SIDES; s++) {
+          const n = (s + 1) % SIDES;
+          index.push(inner + s, outer + n, outer + s, inner + s, inner + n, outer + n);
+        }
+      }
+      base += 1 + (RINGS.length - 1) * SIDES;
+    }
+    const count = depth.length;
+    const geometry = new THREE.BufferGeometry();
+    geometry.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
+    geometry.setAttribute("depth", new THREE.Float32BufferAttribute(depth, 1));
+    geometry.setAttribute("flow", new THREE.Float32BufferAttribute(new Float32Array(count * 2), 2));
+    geometry.setAttribute("foam", new THREE.Float32BufferAttribute(new Float32Array(count), 1));
+    geometry.setAttribute("lipDistance", new THREE.Float32BufferAttribute(new Float32Array(count).fill(-1), 1));
+    geometry.setAttribute("fall", new THREE.Float32BufferAttribute(new Float32Array(count * 2), 2));
+    geometry.setAttribute("fallDrop", new THREE.Float32BufferAttribute(new Float32Array(count), 1));
+    geometry.setIndex(index);
+    geometry.computeVertexNormals();
     geometry.computeBoundingSphere();
     this.geometries.push(geometry);
     const mesh = new THREE.Mesh(geometry, this.material(poolVertex, poolFragment, uniforms, true));

@@ -128,6 +128,79 @@ test("the Einstein bust is a rare landmark close to the racing line", () => {
   assert.ok(levels >= 3 && levels <= 14, `${levels} of 24 levels have the bust`);
 });
 
+test("island ponds sit in clean bowls under a rock lip, their water is solid, and lanterns gather by them", () => {
+  for (const seed of [2, 5]) {
+    const world = new World(makeLevel({ biome: "archipelago", seed, mood: 0 }));
+    const field = world.land;
+    const ponds = world.islandPonds;
+    assert.ok(ponds.length >= 12, `seed ${seed}: only ${ponds.length} ponds`);
+    for (const p of ponds) {
+      assert.ok(field.distance(p.x, p.level + 0.3, p.z) > 0.5, "air over the water");
+      assert.ok(field.distance(p.x, p.level - 1.5, p.z) > 0.3, "the bowl is open under the water");
+      assert.ok(field.distance(p.x, p.level - 4.5, p.z) < 0, "rock under the bowl");
+      for (let k = 0; k < 12; k++) {
+        const a = (k / 12) * Math.PI * 2;
+        assert.ok(field.distance(p.x + Math.cos(a) * (p.r + 1.8), p.level + 0.3, p.z + Math.sin(a) * (p.r + 1.8)) < 0.2, "the lip is rock all round");
+      }
+      // The water is solid like a river pool, though the rock under it is open
+      assert.ok(world.distance(p.x, p.level - 0.5, p.z) < 0, "the water counts as solid");
+      assert.ok(world.course.distance(p.x, p.level, p.z) >= 24, "clear of the racing tube");
+    }
+    // The wet lanterns (the last structure) all stand by a pond
+    const wetKind = world.biome.vegetation.species.length + world.biome.structures.length - 1;
+    assert.equal(world.biome.structures.at(-1).where.wet, true);
+    let lanterns = 0;
+    for (let iz = 0; iz < 6; iz++) {
+      const cx = Math.floor(world.course.x(iz * 384 + 192) / 384), cy = Math.floor(world.course.y(iz * 384 + 192) / 384);
+      for (let ix = cx - 1; ix <= cx + 1; ix++) for (let iy = cy - 1; iy <= cy + 1; iy++) {
+        const { plants } = placeFlora(world, { x0: ix * 384, y0: iy * 384, z0: iz * 384, x1: ix * 384 + 384, y1: iy * 384 + 384, z1: iz * 384 + 384 }, 1);
+        for (let o = 0; o < plants.length; o += PLANT_STRIDE) {
+          if (plants[o] !== wetKind) continue;
+          lanterns++;
+          assert.ok(ponds.some((p) => Math.hypot(plants[o + 1] - p.x, plants[o + 3] - p.z) < p.r + 12), "a wet lantern away from any pond");
+        }
+      }
+    }
+    assert.ok(lanterns >= 10, `seed ${seed}: only ${lanterns} lanterns by the ponds`);
+  }
+});
+
+test("island bridges: gate bridges arch over a clear line, scenery bridges join two islands off it", async () => {
+  const { Bridge } = await import("../src/game/world/terrain/shapes.ts");
+  let gateBridges = 0, scenery = 0;
+  for (const seed of [2, 5, 7]) {
+    const world = new World(makeLevel({ biome: "archipelago", seed, mood: 0 }));
+    const field = world.land;
+    const all = field.shapes.filter((s) => s instanceof Bridge);
+    const off = new Set(world.islandBridges);
+    scenery += off.size;
+    for (const b of all) {
+      const top = b.water + b.span.crown;
+      const onLine = !off.has(b);
+      if (onLine) gateBridges++;
+      // The deck: rock under its crown, air over it, the arch open under it
+      assert.ok(field.distance(b.cx, top - 1.5, b.cz) < 0, `${seed}: no deck under the crown`);
+      assert.ok(field.distance(b.cx, top + 2.5, b.cz) > 0, `${seed}: rock over the deck`);
+      assert.ok(field.distance(b.cx, b.water, b.cz) > 2, `${seed}: the arch is closed`);
+      // The ends land in rock (the deck's own, or the island's)
+      for (const s of [-1, 1]) {
+        const u = s * (b.span.half - 1.5);
+        assert.ok(field.distance(b.cx + b.ax * u, b.water + b.slope * u + b.span.foot - 1.5, b.cz + b.az * u) < 0.5, `${seed}: an end hangs in the air`);
+      }
+      if (onLine) {
+        // A gate bridge: its arch centred on the line, and the tube under it clear
+        assert.ok(world.course.distance(b.cx, b.water, b.cz) < 5, `${seed}: a gate bridge off the line`);
+        assert.ok(world.land.distance(world.course.x(b.cz), world.course.y(b.cz), b.cz) >= 10.9, `${seed}: the tube is blocked under a bridge`);
+      } else {
+        // Scenery: nowhere near the tube
+        assert.ok(world.course.distance(b.cx, top, b.cz) >= 20, `${seed}: a scenery bridge crowds the line`);
+      }
+    }
+  }
+  assert.ok(gateBridges >= 3, `only ${gateBridges} gate bridges over three courses`);
+  assert.ok(scenery >= 15, `only ${scenery} scenery bridges over three courses`);
+});
+
 test("a shipwreck collides with its hull and its mast, which leans back with the bow up", () => {
   const h = 26;
   // Yaw 0: the hull runs along x, bow towards +x
