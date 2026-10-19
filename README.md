@@ -1,9 +1,8 @@
 # Wind Rider
 
-A wingsuit racer for the browser, with multiplayer races. You fly a paper
+A 3D racing game for the browser. You fly a paper
 airplane down a seeded course: a glacier canyon, a lagoon, a glowing forest,
-a sunken reef, a field of floating islands, threading crystal
-gates to the finish. Dive for speed, skim the rock for style points and a
+a sunken reef, a field of floating islands. Dive for speed, skim the rock for style points and a
 boost, and beat your friends to the last gate.
 
 - **Race friends:** create a room, share its code, everyone flies the same
