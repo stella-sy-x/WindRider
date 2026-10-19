@@ -6,15 +6,16 @@ before touching code, and updates this one at commit time: finished items
 move to "Done lately", what the work turned up goes under "Now" or "Next".
 Keep "Now" short: it is what is actually in flight.
 
-Last updated 2026-10-18.
+Last updated 2026-10-19.
 
 ## Where things stand
 
 A browser wingsuit racer with a paper-airplane pilot: solo time trials and
 rooms of up to 12, five biomes from one seeded map pool (glacier canyon,
-lagoon, glowing forest, sunken reef, floating islands), crystal gates as
-optional speed boosts (any order, the finish is the only must), the Sunken
-Reef bounded by canyon walls, the other biomes still by a silent 150 m hold.
+lagoon, glowing forest, sunken reef, floating islands with ponds and stone
+bridges), crystal gates as optional speed boosts (any order, the finish is
+the only must), the Sunken Reef bounded by canyon walls, the other biomes
+still by a silent 150 m hold.
 Low-poly flat shading, cream paper and light gold. Adventure mode, pets,
 cosmetics, items and the gallery are gone; the game is racing only.
 
@@ -59,14 +60,13 @@ cosmetics, items and the gallery are gone; the game is racing only.
   This is the core risk/reward mechanic.
 - **Music** of their own for Lagoon and Reef (they play the tracks written
   for the retired Ember Wastes and Verdant Highlands).
-- **Island water and bridges**, in three steps. Ponds and stone bridges
-  are done (branch `island-water`, PR #12): a `bridge` gate kind the line
-  flies under, and ramped scenery bridges between neighbouring islands.
-  Still to come: rope bridges (a two-anchor structure that sways) for
-  long gaps, and streams on ordinary islands, a channel from the pond to
-  the rim waterfall with a ribbon of water, no bridge (too small to mesh
-  at 3 m). Waterfalls stay rare: Stella means to hang gameplay on them
-  (getting wet, slowing down), so they must not be everywhere.
+- **Island extras, parked.** Ponds and stone bridges are done (PR #12) and
+  the islands look good enough that the rest waits: streams on ordinary
+  islands (a channel from the pond to the rim waterfall with a ribbon of
+  water, no bridge, too small to mesh at 3 m) and rope bridges (a two-anchor
+  structure that sways) for long gaps. Waterfalls stay rare: Stella means
+  to hang gameplay on them (getting wet, slowing down), so they must not
+  be everywhere.
 - **Gamepad**: no Enter (start race) or pause mapping, no haptics.
 - **Playtesting** with a human on mouse and gamepad in a focused window;
   mouse sensitivity (default 2) and gamepad dead zone (0.12) were tuned by
@@ -82,15 +82,16 @@ cosmetics, items and the gallery are gone; the game is racing only.
 
 ## Known breakage
 
-- `tests/structures.test.mjs`: two assertions fail. "every run biome has a
-  landmark" expects the Archipelago to have one and it has only lanterns;
-  "the Einstein bust is a rare landmark" finds none on the level it checks.
-  Decide whether the recipes or the test are right.
-- `CREDITS.md` and the inventory are current as of 2026-10-18; `docs/audit-2026-10-11.md`
-  is a snapshot and is not kept up to date.
+- None in the tests (59 pass). `docs/audit-2026-10-11.md` is a snapshot and
+  is not kept up to date; `CREDITS.md` and `docs/biomes.md` are current as
+  of 2026-10-19.
 
 ## Done lately
 
+- 2026-10-19: the Archipelago rebuilt as the island biome: 120 islands,
+  ponds on nearly half of them with lanterns around, a `bridge` gate kind
+  the line flies under, ramped stone bridges between neighbouring islands,
+  moods trimmed to Alpine and Autumn (PR #12).
 - 2026-10-18: down to five biomes. Ember Wastes removed with everything only
   it used; Aurora Summit folded into Glacier Peaks (dawn and night moods,
   crystal rings, a summit on half the courses, observatory, pylons, altars);

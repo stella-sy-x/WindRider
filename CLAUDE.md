@@ -19,7 +19,9 @@ the gates and future biome gameplay pieces, never the pilot or its effects.
 ## The game
 
 Wind Rider is a browser wingsuit racer. Seeded procedural courses through
-floating islands and seven biomes, crystal gates, multiplayer race rooms.
+five biomes (a glacier canyon, a lagoon, a glowing forest, a sunken reef,
+floating islands with ponds and stone bridges), crystal gates, multiplayer
+race rooms.
 React + Three.js frontend, FastAPI backend behind Caddy, `docker compose`.
 
 ### Modes

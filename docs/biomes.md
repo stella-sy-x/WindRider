@@ -74,8 +74,8 @@ night moods, crystal rings, summit and observatory.
 one biome with no ground: the course threads floating islands, so the canyon
 walls do not apply here and it will need a boundary scheme of its own.
 Verdant Highlands was folded in here on 2026-10-18: its trees, flowers,
-mills, towers, shrine gates, Moonlit mood and the Einstein bust; its river,
-bridges and lakeside lanterns could not come.
+mills, towers, shrine gates and the Einstein bust; its river could not come,
+so the islands got ponds and bridges of their own instead (2026-10-18/19).
 
 - **Moods**: Alpine; Autumn. (No night mood: the islands are a daytime biome.)
 - **Ground**: none. Ponds on 45 % of islands 20 m and up (a bowl carved into the top under a flat rock lip, the island's grain smoothed around it; the water is solid like a river pool; `World.islandPonds`). Waterfalls off 15 % of big islands, kept rare for gameplay later; the two are independent.
@@ -85,7 +85,7 @@ bridges and lakeside lanterns could not come.
 - **Bridges** (`World.findIslandBridges`): stone bridges between neighbouring islands off the line, 80 % of the pairs 10 to 50 m apart rim to rim, each island in one at most, ramped where one island stands higher (up to about 24 degrees), the gap under the arch checked empty; solid like the land.
 - **Flora**: pine (dominant), oak, birch, bush, boulder. Grass with white, yellow, violet and pink flowers.
 - **Structures** (all on island rock): watchtower (landmark, 18 to 24 m), einsteinBust (landmark, about one level in three, beside the line), windmill (bare island tops), shrineGate (facing), stoneLantern sparse everywhere and dense around the ponds (`wet`).
-- **Sky**: cloud sea 260 m below, 65 puffs above and below, camera mist, fog 80 to 1400 m. **Particles**: motes, petals, fireflies at night.
+- **Sky**: cloud sea 260 m below, 65 puffs above and below, camera mist, fog 80 to 1400 m. **Particles**: motes, petals, a few fireflies (both moods are day, so they never swarm).
 - **Music**: Soaring Above the Clouds (file still named `sky-isles_`).
 
 ## Coral Lagoon
