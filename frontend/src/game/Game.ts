@@ -3,7 +3,7 @@ import * as THREE from "three";
 import type { EffectComposer } from "three/examples/jsm/postprocessing/EffectComposer.js";
 import type { UnrealBloomPass } from "three/examples/jsm/postprocessing/UnrealBloomPass.js";
 import type { ShaderPass } from "three/examples/jsm/postprocessing/ShaderPass.js";
-import { PAINT_SHADER, updatePaintPass } from "./paint";
+import { PAINT_SHADER, updatePaintLight, updatePaintPass } from "./paint";
 import { Ambient } from "./ambient";
 import { Autopilot } from "./autopilot";
 import { GameAudio } from "./audio";
@@ -1452,6 +1452,7 @@ export class Game {
 
   private render() {
     const camera = this.rig.camera;
+    updatePaintLight(this.world.palette);
     // Particle sizes are in metres: keep the conversion in step with the zooming FOV
     this.particles.setViewport(this.renderer.domElement.height, camera.fov);
     this.softParticles.setViewport(this.renderer.domElement.height, camera.fov);

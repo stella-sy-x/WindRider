@@ -70,7 +70,72 @@ export const PAINT_SHADER = {
 
 /** PAINT's sliders as a grade */
 function sliders(): PaintGrade {
-  return { grade: PAINT.grade, lift: PAINT.lift, warmth: PAINT.warmth, shadowTint: PAINT.shadowTint, contrast: PAINT.contrast, saturation: PAINT.saturation, vignette: PAINT.paintVignette, grain: PAINT.grain };
+  return {
+    grade: PAINT.grade, lift: PAINT.lift, warmth: PAINT.warmth, shadowTint: PAINT.shadowTint, contrast: PAINT.contrast, saturation: PAINT.saturation, vignette: PAINT.paintVignette, grain: PAINT.grain,
+    ramp: PAINT.ramp, steps: PAINT.steps, soft: PAINT.soft, warmLight: PAINT.warmLight, coolShade: PAINT.coolShade,
+  };
+}
+
+/** Step two, the light: uniforms shared by every atmospheric (land, plant, structure) material */
+export const PAINT_LIGHT = {
+  ramp: { value: 0 },
+  steps: { value: 3 },
+  soft: { value: 0.12 },
+  warm: { value: 0.5 },
+  cool: { value: 0.5 },
+};
+
+/**
+ * Replaces three's `lights_lambert_pars_fragment`: the sun's light quantised into `paintSteps`
+ * bands with soft edges, the lit side warmed, and the shade (what the sun does not reach, lit
+ * by the hemisphere light alone) cooled. At paintRamp 0 it is Lambert exactly. The faces are
+ * flat-shaded, so each face takes one band: that is the painted, paper-cut look; smoothing the
+ * normals on the low-poly land was tried once and turned every facet into a gradient
+ */
+export const PAINT_LAMBERT_GLSL = /* glsl */ `
+varying vec3 vViewPosition;
+uniform float paintRamp;
+uniform float paintSteps;
+uniform float paintSoft;
+uniform float paintWarm;
+uniform float paintCool;
+float paintLitness = 1.0;
+
+struct LambertMaterial {
+  vec3 diffuseColor;
+  float specularStrength;
+};
+
+void RE_Direct_Lambert( const in IncidentLight directLight, const in vec3 geometryPosition, const in vec3 geometryNormal, const in vec3 geometryViewDir, const in vec3 geometryClearcoatNormal, const in LambertMaterial material, inout ReflectedLight reflectedLight ) {
+  float dotNL = saturate( dot( geometryNormal, directLight.direction ) );
+  float steps = max( paintSteps, 1.0 );
+  float q = dotNL * steps;
+  float edge = smoothstep( 1.0 - 2.0 * paintSoft, 1.0, fract( q ) );
+  float ramped = min( ( floor( q ) + edge ) / steps, 1.0 );
+  float lit = mix( dotNL, ramped, paintRamp );
+  paintLitness = lit;
+  vec3 warm = mix( vec3( 1.0 ), vec3( 1.12, 1.02, 0.86 ), paintWarm * paintRamp );
+  vec3 irradiance = lit * directLight.color * warm;
+  reflectedLight.directDiffuse += irradiance * BRDF_Lambert( material.diffuseColor );
+}
+
+void RE_IndirectDiffuse_Lambert( const in vec3 irradiance, const in vec3 geometryPosition, const in vec3 geometryNormal, const in vec3 geometryViewDir, const in vec3 geometryClearcoatNormal, const in LambertMaterial material, inout ReflectedLight reflectedLight ) {
+  vec3 cool = mix( vec3( 1.0 ), vec3( 0.78, 0.86, 1.15 ), paintCool * paintRamp * ( 1.0 - paintLitness ) );
+  reflectedLight.indirectDiffuse += irradiance * cool * BRDF_Lambert( material.diffuseColor );
+}
+
+#define RE_Direct RE_Direct_Lambert
+#define RE_IndirectDiffuse RE_IndirectDiffuse_Lambert
+`;
+
+/** Feeds the light uniforms the mood's numbers each frame (any quality: the light needs no post-processing) */
+export function updatePaintLight(palette: Palette) {
+  const p = paintFor(palette);
+  PAINT_LIGHT.ramp.value = p.ramp;
+  PAINT_LIGHT.steps.value = p.steps;
+  PAINT_LIGHT.soft.value = p.soft;
+  PAINT_LIGHT.warm.value = p.warmLight;
+  PAINT_LIGHT.cool.value = p.coolShade;
 }
 
 /**

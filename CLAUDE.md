@@ -128,6 +128,18 @@ structures, sky, particles, music); update it when a biome recipe changes.
 
 ## Change log
 
+### 2026-10-23: Painted look, step 2: banded light, warm lit side, cool shade (Claude)
+
+- `PAINT_LAMBERT_GLSL` (paint.ts) replaces three's
+  `lights_lambert_pars_fragment` in every `atmospheric()` material (land,
+  plants, structures): the sun's `dotNL` quantised into `steps` bands with
+  `soft` edges, the lit side multiplied towards gold (`warmLight`), the
+  hemisphere's share of the shade towards blue-violet (`coolShade`), all
+  blended in by `ramp` (0 is Lambert exactly). Uniforms in `PAINT_LIGHT`,
+  fed each frame by `updatePaintLight(palette)` at any quality. Each flat
+  face takes one band; normals are never smoothed on the low-poly land.
+  Judged on the Archipelago's Autumn mood, which carries the numbers.
+
 ### 2026-10-23: Painted look, step 1: colour grade, vignette, paper grain (Claude)
 
 - `PAINT` tuning group ("Painted look" in `?tune`), off by default

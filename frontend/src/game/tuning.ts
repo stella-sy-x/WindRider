@@ -67,6 +67,14 @@ export const PAINT = {
   saturation: 1.1,
   paintVignette: 0.4, // the corners darkened, the middle untouched (FX.vignette is the speed one)
   grain: 0.08, // paper grain, fixed to the screen
+  // Step two, the light itself (every flat-shaded land, plant and structure material): the sun's
+  // light quantised into a few bands with soft edges, the lit side warmed, the shade cooled.
+  // The flat faces stay flat: each face takes one band. Never smoothed normals on the low-poly land
+  ramp: 0, // 0..1: how far from Lambert's linear light to the banded one (0 leaves the light alone)
+  steps: 3, // bands of light, dark to lit
+  soft: 0.12, // 0..0.5: how soft each band's edge is (0 hard, like cel shading)
+  warmLight: 0.5, // the lit side pushed towards gold
+  coolShade: 0.5, // the shade pushed towards blue-violet (the sky's light, not the sun's)
 };
 
 /** The crystal gates */
@@ -311,6 +319,11 @@ export const RANGES: Record<string, [number, number, number?]> = {
   bloomResolution: [0.5, 2, 0.05],
   bloomSamples: [0, 4, 1],
   grade: [0, 1],
+  ramp: [0, 1],
+  steps: [2, 5, 1],
+  soft: [0, 0.5],
+  warmLight: [0, 1.5],
+  coolShade: [0, 1.5],
   lift: [0, 0.3],
   warmth: [0, 2],
   shadowTint: [0, 2],

@@ -30,7 +30,7 @@ export interface Palette {
   paint?: Partial<PaintGrade>;
 }
 
-/** The painted look's grade: PAINT in tuning.ts has the meaning of each number */
+/** The painted look's grade and light: PAINT in tuning.ts has the meaning of each number */
 export interface PaintGrade {
   grade: number;
   lift: number;
@@ -40,6 +40,11 @@ export interface PaintGrade {
   saturation: number;
   vignette: number;
   grain: number;
+  ramp: number;
+  steps: number;
+  soft: number;
+  warmLight: number;
+  coolShade: number;
 }
 
 /** Unit vector towards the sun (or moon) */

@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import { PAINT_LAMBERT_GLSL, PAINT_LIGHT } from "../paint";
 import { sceneryTime as fxTime } from "../particles";
 
 // The air between you and the world: one set of light uniforms shared by the
@@ -190,6 +191,11 @@ export function atmospheric<T extends THREE.MeshLambertMaterial>(material: T, st
     shader.uniforms.atmoTime = ATMOSPHERE.time;
     shader.uniforms.atmoNow = ATMOSPHERE.now;
     shader.uniforms.atmoRevealRate = ATMOSPHERE.revealRate;
+    shader.uniforms.paintRamp = PAINT_LIGHT.ramp;
+    shader.uniforms.paintSteps = PAINT_LIGHT.steps;
+    shader.uniforms.paintSoft = PAINT_LIGHT.soft;
+    shader.uniforms.paintWarm = PAINT_LIGHT.warm;
+    shader.uniforms.paintCool = PAINT_LIGHT.cool;
     shader.vertexShader = shader.vertexShader
       .replace(
         "void main() {",
@@ -214,6 +220,7 @@ export function atmospheric<T extends THREE.MeshLambertMaterial>(material: T, st
         vAtmoReveal = atmoReveal(born);`,
       );
     shader.fragmentShader = shader.fragmentShader
+      .replace("#include <lights_lambert_pars_fragment>", PAINT_LAMBERT_GLSL)
       .replace(
         "void main() {",
         `${PARS}

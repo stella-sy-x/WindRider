@@ -30,8 +30,15 @@ cosmetics, items and the gallery are gone; the game is racing only.
    quality only). Each mood is judged on its own and keeps its own numbers
    (`paint` in its palette); `PAINT.override` puts the sliders over every
    mood while tuning. Judged so far: Archipelago Autumn (full strength).
-   Order: the day moods (Alpine, Lagoon noon, Glacier polar day and dawn,
-   Gloaming), then the nights, the Reef last with its own grade. Steps to come if step 1 reads right: ramped (two or three step)
+   Step 2 is in on Autumn, under judgement: the sun's light banded into
+   three steps with soft edges in every flat-shaded land, plant and
+   structure material, the lit side warmed, the shade cooled (`ramp`,
+   `steps`, `soft`, `warmLight`, `coolShade`; `PAINT_LAMBERT_GLSL` replaces
+   three's Lambert chunk inside `atmospheric()`). Each face keeps one band:
+   no smoothed normals. The plan is to take Autumn through every step
+   (vertex-colour gradient, silhouette ornament next) before the next mood.
+   Order after that: the day moods (Alpine, Lagoon noon, Glacier polar day
+   and dawn, Gloaming), then the nights, the Reef last with its own grade. Steps to come if step 1 reads right: ramped (two or three step)
    lighting with warm/cool shadow colours and a sky-driven ambient, in the
    flat-shaded material (never smoothed normals on the low-poly land: that
    was tried once and turned every facet into a gradient); a vertical
