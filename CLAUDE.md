@@ -128,6 +128,19 @@ structures, sky, particles, music); update it when a biome recipe changes.
 
 ## Change log
 
+### 2026-10-23: Painted look, step 1: colour grade, vignette, paper grain (Claude)
+
+- `PAINT` tuning group ("Painted look" in `?tune`), off by default
+  (`grade` 0): a full-screen pass (`paint.ts`, a `ShaderPass` after the
+  `OutputPass` on the bloom chain, so it grades in display space like a
+  LUT) with warm highlights, violet-blue shadows, lifted blacks, contrast,
+  saturation, a corner vignette and a grain fixed to the screen like
+  paper. Skipped entirely at grade 0; runs only with the bloom (High
+  quality). An experiment towards a storybook look, judged on the
+  Archipelago's Autumn mood first; the next steps (ramped lighting with
+  warm/cool shadows, vertex-colour gradients, silhouette ornament) wait on
+  how this one reads.
+
 ### 2026-10-19: Archipelago moods trimmed to Alpine and Autumn (Claude)
 
 - Misty pines, Dusk and Moonlit dropped after Stella looked at the islands:

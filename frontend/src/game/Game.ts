@@ -2,6 +2,8 @@ import { TestPlayback } from "./testPlayback";
 import * as THREE from "three";
 import type { EffectComposer } from "three/examples/jsm/postprocessing/EffectComposer.js";
 import type { UnrealBloomPass } from "three/examples/jsm/postprocessing/UnrealBloomPass.js";
+import type { ShaderPass } from "three/examples/jsm/postprocessing/ShaderPass.js";
+import { PAINT_SHADER, updatePaintPass } from "./paint";
 import { Ambient } from "./ambient";
 import { Autopilot } from "./autopilot";
 import { GameAudio } from "./audio";
@@ -188,6 +190,7 @@ export class Game {
   private readonly crystalPoints: THREE.Vector3[] = [];
   private composer: EffectComposer | null = null;
   private bloomPass: UnrealBloomPass | null = null;
+  private paintPass: ShaderPass | null = null;
   private composerLoading = false;
   private bloomFailed = false;
   /** Stands in for the bloom's target while shaders are compiled (see compileShaders) */
@@ -659,6 +662,7 @@ export class Game {
     this.softParticles.dispose();
     this.speedLines.dispose();
     this.debris.dispose();
+    this.paintPass?.dispose();
     this.composer?.dispose();
     this.compileTarget.dispose();
     this.renderer.dispose();
@@ -1466,6 +1470,7 @@ export class Game {
       for (let i = 0; i < this.bloomPass.bloomTintColors.length; i++) {
         this.bloomPass.bloomTintColors[i].setScalar(i < 2 ? 1 : FX.bloomHalo);
       }
+      if (this.paintPass) updatePaintPass(this.paintPass, camera.aspect);
       this.composer.render();
     } else {
       this.renderer.render(this.scene, camera);
@@ -1484,6 +1489,7 @@ export class Game {
         import("three/examples/jsm/postprocessing/UnrealBloomPass.js"),
         import("three/examples/jsm/postprocessing/OutputPass.js"),
         import("three/examples/jsm/postprocessing/FXAAPass.js"),
+        import("three/examples/jsm/postprocessing/ShaderPass.js"),
       ]);
     } catch (error) {
       // No bloom then: draw straight to the screen
@@ -1492,7 +1498,7 @@ export class Game {
       reloadForNewBuild(error);
       return;
     }
-    const [{ EffectComposer }, { RenderPass }, { UnrealBloomPass }, { OutputPass }, { FXAAPass }] = modules;
+    const [{ EffectComposer }, { RenderPass }, { UnrealBloomPass }, { OutputPass }, { FXAAPass }, { ShaderPass }] = modules;
     this.composerLoading = false;
     if (!this.bloomOn || this.composer) return;
     const size = this.renderer.getDrawingBufferSize(new THREE.Vector2());
@@ -1507,6 +1513,10 @@ export class Game {
     this.bloomPass = new UnrealBloomPass(new THREE.Vector2(size.x, size.y), FX.bloom, FX.bloomRadius, FX.bloomThreshold);
     composer.addPass(this.bloomPass);
     composer.addPass(new OutputPass());
+    // The painted look grades the finished frame in display space, like a LUT would
+    this.paintPass = new ShaderPass(PAINT_SHADER);
+    this.paintPass.enabled = false;
+    composer.addPass(this.paintPass);
     if (FX.bloomSamples === 0) composer.addPass(new FXAAPass());
     this.composer = composer;
   }
@@ -1515,8 +1525,10 @@ export class Game {
   private rebuildBloom() {
     this.composer?.dispose();
     this.bloomPass?.dispose();
+    this.paintPass?.dispose();
     this.composer = null;
     this.bloomPass = null;
+    this.paintPass = null;
     this.renderer.setPixelRatio(this.pixelRatio());
     this.resize();
   }
@@ -1537,8 +1549,10 @@ export class Game {
     if (!this.bloomOn && this.composer) {
       this.composer.dispose();
       this.bloomPass?.dispose();
+      this.paintPass?.dispose();
       this.composer = null;
       this.bloomPass = null;
+      this.paintPass = null;
     }
     this.renderer.setPixelRatio(this.pixelRatio(quality));
     this.particles.budget = QUALITY[quality].particles;

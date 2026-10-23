@@ -21,6 +21,20 @@ cosmetics, items and the gallery are gone; the game is racing only.
 
 ## Now
 
+0. **The painted look**, one step at a time, judged on the Archipelago's
+   Autumn mood (the closest to a storybook already), each step a tuning
+   group with an off switch so it can be compared and dropped. Step 1 is
+   in (branch `paint-look`): a colour grade over the finished frame, warm
+   highlights, violet shadows, lifted blacks, vignette, paper grain
+   (`PAINT` in tuning.ts, `paint.ts`, a pass after the bloom; High quality
+   only). Steps to come if step 1 reads right: ramped (two or three step)
+   lighting with warm/cool shadow colours and a sky-driven ambient, in the
+   flat-shaded material (never smoothed normals on the low-poly land: that
+   was tried once and turned every facet into a gradient); a vertical
+   vertex-colour gradient per island and tree; then silhouette ornament on
+   structures and trees. Validation order over the other biomes is
+   Stella's to decide (Glacier's snow is the stress test for cool shadows;
+   the Reef needs its own grade under water).
 1. **Jellyfish as gameplay (Reef).** The discharge exists and reads clearly:
    a seeded 4 s cycle, 0.5 s telegraph, 1 s shock hoop (`DEEP`, `deep.ts`,
    `jellyCycle()` is the CPU copy of the shader's phase). Nothing happens

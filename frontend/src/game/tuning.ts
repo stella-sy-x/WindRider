@@ -51,6 +51,22 @@ export const FX = {
   autoQuality: true, // drop effects if the frame rate can't keep up
 };
 
+/**
+ * The painted (storybook) look, step one: a colour grade over the finished frame, a vignette
+ * and a paper grain (paint.ts). An experiment, off by default; it only runs with the bloom
+ * (High quality), as a pass on the same chain. Looks only
+ */
+export const PAINT = {
+  grade: 0, // 0..1: how much of the grade below is applied (0 skips the pass)
+  lift: 0.06, // black level lifted to a dark warm grey: ink on paper, never pure black
+  warmth: 0.5, // highlights pushed towards gold
+  shadowTint: 0.5, // shadows pushed towards violet-blue
+  contrast: 1.05,
+  saturation: 1.1,
+  paintVignette: 0.4, // the corners darkened, the middle untouched (FX.vignette is the speed one)
+  grain: 0.08, // paper grain, fixed to the screen
+};
+
 /** The crystal gates */
 export const RINGS = {
   crystals: 16, // crystals per gate (finish gets 1.5×); applies to the next map
@@ -208,7 +224,7 @@ export const AUDIO = {
   nightMuffle: 0.55, // how much the highs are rolled off at night
 };
 
-const GROUPS = { ANIM, FX, RINGS, CAMERA, TERRAIN, FLORA, STRUCTURES, WATER, DEEP, AUTOPILOT, AUDIO } as const;
+const GROUPS = { ANIM, FX, PAINT, RINGS, CAMERA, TERRAIN, FLORA, STRUCTURES, WATER, DEEP, AUTOPILOT, AUDIO } as const;
 const DEFAULTS = JSON.parse(JSON.stringify(GROUPS)) as typeof GROUPS;
 const STORAGE_KEY = "windrider.tuning.speed-control-v1";
 
@@ -292,6 +308,14 @@ export const RANGES: Record<string, [number, number, number?]> = {
   bloomThreshold: [0.5, 1.5],
   bloomResolution: [0.5, 2, 0.05],
   bloomSamples: [0, 4, 1],
+  grade: [0, 1],
+  lift: [0, 0.3],
+  warmth: [0, 2],
+  shadowTint: [0, 2],
+  contrast: [0.7, 1.5],
+  saturation: [0, 2],
+  paintVignette: [0, 1.5],
+  grain: [0, 0.5],
   crystals: [6, 32, 1],
   drift: [0, 3],
   driftRate: [0, 3],
@@ -374,6 +398,7 @@ export const RANGES: Record<string, [number, number, number?]> = {
 export const TUNING_GROUPS: [string, Group][] = [
   ["Pilot animation", ANIM],
   ["Trails & particles", FX],
+  ["Painted look", PAINT],
   ["Crystal gates", RINGS],
   ["Camera", CAMERA],
   ["Terrain", TERRAIN],
