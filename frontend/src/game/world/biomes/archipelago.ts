@@ -52,7 +52,7 @@ const MOODS: readonly Palette[] = [
     grass: "#a9a24c",
     forest: "#c4642c",
     trunk: "#5a3b25",
-    rock: "#8a6b58",
+    rock: "#96674a", // warm and as saturated as Alpine's: the mood shifts every rock by the difference, and a greyer value greyed them all
     snow: "#fffaf2",
     cloud: "#fff8ee",
     accent: "#6f98d9",
@@ -82,10 +82,10 @@ export const ARCHIPELAGO: Biome = {
     surfaces: [
       // 0: the islands: warm brown rock, green cap, no strata
       { rock: "#93694a", rock2: "#a47a58", bands: 0, under: "#7a4e2c", top: "#8cb648", top2: "#9ec255", snow: false },
-      // 1: the gates: the same rock a touch greyer so they read against the islands
-      { rock: "#8a7360", rock2: "#9a836e", bands: 0, under: "#55423a", top: "#8cb648", snow: false },
-      // 2: worked stone (the bridges): courses of pale masonry, a paved top
-      { rock: "#d6ccb8", rock2: "#c4baa4", bands: 2.5, under: "#a59c89", top: "#cfc6b0", top2: "#bfb69f", snow: false, bare: true },
+      // 1: the gates: a paler sandstone, so they read against the islands by lightness, not by greyness
+      { rock: "#b89468", rock2: "#c8a677", bands: 0, under: "#7a5a3c", top: "#8cb648", snow: false },
+      // 2: worked stone (the bridges): courses of warm limestone, a paved top (the paper's cream family, never grey)
+      { rock: "#d9c7a3", rock2: "#c9b48c", bands: 2.5, under: "#a88a62", top: "#d4c29b", top2: "#c4af84", snow: false, bare: true },
     ],
     layers: { dirt: "#7a5538", sand: "#c9b48c", snow: "#ffffff", snowLine: 9999, topSlope: 0.45, texture: 0.5, glow: "#ffd98a" },
     land: {
@@ -126,10 +126,10 @@ export const ARCHIPELAGO: Biome = {
   structures: [
     // Everything stands on island rock (`on`): a great watchtower on an island per stretch; a bust of Albert Einstein (an Easter egg, in about one level in
     // three) close by the line; mills on bare island tops, shrine gates turned to the line, lanterns here and there
-    { id: "watchtower", landmark: 1100, spacing: 60, chance: 1, height: [18, 24], colors: { stone: "#cfc6b4", stone2: "#9aa784", roof: "#3f6f8f", cloth: "#d84a4a" }, where: { above: [-15, 150], lateral: [50, 300], on: "rock" } },
-    { id: "einsteinBust", landmark: 2400, spacing: 30, chance: 0.3, height: [6, 7], colors: { stone: "#c9c2b2", stone2: "#a39c8c", roof: "#a07c4c", cloth: "#f3f0e8", wood: "#3a2c20" }, where: { above: [-26, 25], lateral: [25, 140], facing: true, on: "rock" } },
-    { id: "windmill", spacing: 130, chance: 0.9, height: [15, 19], colors: { stone: "#d9cfbb", stone2: "#b9b59a", roof: "#b5533c", cloth: "#f6ecd6" }, where: { above: [-10, 150], lateral: [40, 300], forest: false, hilltop: true, on: "rock" } },
-    { id: "shrineGate", spacing: 130, chance: 0.6, height: [8, 11], colors: { stone: "#bdb6a6", stone2: "#93a07c", roof: "#3a3a44", cloth: "#d84a3a" }, where: { above: [-18, 120], lateral: [30, 300], facing: true, on: "rock" } },
+    { id: "watchtower", landmark: 1100, spacing: 60, chance: 1, height: [18, 24], colors: { stone: "#dcc7a0", stone2: "#c4a97a", roof: "#3f6f8f", cloth: "#d84a4a" }, where: { above: [-15, 150], lateral: [50, 300], on: "rock" } },
+    { id: "einsteinBust", landmark: 2400, spacing: 30, chance: 0.3, height: [6, 7], colors: { stone: "#d6c39c", stone2: "#b39a74", roof: "#a07c4c", cloth: "#f3f0e8", wood: "#3a2c20" }, where: { above: [-26, 25], lateral: [25, 140], facing: true, on: "rock" } },
+    { id: "windmill", spacing: 130, chance: 0.9, height: [15, 19], colors: { stone: "#dccba0", stone2: "#c9b48c", roof: "#b5533c", cloth: "#f6ecd6" }, where: { above: [-10, 150], lateral: [40, 300], forest: false, hilltop: true, on: "rock" } },
+    { id: "shrineGate", spacing: 130, chance: 0.6, height: [8, 11], colors: { stone: "#d9c7a3", stone2: "#b0a070", roof: "#5a2a2e", cloth: "#d84a3a" }, where: { above: [-18, 120], lateral: [30, 300], facing: true, on: "rock" } },
     { id: "stoneLantern", spacing: 24, chance: 0.4, height: [2.6, 3.4], colors: { stone: "#efe6d2", stone2: "#b8c79a", roof: "#3f7fb8" }, where: { lateral: [0, 300], on: "rock" } },
     // Lanterns gather around the ponds
     { id: "stoneLantern", spacing: 10, chance: 0.7, height: [2.6, 3.4], colors: { stone: "#efe6d2", stone2: "#b8c79a", roof: "#3f7fb8" }, where: { lateral: [0, 300], on: "rock", wet: true } },

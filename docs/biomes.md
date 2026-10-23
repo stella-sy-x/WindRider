@@ -79,7 +79,7 @@ so the islands got ponds and bridges of their own instead (2026-10-18/19).
 
 - **Moods**: Alpine; Autumn. (No night mood: the islands are a daytime biome.)
 - **Ground**: none. Ponds on 45 % of islands 20 m and up (a bowl carved into the top under a flat rock lip, the island's grain smoothed around it; the water is solid like a river pool; `World.islandPonds`). Waterfalls off 15 % of big islands, kept rare for gameplay later; the two are independent.
-- **Surfaces**: 0 the islands (warm brown rock, green cap); 1 the gates (same rock, greyer); 2 worked stone (the bridges).
+- **Surfaces**: 0 the islands (warm brown rock, green cap); 1 the gates (a paler sandstone, told apart by lightness, not greyness); 2 worked stone (the bridges, warm limestone). No greyish colours anywhere on the islands since 2026-10-24 (the storybook rule: every colour saturated, however soft).
 - **Features**: 120 floating islands (14 to 55 m) without holes, dense enough that most have a neighbour within a bridge's reach.
 - **Gates**: arch 3, pillars 2, bridge 2 (a stone bridge between two islands either side of the line, its arch centred on the line), needles 1, spur 1.
 - **Bridges** (`World.findIslandBridges`): stone bridges between neighbouring islands off the line, 80 % of the pairs 10 to 50 m apart rim to rim, each island in one at most, ramped where one island stands higher (up to about 24 degrees), the gap under the arch checked empty; solid like the land.
