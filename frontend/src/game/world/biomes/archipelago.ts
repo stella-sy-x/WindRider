@@ -108,15 +108,15 @@ export const ARCHIPELAGO: Biome = {
     kind: "flora",
     spacing: 5,
     density: 0.8,
-    openDensity: 0.3,
-    forest: { scale: 100, cover: 0.6 },
+    openDensity: 0.1, // between the woods, the odd tree
+    forest: { scale: 100, cover: 0.45 },
     treeline: 400,
     minUp: 0.75,
     species: [
-      // Pine over most island tops; oaks and birches among them, bushes and the odd boulder in the open
-      { id: "pine", weight: 5, height: [8, 15], foliage: "#3f7a3a", foliage2: "#4d8a40", trunk: "#6b4a2f" },
+      // Pine, oak and birch woods, each in groves of its own (placement.ts), bushes and the odd boulder in the open
+      { id: "pine", weight: 3, height: [8, 15], foliage: "#3f7a3a", foliage2: "#4d8a40", trunk: "#6b4a2f" },
       { id: "oak", weight: 3, height: [7, 13], foliage: "#4f8f37", foliage2: "#6aa342", trunk: "#5b4330" },
-      { id: "birch", weight: 2, height: [8, 13], foliage: "#8cbf4a", foliage2: "#a9cd57", trunk: "#e8e4da" },
+      { id: "birch", weight: 2.5, height: [8, 13], foliage: "#8cbf4a", foliage2: "#a9cd57", trunk: "#e8e4da" },
       { id: "bush", weight: 2, height: [1.4, 2.6], foliage: "#4d8a35", foliage2: "#6a9d3d", where: { forest: false } },
       { id: "boulder", weight: 0.3, height: [1.2, 2.6], foliage: "#a47a58", foliage2: "#93694a", where: { forest: false } },
     ],

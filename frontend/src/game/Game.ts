@@ -1452,7 +1452,7 @@ export class Game {
 
   private render() {
     const camera = this.rig.camera;
-    updatePaintLight(this.world.palette);
+    updatePaintLight(this.world.palette, camera);
     // Particle sizes are in metres: keep the conversion in step with the zooming FOV
     this.particles.setViewport(this.renderer.domElement.height, camera.fov);
     this.softParticles.setViewport(this.renderer.domElement.height, camera.fov);

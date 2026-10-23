@@ -83,7 +83,7 @@ so the islands got ponds and bridges of their own instead (2026-10-18/19).
 - **Features**: 120 floating islands (14 to 55 m) without holes, dense enough that most have a neighbour within a bridge's reach.
 - **Gates**: arch 3, pillars 2, bridge 2 (a stone bridge between two islands either side of the line, its arch centred on the line), needles 1, spur 1.
 - **Bridges** (`World.findIslandBridges`): stone bridges between neighbouring islands off the line, 80 % of the pairs 10 to 50 m apart rim to rim, each island in one at most, ramped where one island stands higher (up to about 24 degrees), the gap under the arch checked empty; solid like the land.
-- **Flora**: pine (dominant), oak, birch, bush, boulder. No grass tufts (the flat cards looked like paper cut-outs; removed 2026-10-23).
+- **Flora**: pine, oak and birch in groves of their own (a patch of noise per species, 90 m across; forest cover 0.45, the odd tree between), bush, boulder. No grass tufts (the flat cards looked like paper cut-outs; removed 2026-10-23).
 - **Structures** (all on island rock): watchtower (landmark, 18 to 24 m), einsteinBust (landmark, about one level in three, beside the line), windmill (bare island tops), shrineGate (facing), stoneLantern sparse everywhere and dense around the ponds (`wet`).
 - **Sky**: cloud sea 260 m below, 65 puffs above and below, camera mist, fog 80 to 1400 m. **Particles**: motes, petals, a few fireflies (both moods are day, so they never swarm).
 - **Music**: Soaring Above the Clouds (file still named `sky-isles_`).

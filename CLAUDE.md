@@ -137,6 +137,22 @@ structures, sky, particles, music); update it when a biome recipe changes.
 
 ## Change log
 
+### 2026-10-23: Groves, no trees on rims, undersides in the bounce light (Claude)
+
+- Plants pick their species with each species boosted in groves of its
+  own (`placement.ts`: a patch of noise per species, 90 m across, a floor
+  of 0.12 outside), so a wood reads as a pine wood or an oak wood with the
+  odd other tree. Archipelago: pine 3 / oak 3 / birch 2.5, forest cover
+  0.45, open density 0.1.
+- On a floating thing a plant needs 5 m of rock under its foot
+  (`RIM_DEPTH`): a rim thins to nothing and recedes at coarse detail, so
+  trees on the very edge hung in the air.
+- Painted light: shade facing down takes the mood's ground (bounce) tint,
+  the hemisphere light's own ground colour (`palette.cloud`), shade facing
+  up the sky's; the gradient's bottom is the bounce tint too. Undersides
+  of islands and trees were going grey-blue under the sky tint.
+  `updatePaintLight` takes the camera for the view-space up.
+
 ### 2026-10-23: Painted look, step 3: a vertical wash per thing (Claude)
 
 - `PAINT.gradient`: every atmospheric material multiplies its colour by a

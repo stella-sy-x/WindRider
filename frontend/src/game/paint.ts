@@ -158,6 +158,8 @@ export const PAINT_LIGHT = {
   cool: { value: 0.5 },
   sunTint: { value: new THREE.Color(1, 1, 1) },
   skyTint: { value: new THREE.Color(1, 1, 1) },
+  groundTint: { value: new THREE.Color(1, 1, 1) },
+  viewUp: { value: new THREE.Vector3(0, 1, 0) },
   gradient: { value: 0 },
 };
 
@@ -176,16 +178,21 @@ function tint(color: THREE.Color, out: THREE.Color): THREE.Color {
   return out;
 }
 
-const tints = new WeakMap<Palette, { sun: THREE.Color; sky: THREE.Color }>();
+const tints = new WeakMap<Palette, { sun: THREE.Color; sky: THREE.Color; ground: THREE.Color }>();
 const scratch = new THREE.Color();
 
-/** The mood's sun and sky as tints: the lit side goes towards the sun's colour, the shade towards the sky's */
-export function paintTints(palette: Palette): { sun: THREE.Color; sky: THREE.Color } {
+/**
+ * The mood's sun, sky and ground as tints: the lit side goes towards the sun's colour, shade
+ * facing up towards the sky's, shade facing down towards the ground's (the light bounced up
+ * from the sea of clouds, the valley: the hemisphere light's own ground colour)
+ */
+export function paintTints(palette: Palette): { sun: THREE.Color; sky: THREE.Color; ground: THREE.Color } {
   let t = tints.get(palette);
   if (!t) {
     const sun = tint(new THREE.Color(palette.sun), new THREE.Color());
     const sky = tint(scratch.set(palette.horizon).lerp(new THREE.Color(palette.zenith), 0.5), new THREE.Color());
-    t = { sun, sky };
+    const ground = tint(new THREE.Color(palette.cloud), new THREE.Color());
+    t = { sun, sky, ground };
     tints.set(palette, t);
   }
   return t;
@@ -209,7 +216,9 @@ uniform float paintWarm;
 uniform float paintCool;
 uniform vec3 paintSunTint; // the mood's sun colour as a tint (mean 1)
 uniform vec3 paintSkyTint; // the mood's sky colour as a tint
-uniform float paintGradient; // the vertical wash, bottom towards the sky's colour, top towards the sun's
+uniform vec3 paintGroundTint; // the mood's ground (bounce) colour as a tint: what undersides see
+uniform vec3 paintViewUp; // the world's up, in view space
+uniform float paintGradient; // the vertical wash, bottom towards the ground's colour, top towards the sun's
 float paintLitness = 1.0;
 
 struct LambertMaterial {
@@ -231,7 +240,9 @@ void RE_Direct_Lambert( const in IncidentLight directLight, const in vec3 geomet
 }
 
 void RE_IndirectDiffuse_Lambert( const in vec3 irradiance, const in vec3 geometryPosition, const in vec3 geometryNormal, const in vec3 geometryViewDir, const in vec3 geometryClearcoatNormal, const in LambertMaterial material, inout ReflectedLight reflectedLight ) {
-  vec3 cool = mix( vec3( 1.0 ), paintSkyTint, paintCool * paintRamp * ( 1.0 - paintLitness ) );
+  // Shade facing the sky takes the sky's colour; shade facing the ground takes the bounce light's
+  float down = clamp( -dot( geometryNormal, paintViewUp ), 0.0, 1.0 );
+  vec3 cool = mix( vec3( 1.0 ), mix( paintSkyTint, paintGroundTint, down ), paintCool * paintRamp * ( 1.0 - paintLitness ) );
   reflectedLight.indirectDiffuse += irradiance * cool * BRDF_Lambert( material.diffuseColor );
 }
 
@@ -240,11 +251,13 @@ void RE_IndirectDiffuse_Lambert( const in vec3 irradiance, const in vec3 geometr
 `;
 
 /** Feeds the light uniforms the mood's numbers each frame (any quality: the light needs no post-processing) */
-export function updatePaintLight(palette: Palette) {
+export function updatePaintLight(palette: Palette, camera: THREE.Camera) {
   const p = paintFor(palette);
   const t = paintTints(palette);
   PAINT_LIGHT.sunTint.value.copy(t.sun);
   PAINT_LIGHT.skyTint.value.copy(t.sky);
+  PAINT_LIGHT.groundTint.value.copy(t.ground);
+  PAINT_LIGHT.viewUp.value.set(0, 1, 0).transformDirection(camera.matrixWorldInverse);
   PAINT_LIGHT.ramp.value = p.ramp;
   PAINT_LIGHT.steps.value = p.steps;
   PAINT_LIGHT.soft.value = p.soft;
