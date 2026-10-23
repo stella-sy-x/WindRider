@@ -17,10 +17,13 @@ mood's `accent` is muted (no neon) and belongs to the biome's own things:
 the gates and future biome gameplay pieces, never the pilot or its effects.
 
 The look we are moving towards is a storybook: nostalgic, fairy-tale,
-ornate. "Nostalgic" means the feeling (warm low light, soft colour, lifted
-blacks, a haze like memory), never an aged or dirty picture: no grain, no
-scratches, no worn paper, no dust on the lens. Flat faces stay flat; the
-painted look lives in the light and the colour, not in smoothed normals.
+ornate. "Nostalgic" means the feeling (soft colour, lifted blacks, a haze
+like memory), never an aged or dirty picture: no grain, no scratches, no
+worn paper, no dust on the lens. Warmth is not a rule either: each mood
+keeps its own temperature, the lit side takes the colour of its sun and
+the shade the colour of its sky (an amber mood goes gold and violet, a
+crisp blue one stays crisp). Flat faces stay flat; the painted look lives
+in the light and the colour, not in smoothed normals.
 
 ## The game
 
@@ -133,6 +136,15 @@ structures, sky, particles, music); update it when a biome recipe changes.
 `docs/debug-mode.md` is test mode.
 
 ## Change log
+
+### 2026-10-23: Painted look: the tints are each mood's own sun and sky (Claude)
+
+- The lit side and the highlights go towards the mood's sun colour, the
+  shade and the shadows towards its sky colour (`paintTints`: the palette's
+  `sun`, and `horizon` lerp `zenith`, each scaled to a mean of 1 and kept
+  within 0.55 to 1.6), in both the Lambert chunk and the grade pass; the
+  sliders say how far, never which colour. A fixed gold/violet made the
+  Alpine mood warm when it should stay crisp.
 
 ### 2026-10-23: Painted look, step 2: banded light, warm lit side, cool shade (Claude)
 

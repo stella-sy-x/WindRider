@@ -61,8 +61,8 @@ export const PAINT = {
   override: false, // the sliders below apply to every mood, over the numbers a mood has of its own (while tuning)
   grade: 0, // 0..1: how much of the grade below is applied (0 skips the pass)
   lift: 0.06, // black level lifted to a dark warm grey: ink on paper, never pure black
-  warmth: 0.5, // highlights pushed towards gold
-  shadowTint: 0.5, // shadows pushed towards violet-blue
+  warmth: 0.5, // highlights pushed towards the mood's sun colour (gold on an amber mood, nothing on a white-sun one)
+  shadowTint: 0.5, // shadows pushed towards the mood's sky colour
   contrast: 1.05,
   saturation: 1.1,
   paintVignette: 0.4, // the corners darkened, the middle untouched (FX.vignette is the speed one)
@@ -73,8 +73,8 @@ export const PAINT = {
   ramp: 0, // 0..1: how far from Lambert's linear light to the banded one (0 leaves the light alone)
   steps: 3, // bands of light, dark to lit
   soft: 0.12, // 0..0.5: how soft each band's edge is (0 hard, like cel shading)
-  warmLight: 0.5, // the lit side pushed towards gold
-  coolShade: 0.5, // the shade pushed towards blue-violet (the sky's light, not the sun's)
+  warmLight: 0.5, // the lit side pushed towards the mood's sun colour
+  coolShade: 0.5, // the shade pushed towards the mood's sky colour (the sky's light, not the sun's)
 };
 
 /** The crystal gates */

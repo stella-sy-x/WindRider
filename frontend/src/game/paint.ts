@@ -20,6 +20,8 @@ export const PAINT_SHADER = {
     vignette: { value: 0 },
     grain: { value: 0 },
     aspect: { value: 1 },
+    sunTint: { value: new THREE.Color(1, 1, 1) },
+    skyTint: { value: new THREE.Color(1, 1, 1) },
   },
   vertexShader: /* glsl */ `
     varying vec2 vUv;
@@ -39,6 +41,8 @@ export const PAINT_SHADER = {
     uniform float vignette;
     uniform float grain;
     uniform float aspect;
+    uniform vec3 sunTint; // the mood's sun colour as a tint (mean 1): where the highlights go
+    uniform vec3 skyTint; // the mood's sky colour as a tint: where the shadows go
     varying vec2 vUv;
 
     float luma(vec3 c) { return dot(c, vec3(0.299, 0.587, 0.114)); }
@@ -47,10 +51,11 @@ export const PAINT_SHADER = {
       vec4 source = texture2D(tDiffuse, vUv);
       vec3 c = clamp(source.rgb, 0.0, 1.0);
       float l = luma(c);
-      // Shadows go violet-blue, highlights gold: the painter's warm light and cool shade
+      // The painter's rule: the highlights take the colour of the light, the shadows the colour of
+      // the sky. Which colours those are is the mood's own (its sun and sky), not a fixed warm/cool
       float shade = (1.0 - l) * (1.0 - l);
-      c += shadowTint * shade * vec3(0.05, 0.03, 0.16);
-      c += warmth * smoothstep(0.35, 1.0, l) * vec3(0.10, 0.04, -0.06);
+      c += shadowTint * shade * (skyTint - 1.0) * 0.6;
+      c += warmth * smoothstep(0.35, 1.0, l) * (sunTint - 1.0) * 1.2;
       // No pure black: ink on paper lifts to a dark warm grey
       c = c * (1.0 - lift) + lift * vec3(0.16, 0.13, 0.17);
       c = (c - 0.5) * contrast + 0.5;
@@ -83,12 +88,46 @@ export const PAINT_LIGHT = {
   soft: { value: 0.12 },
   warm: { value: 0.5 },
   cool: { value: 0.5 },
+  sunTint: { value: new THREE.Color(1, 1, 1) },
+  skyTint: { value: new THREE.Color(1, 1, 1) },
 };
 
 /**
+ * A colour as a tint: scaled to a mean of 1, so it changes the hue of what it multiplies and not
+ * the brightness, each channel kept within [0.55, 1.6] (a night zenith is nearly black, and its
+ * ratios would run away)
+ */
+function tint(color: THREE.Color, out: THREE.Color): THREE.Color {
+  const mean = Math.max((color.r + color.g + color.b) / 3, 1e-4);
+  out.setRGB(
+    Math.min(Math.max(color.r / mean, 0.55), 1.6),
+    Math.min(Math.max(color.g / mean, 0.55), 1.6),
+    Math.min(Math.max(color.b / mean, 0.55), 1.6),
+  );
+  return out;
+}
+
+const tints = new WeakMap<Palette, { sun: THREE.Color; sky: THREE.Color }>();
+const scratch = new THREE.Color();
+
+/** The mood's sun and sky as tints: the lit side goes towards the sun's colour, the shade towards the sky's */
+export function paintTints(palette: Palette): { sun: THREE.Color; sky: THREE.Color } {
+  let t = tints.get(palette);
+  if (!t) {
+    const sun = tint(new THREE.Color(palette.sun), new THREE.Color());
+    const sky = tint(scratch.set(palette.horizon).lerp(new THREE.Color(palette.zenith), 0.5), new THREE.Color());
+    t = { sun, sky };
+    tints.set(palette, t);
+  }
+  return t;
+}
+
+/**
  * Replaces three's `lights_lambert_pars_fragment`: the sun's light quantised into `paintSteps`
- * bands with soft edges, the lit side warmed, and the shade (what the sun does not reach, lit
- * by the hemisphere light alone) cooled. At paintRamp 0 it is Lambert exactly. The faces are
+ * bands with soft edges, the lit side tinted towards the mood's sun colour, and the shade (what
+ * the sun does not reach, lit by the hemisphere light alone) towards the mood's sky colour: the
+ * painter's rule, so an amber mood goes gold and violet and a crisp blue one stays crisp. At
+ * paintRamp 0 it is Lambert exactly. The faces are
  * flat-shaded, so each face takes one band: that is the painted, paper-cut look; smoothing the
  * normals on the low-poly land was tried once and turned every facet into a gradient
  */
@@ -99,6 +138,8 @@ uniform float paintSteps;
 uniform float paintSoft;
 uniform float paintWarm;
 uniform float paintCool;
+uniform vec3 paintSunTint; // the mood's sun colour as a tint (mean 1)
+uniform vec3 paintSkyTint; // the mood's sky colour as a tint
 float paintLitness = 1.0;
 
 struct LambertMaterial {
@@ -114,13 +155,13 @@ void RE_Direct_Lambert( const in IncidentLight directLight, const in vec3 geomet
   float ramped = min( ( floor( q ) + edge ) / steps, 1.0 );
   float lit = mix( dotNL, ramped, paintRamp );
   paintLitness = lit;
-  vec3 warm = mix( vec3( 1.0 ), vec3( 1.12, 1.02, 0.86 ), paintWarm * paintRamp );
+  vec3 warm = mix( vec3( 1.0 ), paintSunTint, paintWarm * paintRamp );
   vec3 irradiance = lit * directLight.color * warm;
   reflectedLight.directDiffuse += irradiance * BRDF_Lambert( material.diffuseColor );
 }
 
 void RE_IndirectDiffuse_Lambert( const in vec3 irradiance, const in vec3 geometryPosition, const in vec3 geometryNormal, const in vec3 geometryViewDir, const in vec3 geometryClearcoatNormal, const in LambertMaterial material, inout ReflectedLight reflectedLight ) {
-  vec3 cool = mix( vec3( 1.0 ), vec3( 0.78, 0.86, 1.15 ), paintCool * paintRamp * ( 1.0 - paintLitness ) );
+  vec3 cool = mix( vec3( 1.0 ), paintSkyTint, paintCool * paintRamp * ( 1.0 - paintLitness ) );
   reflectedLight.indirectDiffuse += irradiance * cool * BRDF_Lambert( material.diffuseColor );
 }
 
@@ -131,6 +172,9 @@ void RE_IndirectDiffuse_Lambert( const in vec3 irradiance, const in vec3 geometr
 /** Feeds the light uniforms the mood's numbers each frame (any quality: the light needs no post-processing) */
 export function updatePaintLight(palette: Palette) {
   const p = paintFor(palette);
+  const t = paintTints(palette);
+  PAINT_LIGHT.sunTint.value.copy(t.sun);
+  PAINT_LIGHT.skyTint.value.copy(t.sky);
   PAINT_LIGHT.ramp.value = p.ramp;
   PAINT_LIGHT.steps.value = p.steps;
   PAINT_LIGHT.soft.value = p.soft;
@@ -153,6 +197,9 @@ export function updatePaintPass(pass: { enabled: boolean; uniforms: Record<strin
   pass.enabled = p.grade > 0;
   if (!pass.enabled) return;
   const u = pass.uniforms;
+  const t = paintTints(palette);
+  (u.sunTint.value as THREE.Color).copy(t.sun);
+  (u.skyTint.value as THREE.Color).copy(t.sky);
   u.strength.value = p.grade;
   u.lift.value = p.lift;
   u.warmth.value = p.warmth;
