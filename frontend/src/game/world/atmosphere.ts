@@ -201,6 +201,7 @@ export function atmospheric<T extends THREE.MeshLambertMaterial>(material: T, st
     shader.uniforms.paintSkyTint = PAINT_LIGHT.skyTint;
     shader.uniforms.paintGroundTint = PAINT_LIGHT.groundTint;
     shader.uniforms.paintViewUp = PAINT_LIGHT.viewUp;
+    shader.uniforms.paintBounce = PAINT_LIGHT.bounce;
     shader.uniforms.paintGradient = PAINT_LIGHT.gradient;
     shader.vertexShader = shader.vertexShader
       .replace(

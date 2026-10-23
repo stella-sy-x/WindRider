@@ -22,6 +22,7 @@ export const PAINT_SHADER = {
     aspect: { value: 1 },
     sunTint: { value: new THREE.Color(1, 1, 1) },
     skyTint: { value: new THREE.Color(1, 1, 1) },
+    groundTint: { value: new THREE.Color(1, 1, 1) },
   },
   vertexShader: /* glsl */ `
     varying vec2 vUv;
@@ -42,7 +43,8 @@ export const PAINT_SHADER = {
     uniform float grain;
     uniform float aspect;
     uniform vec3 sunTint; // the mood's sun colour as a tint (mean 1): where the highlights go
-    uniform vec3 skyTint; // the mood's sky colour as a tint: where the shadows go
+    uniform vec3 skyTint; // the mood's sky colour as a tint: where the shadows go, with...
+    uniform vec3 groundTint; // ...the mood's ground (bounce) colour: shadows are half sky, half bounce
     varying vec2 vUv;
 
     float luma(vec3 c) { return dot(c, vec3(0.299, 0.587, 0.114)); }
@@ -54,10 +56,11 @@ export const PAINT_SHADER = {
       // The painter's rule: the highlights take the colour of the light, the shadows the colour of
       // the sky. Which colours those are is the mood's own (its sun and sky), not a fixed warm/cool
       float shade = (1.0 - l) * (1.0 - l);
-      c += shadowTint * shade * (skyTint - 1.0) * 0.6;
+      vec3 shadowColor = mix(skyTint, groundTint, 0.5);
+      c += shadowTint * shade * (shadowColor - 1.0) * 0.6;
       c += warmth * smoothstep(0.35, 1.0, l) * (sunTint - 1.0) * 1.2;
-      // No pure black: ink on paper lifts to a dark warm grey
-      c = c * (1.0 - lift) + lift * vec3(0.16, 0.13, 0.17);
+      // No pure black: the darkest dark is a deep version of the mood's bounce light (never a fixed grey)
+      c = c * (1.0 - lift) + lift * groundTint * 0.15;
       c = (c - 0.5) * contrast + 0.5;
       c = mix(vec3(luma(c)), c, saturation);
       // Vignette: the corners darken, the middle is untouched
@@ -78,7 +81,7 @@ function fresh(palette: Palette): PaintGrade {
   const d = PAINT_DEFAULTS;
   return {
     grade: d.grade, lift: d.lift, warmth: d.warmth, shadowTint: d.shadowTint, contrast: d.contrast, saturation: d.saturation, vignette: d.paintVignette, grain: d.grain,
-    ramp: d.ramp, steps: d.steps, soft: d.soft, warmLight: d.warmLight, coolShade: d.coolShade, gradient: d.gradient,
+    ramp: d.ramp, steps: d.steps, soft: d.soft, warmLight: d.warmLight, coolShade: d.coolShade, bounce: d.bounce, gradient: d.gradient,
     ...palette.paint,
   };
 }
@@ -121,6 +124,7 @@ export function paintToSliders(palette: Palette) {
   PAINT.soft = r.soft;
   PAINT.warmLight = r.warmLight;
   PAINT.coolShade = r.coolShade;
+  PAINT.bounce = r.bounce;
   PAINT.gradient = r.gradient;
 }
 
@@ -140,6 +144,7 @@ export function slidersToPaint(palette: Palette) {
   r.soft = PAINT.soft;
   r.warmLight = PAINT.warmLight;
   r.coolShade = PAINT.coolShade;
+  r.bounce = PAINT.bounce;
   r.gradient = PAINT.gradient;
 }
 
@@ -156,6 +161,7 @@ export const PAINT_LIGHT = {
   soft: { value: 0.12 },
   warm: { value: 0.5 },
   cool: { value: 0.5 },
+  bounce: { value: 0.3 },
   sunTint: { value: new THREE.Color(1, 1, 1) },
   skyTint: { value: new THREE.Color(1, 1, 1) },
   groundTint: { value: new THREE.Color(1, 1, 1) },
@@ -218,6 +224,7 @@ uniform vec3 paintSunTint; // the mood's sun colour as a tint (mean 1)
 uniform vec3 paintSkyTint; // the mood's sky colour as a tint
 uniform vec3 paintGroundTint; // the mood's ground (bounce) colour as a tint: what undersides see
 uniform vec3 paintViewUp; // the world's up, in view space
+uniform float paintBounce; // how much brighter shade facing down is than shade facing up (the light bounced up from below is bright)
 uniform float paintGradient; // the vertical wash, bottom towards the ground's colour, top towards the sun's
 float paintLitness = 1.0;
 
@@ -243,7 +250,8 @@ void RE_IndirectDiffuse_Lambert( const in vec3 irradiance, const in vec3 geometr
   // Shade facing the sky takes the sky's colour; shade facing the ground takes the bounce light's
   float down = clamp( -dot( geometryNormal, paintViewUp ), 0.0, 1.0 );
   vec3 cool = mix( vec3( 1.0 ), mix( paintSkyTint, paintGroundTint, down ), paintCool * paintRamp * ( 1.0 - paintLitness ) );
-  reflectedLight.indirectDiffuse += irradiance * cool * BRDF_Lambert( material.diffuseColor );
+  float bounce = 1.0 + paintBounce * paintRamp * down * ( 1.0 - paintLitness );
+  reflectedLight.indirectDiffuse += irradiance * cool * bounce * BRDF_Lambert( material.diffuseColor );
 }
 
 #define RE_Direct RE_Direct_Lambert
@@ -263,6 +271,7 @@ export function updatePaintLight(palette: Palette, camera: THREE.Camera) {
   PAINT_LIGHT.soft.value = p.soft;
   PAINT_LIGHT.warm.value = p.warmLight;
   PAINT_LIGHT.cool.value = p.coolShade;
+  PAINT_LIGHT.bounce.value = p.bounce;
   PAINT_LIGHT.gradient.value = p.gradient;
 }
 
@@ -275,6 +284,7 @@ export function updatePaintPass(pass: { enabled: boolean; uniforms: Record<strin
   const t = paintTints(palette);
   (u.sunTint.value as THREE.Color).copy(t.sun);
   (u.skyTint.value as THREE.Color).copy(t.sky);
+  (u.groundTint.value as THREE.Color).copy(t.ground);
   u.strength.value = p.grade;
   u.lift.value = p.lift;
   u.warmth.value = p.warmth;

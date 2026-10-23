@@ -45,6 +45,7 @@ export interface PaintGrade {
   soft: number;
   warmLight: number;
   coolShade: number;
+  bounce: number;
   gradient: number;
 }
 

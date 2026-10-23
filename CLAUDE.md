@@ -137,6 +137,15 @@ structures, sky, particles, music); update it when a biome recipe changes.
 
 ## Change log
 
+### 2026-10-23: Undersides out of the grey (Claude)
+
+- The grade pass no longer pushes every dark pixel towards the sky: its
+  shadow colour is half the mood's sky tint, half its bounce (ground) tint,
+  and the lifted black is the bounce tint at 0.15, never a fixed grey.
+- `PAINT.bounce`: in the light, shade facing down is brightened (0.3 by
+  default), as the light bounced up from below is bright; the Archipelago's
+  under-rock colour is a richer brown (#7a4e2c, was a greyish #5e4330).
+
 ### 2026-10-23: Groves, no trees on rims, undersides in the bounce light (Claude)
 
 - Plants pick their species with each species boosted in groves of its

@@ -66,7 +66,7 @@ const MOODS: readonly Palette[] = [
     mistDensity: 0.45,
     glow: 1.2,
     // Judged 2026-10-23 (Stella, in ?tune): grade 0.82, blacks lifted to 0.12; the banded light at the defaults
-    paint: { grade: 0.82, lift: 0.12, warmth: 0.5, shadowTint: 0.5, contrast: 1.05, saturation: 1.1, vignette: 0.4, grain: 0, ramp: 1, steps: 3, soft: 0.12, warmLight: 0.5, coolShade: 0.5, gradient: 1.2 },
+    paint: { grade: 0.82, lift: 0.12, warmth: 0.5, shadowTint: 0.5, contrast: 1.05, saturation: 1.1, vignette: 0.4, grain: 0, ramp: 1, steps: 3, soft: 0.12, warmLight: 0.5, coolShade: 0.5, bounce: 0.3, gradient: 1.2 },
   },
 ];
 
@@ -81,7 +81,7 @@ export const ARCHIPELAGO: Biome = {
     groundSurface: 0,
     surfaces: [
       // 0: the islands: warm brown rock, green cap, no strata
-      { rock: "#93694a", rock2: "#a47a58", bands: 0, under: "#5e4330", top: "#8cb648", top2: "#9ec255", snow: false },
+      { rock: "#93694a", rock2: "#a47a58", bands: 0, under: "#7a4e2c", top: "#8cb648", top2: "#9ec255", snow: false },
       // 1: the gates: the same rock a touch greyer so they read against the islands
       { rock: "#8a7360", rock2: "#9a836e", bands: 0, under: "#55423a", top: "#8cb648", snow: false },
       // 2: worked stone (the bridges): courses of pale masonry, a paved top
