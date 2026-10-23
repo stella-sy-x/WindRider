@@ -118,7 +118,8 @@ export const ARCHIPELAGO: Biome = {
       { id: "bush", weight: 2, height: [1.4, 2.6], foliage: "#4d8a35", foliage2: "#6a9d3d", where: { forest: false } },
       { id: "boulder", weight: 0.3, height: [1.2, 2.6], foliage: "#a47a58", foliage2: "#93694a", where: { forest: false } },
     ],
-    grass: { spacing: 2.6, height: [0.5, 0.9], color: "#7aa848", tip: "#c8d070", flowers: ["#ffffff", "#ffd84a", "#c58cff", "#ff7a9c"], flowerShare: 0.25 },
+    // No grass tufts: the flat cards read as paper cut-outs against the painted look
+    grass: null,
   },
   structures: [
     // Everything stands on island rock (`on`): a great watchtower on an island per stretch; a bust of Albert Einstein (an Easter egg, in about one level in
