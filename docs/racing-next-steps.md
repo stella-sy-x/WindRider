@@ -39,8 +39,12 @@ cosmetics, items and the gallery are gone; the game is racing only.
    structure material, the lit side warmed, the shade cooled (`ramp`,
    `steps`, `soft`, `warmLight`, `coolShade`; `PAINT_LAMBERT_GLSL` replaces
    three's Lambert chunk inside `atmospheric()`). Each face keeps one band:
-   no smoothed normals. The plan is to take Autumn through every step
-   (vertex-colour gradient, silhouette ornament next) before the next mood.
+   no smoothed normals. Step 3 is in on Autumn, under judgement: a
+   vertical wash on every thing (`gradient`), its bottom towards the sky's
+   colour and darker, its top towards the sun's and lighter; the mesher
+   writes a `rise` per vertex (where it sits within its own shape, or over
+   the line on the ground), plants use their own height. Silhouette
+   ornament is next, after the three steps are judged on Autumn.
    Order after that: the day moods (Alpine, Lagoon noon, Glacier polar day
    and dawn, Gloaming), then the nights, the Reef last with its own grade. Steps to come if step 1 reads right: ramped (two or three step)
    lighting with warm/cool shadow colours and a sky-driven ambient, in the

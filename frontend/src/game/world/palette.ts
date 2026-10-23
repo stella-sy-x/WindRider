@@ -45,6 +45,7 @@ export interface PaintGrade {
   soft: number;
   warmLight: number;
   coolShade: number;
+  gradient: number;
 }
 
 /** Unit vector towards the sun (or moon) */

@@ -78,6 +78,10 @@ export const PAINT = {
   soft: 0.12, // 0..0.5: how soft each band's edge is (0 hard, like cel shading)
   warmLight: 0.5, // the lit side pushed towards the mood's sun colour
   coolShade: 0.5, // the shade pushed towards the mood's sky colour (the sky's light, not the sun's)
+  // Step three, a vertical wash on every thing: its bottom a few percent towards the sky's colour and
+  // darker, its top towards the sun's and lighter (an island from its tip to its top, a tree from
+  // its foot to its crown, the ground from the valley floor up). Vertex colour, no new geometry
+  gradient: 0, // 0..1: strength of the wash
 };
 
 /** PAINT as written above: what a mood without numbers of its own takes, and what reset returns a mood to */
@@ -331,6 +335,7 @@ export const RANGES: Record<string, [number, number, number?]> = {
   soft: [0, 0.5],
   warmLight: [0, 1.5],
   coolShade: [0, 1.5],
+  gradient: [0, 1.5],
   lift: [0, 0.3],
   warmth: [0, 2],
   shadowTint: [0, 2],

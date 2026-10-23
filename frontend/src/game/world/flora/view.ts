@@ -101,6 +101,7 @@ function plantMaterial(
             vec3 root = vec3(0.0);
           #endif
           float phase = root.x * 0.11 + root.z * 0.07;
+          vPaintRise = ${grass ? "0.5" : "clamp(position.y, 0.0, 1.0)"};
           ${spin ? `
           if (spin > 0.5) {
             // Sails turn about the hub (their faces look along the axis, so normals stay)

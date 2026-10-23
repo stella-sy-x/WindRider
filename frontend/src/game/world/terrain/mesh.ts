@@ -30,6 +30,7 @@ export interface TerrainMesh {
   cover: Uint8Array; // rgba per vertex: cover color, wetness
   crystal: Uint8Array; // 0/255 per vertex: crystal-only optical shading
   snow: Float32Array; // per vertex: metres above the racing line for snow (very negative: never)
+  rise: Float32Array; // per vertex, 0..1: bottom to top of its own shape (or low to high over the line, on the ground), for the painted gradient
 }
 
 const CORNERS = [
@@ -101,7 +102,7 @@ export function nodeKey(lod: number, ix: number, iy: number, iz: number): number
   return ((lod * 2048 + ix + 1024) * 2048 + iy + 1024) * 2048 + iz + 1024;
 }
 
-const EMPTY: TerrainMesh = { positions: new Float32Array(0), rock: new Uint8Array(0), cover: new Uint8Array(0), snow: new Float32Array(0), crystal: new Uint8Array(0) };
+const EMPTY: TerrainMesh = { positions: new Float32Array(0), rock: new Uint8Array(0), cover: new Uint8Array(0), snow: new Float32Array(0), crystal: new Uint8Array(0), rise: new Float32Array(0) };
 
 export function meshNode(world: World, lod: number, ix: number, iy: number, iz: number): TerrainMesh {
   const field = world.land!;
@@ -192,7 +193,9 @@ export function meshNode(world: World, lod: number, ix: number, iy: number, iz: 
   const coverOut: number[] = [];
   const snowOut: number[] = [];
   const crystalOut: number[] = [];
+  const riseOut: number[] = [];
   let crystal = 0;
+  let rise = 0.5;
   const surfaces = terrain.surfaces;
   // Only ask which surface a face belongs to when shapes are nearby; otherwise it's the ground
   const shapesNear = field.shapes.some(
@@ -215,6 +218,7 @@ export function meshNode(world: World, lod: number, ix: number, iy: number, iz: 
     coverOut.push(rgba[4], rgba[5], rgba[6], rgba[7]);
     snowOut.push(snowHeight);
     crystalOut.push(crystal);
+    riseOut.push(rise);
   };
   const emit = (ax: number, ay: number, az: number, bx: number, by: number, bz: number, cx: number, cy: number, cz: number) => {
     corner(ax, ay, az);
@@ -247,6 +251,9 @@ export function meshNode(world: World, lod: number, ix: number, iy: number, iz: 
     const s = paint.surface;
     crystal = s.crystal ? 255 : 0;
     const above = my - world.course.y(mz);
+    // Bottom to top of its own shape; on the ground, low to high over the line (the valley floor about 0.45)
+    const inShape = shapesNear ? field.riseAt(mx, my, mz) : NaN;
+    rise = Number.isNaN(inShape) ? clamp((above + 70) / 150, 0, 1) : inShape;
 
     // Rock: strata bands wavering around the hill, dark streaks running down, darker undersides
     rock.copy(paint.rock);
@@ -358,7 +365,7 @@ export function meshNode(world: World, lod: number, ix: number, iy: number, iz: 
 
   // Distant nodes never used centre refinement. Keep their coarse geometry
   // and worker cost unchanged; cleanup is for the full-detail flight surface.
-  if (lod > 0) return { positions: new Float32Array(positions), rock: new Uint8Array(rockOut), cover: new Uint8Array(coverOut), snow: new Float32Array(snowOut), crystal: new Uint8Array(crystalOut) };
+  if (lod > 0) return { positions: new Float32Array(positions), rock: new Uint8Array(rockOut), cover: new Uint8Array(coverOut), snow: new Float32Array(snowOut), crystal: new Uint8Array(crystalOut), rise: new Float32Array(riseOut) };
   const cleaned = cleanMesh(new Float32Array(positions), [ix * size, iy * size, iz * size], size, S);
   return {
     positions: cleaned.positions,
@@ -366,5 +373,6 @@ export function meshNode(world: World, lod: number, ix: number, iy: number, iz: 
     cover: remapFaces(new Uint8Array(coverOut), cleaned.sources, 12),
     crystal: remapFaces(new Uint8Array(crystalOut), cleaned.sources, 3),
     snow: remapFaces(new Float32Array(snowOut), cleaned.sources, 3),
+    rise: remapFaces(new Float32Array(riseOut), cleaned.sources, 3),
   };
 }

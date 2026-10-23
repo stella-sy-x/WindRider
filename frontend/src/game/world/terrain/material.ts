@@ -90,6 +90,7 @@ export function terrainMaterial(layers: Layers): { material: THREE.MeshLambertMa
         attribute vec4 cover;
         attribute float snow;
         attribute float crystal;
+        attribute float rise;
         varying vec4 vRock;
         varying vec4 vCover;
         varying float vSnow;
@@ -98,7 +99,8 @@ export function terrainMaterial(layers: Layers): { material: THREE.MeshLambertMa
           vRock = rock;
           vCover = cover;
           vSnow = snow;
-          vCrystal = crystal;`,
+          vCrystal = crystal;
+          vPaintRise = rise;`,
       );
     shader.fragmentShader = shader.fragmentShader
       .replace("void main() {", `${PARS}\nvoid main() {`)

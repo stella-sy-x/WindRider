@@ -78,7 +78,7 @@ function fresh(palette: Palette): PaintGrade {
   const d = PAINT_DEFAULTS;
   return {
     grade: d.grade, lift: d.lift, warmth: d.warmth, shadowTint: d.shadowTint, contrast: d.contrast, saturation: d.saturation, vignette: d.paintVignette, grain: d.grain,
-    ramp: d.ramp, steps: d.steps, soft: d.soft, warmLight: d.warmLight, coolShade: d.coolShade,
+    ramp: d.ramp, steps: d.steps, soft: d.soft, warmLight: d.warmLight, coolShade: d.coolShade, gradient: d.gradient,
     ...palette.paint,
   };
 }
@@ -121,6 +121,7 @@ export function paintToSliders(palette: Palette) {
   PAINT.soft = r.soft;
   PAINT.warmLight = r.warmLight;
   PAINT.coolShade = r.coolShade;
+  PAINT.gradient = r.gradient;
 }
 
 /** A moved slider changes your numbers for the mood (seen with PAINT.override on; the JSON goes into its palette to keep them) */
@@ -139,6 +140,7 @@ export function slidersToPaint(palette: Palette) {
   r.soft = PAINT.soft;
   r.warmLight = PAINT.warmLight;
   r.coolShade = PAINT.coolShade;
+  r.gradient = PAINT.gradient;
 }
 
 /** Your numbers for the mood back to the ones as written, and the sliders with them */
@@ -156,6 +158,7 @@ export const PAINT_LIGHT = {
   cool: { value: 0.5 },
   sunTint: { value: new THREE.Color(1, 1, 1) },
   skyTint: { value: new THREE.Color(1, 1, 1) },
+  gradient: { value: 0 },
 };
 
 /**
@@ -206,6 +209,7 @@ uniform float paintWarm;
 uniform float paintCool;
 uniform vec3 paintSunTint; // the mood's sun colour as a tint (mean 1)
 uniform vec3 paintSkyTint; // the mood's sky colour as a tint
+uniform float paintGradient; // the vertical wash, bottom towards the sky's colour, top towards the sun's
 float paintLitness = 1.0;
 
 struct LambertMaterial {
@@ -246,6 +250,7 @@ export function updatePaintLight(palette: Palette) {
   PAINT_LIGHT.soft.value = p.soft;
   PAINT_LIGHT.warm.value = p.warmLight;
   PAINT_LIGHT.cool.value = p.coolShade;
+  PAINT_LIGHT.gradient.value = p.gradient;
 }
 
 /** Feeds the pass the mood's grade each frame; the pass is skipped altogether at grade 0 */

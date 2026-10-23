@@ -321,6 +321,7 @@ export class LandStreamer {
       geometry.setAttribute("cover", new THREE.BufferAttribute(result.cover, 4, true));
       geometry.setAttribute("crystal", new THREE.BufferAttribute(result.crystal ?? new Uint8Array(result.positions.length / 3), 1, true));
       geometry.setAttribute("snow", new THREE.BufferAttribute(result.snow, 1));
+      geometry.setAttribute("rise", new THREE.BufferAttribute(result.rise ?? new Float32Array(result.positions.length / 3).fill(0.5), 1));
       geometry.setAttribute("born", new THREE.BufferAttribute(new Float32Array(result.positions.length / 3), 1));
       geometry.computeBoundingSphere();
       node.mesh = new THREE.Mesh(geometry, this.material);

@@ -66,7 +66,7 @@ const MOODS: readonly Palette[] = [
     mistDensity: 0.45,
     glow: 1.2,
     // Judged 2026-10-23 (Stella, in ?tune): grade 0.82, blacks lifted to 0.12; the banded light at the defaults
-    paint: { grade: 0.82, lift: 0.12, warmth: 0.5, shadowTint: 0.5, contrast: 1.05, saturation: 1.1, vignette: 0.4, grain: 0, ramp: 1, steps: 3, soft: 0.12, warmLight: 0.5, coolShade: 0.5 },
+    paint: { grade: 0.82, lift: 0.12, warmth: 0.5, shadowTint: 0.5, contrast: 1.05, saturation: 1.1, vignette: 0.4, grain: 0, ramp: 1, steps: 3, soft: 0.12, warmLight: 0.5, coolShade: 0.5, gradient: 0.6 },
   },
 ];
 

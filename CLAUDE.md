@@ -137,6 +137,18 @@ structures, sky, particles, music); update it when a biome recipe changes.
 
 ## Change log
 
+### 2026-10-23: Painted look, step 3: a vertical wash per thing (Claude)
+
+- `PAINT.gradient`: every atmospheric material multiplies its colour by a
+  wash from the mood's sky tint (darker) at a thing's bottom to its sun
+  tint (lighter) at its top, a few percent each way. The mesher writes
+  `rise` per vertex (`TerrainField.riseAt`: 0 to 1 within the nearest
+  shape's box, an island from its tip to its top; on the ground, low to
+  high over the line, the valley floor about 0.45); plants and structures
+  use their own unit height. No geometry added: a float per terrain
+  vertex and one mix in the fragment shader. Judged on the Archipelago's
+  Autumn mood at 0.6.
+
 ### 2026-10-23: Paper airplane closed into a watertight solid (Claude)
 
 - `pilot.glb` rebuilt from its own 16 paper sheets: each sheet (faces joined

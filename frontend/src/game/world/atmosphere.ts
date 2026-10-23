@@ -156,6 +156,7 @@ const SUN_GLOW = /* glsl */ `
 `;
 
 const PARS = /* glsl */ `
+  varying float vPaintRise;
   uniform vec3 atmoSunDirection;
   uniform vec3 atmoSunColor;
   uniform vec3 atmoMistColor;
@@ -198,6 +199,7 @@ export function atmospheric<T extends THREE.MeshLambertMaterial>(material: T, st
     shader.uniforms.paintCool = PAINT_LIGHT.cool;
     shader.uniforms.paintSunTint = PAINT_LIGHT.sunTint;
     shader.uniforms.paintSkyTint = PAINT_LIGHT.skyTint;
+    shader.uniforms.paintGradient = PAINT_LIGHT.gradient;
     shader.vertexShader = shader.vertexShader
       .replace(
         "void main() {",
@@ -206,8 +208,10 @@ export function atmospheric<T extends THREE.MeshLambertMaterial>(material: T, st
         uniform float atmoRevealRate;
         varying vec3 vAtmoWorld;
         varying float vAtmoReveal;
+        varying float vPaintRise;
         ${BORN_GLSL}
-        void main() {`,
+        void main() {
+          vPaintRise = 0.5;`,
       )
       .replace(
         "#include <project_vertex>",
@@ -236,6 +240,9 @@ export function atmospheric<T extends THREE.MeshLambertMaterial>(material: T, st
           float waver = sin(vAtmoWorld.x * 0.013 + vAtmoWorld.z * 0.009) * 4.0;
           float bands = sin(vAtmoWorld.y * 0.45 + waver) * 0.07 + sin(vAtmoWorld.y * 1.7 + waver) * 0.018;
           diffuseColor.rgb *= 1.0 + atmoStrata * bands;
+          // The painted look's vertical gradient: cool and dark at the bottom of a thing (the sky's
+          // colour), warm and light at its top (the sun's), each a few percent, like a wash of paint
+          diffuseColor.rgb *= mix(vec3(1.0), mix(paintSkyTint * 0.86, paintSunTint * 1.06, vPaintRise), paintGradient);
         }`,
       )
       .replace(
