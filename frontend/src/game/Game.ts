@@ -3,7 +3,7 @@ import * as THREE from "three";
 import type { EffectComposer } from "three/examples/jsm/postprocessing/EffectComposer.js";
 import type { UnrealBloomPass } from "three/examples/jsm/postprocessing/UnrealBloomPass.js";
 import type { ShaderPass } from "three/examples/jsm/postprocessing/ShaderPass.js";
-import { PAINT_SHADER, updatePaintLight, updatePaintPass } from "./paint";
+import { PAINT_SHADER, paintFor, paintToSliders, resetPaint, slidersToPaint, updatePaintLight, updatePaintPass } from "./paint";
 import { Ambient } from "./ambient";
 import { Autopilot } from "./autopilot";
 import { GameAudio } from "./audio";
@@ -23,7 +23,7 @@ import { clamp } from "./math";
 import { SpeedLines } from "./speedlines";
 // The glow light shared by trims, flora and water (particles.ts has its own FX_LIGHT, the particle boost)
 import { FX_LIGHT as GLOW_LIGHT, GOLD, WHITE } from "./toon";
-import { FX, RANGES, RINGS, TUNING_GROUPS, WATER, loadTuning, resetTuning, saveTuning } from "./tuning";
+import { FX, PAINT, RANGES, RINGS, TUNING_GROUPS, WATER, loadTuning, resetTuning, saveTuning } from "./tuning";
 import { type Level, levelId, seedLevel } from "./world/biomes";
 import { type WaterHit, World } from "./world/World";
 import { WorldView } from "./world/WorldView";
@@ -1602,7 +1602,17 @@ export class Game {
       .onChange((q: Quality) => this.setQuality(q))
       .listen();
     view.add(FX, "autoQuality").name("auto quality").onChange(save);
-    const syncQuality = setInterval(() => (settings.quality = this.quality), 500);
+    // The painted look's sliders show the mood on screen: taken from it now, and again whenever the mood changes
+    let paintedMood = this.world.palette;
+    paintToSliders(paintedMood);
+    const syncQuality = setInterval(() => {
+      settings.quality = this.quality;
+      if (this.world.palette !== paintedMood) {
+        paintedMood = this.world.palette;
+        paintToSliders(paintedMood);
+        gui.controllersRecursive().forEach((c) => c.updateDisplay());
+      }
+    }, 500);
 
     // Physics isn't saved: a forgotten tweak shouldn't follow you into races
     const flight = gui.addFolder("Flight physics (not saved)");
@@ -1619,6 +1629,11 @@ export class Game {
             ? folder.add(group, key)
             : folder.add(group, key, range[0], range[1], range[2] ?? (range[1] - range[0]) / 200);
         controller.onChange(() => {
+          // A painted-look slider moves the mood on screen, nothing saved: its JSON goes into the palette
+          if (group === PAINT) {
+            slidersToPaint(this.world.palette);
+            return;
+          }
           save();
           // The bloom's render targets are built with these: rebuild them
           if (key === "bloomResolution" || key === "bloomSamples") this.rebuildBloom();
@@ -1630,9 +1645,13 @@ export class Game {
     const actions = {
       barrelLeft: () => this.barrelRoll(-1),
       barrelRight: () => this.barrelRoll(1),
-      copy: () => void navigator.clipboard?.writeText(JSON.stringify({ FLIGHT, ...Object.fromEntries(TUNING_GROUPS) }, null, 2)),
+      copy: () =>
+        void navigator.clipboard?.writeText(
+          JSON.stringify({ FLIGHT, ...Object.fromEntries(TUNING_GROUPS.filter(([, group]) => group !== PAINT)), paint: { mood: this.world.palette.name, ...paintFor(this.world.palette) } }, null, 2),
+        ),
       reset: () => {
         resetTuning();
+        resetPaint(this.world.palette);
         gui.controllersRecursive().forEach((c) => c.updateDisplay());
       },
     };

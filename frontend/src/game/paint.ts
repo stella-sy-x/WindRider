@@ -1,5 +1,5 @@
 import * as THREE from "three";
-import { PAINT } from "./tuning";
+import { PAINT, PAINT_DEFAULTS } from "./tuning";
 import type { PaintGrade, Palette } from "./world/palette";
 
 // The painted (storybook) look, step one: a colour grade over the finished frame, a vignette
@@ -73,12 +73,66 @@ export const PAINT_SHADER = {
   `,
 };
 
-/** PAINT's sliders as a grade */
-function sliders(): PaintGrade {
+/** A mood's numbers as written: its own over PAINT's defaults */
+function fresh(palette: Palette): PaintGrade {
+  const d = PAINT_DEFAULTS;
   return {
-    grade: PAINT.grade, lift: PAINT.lift, warmth: PAINT.warmth, shadowTint: PAINT.shadowTint, contrast: PAINT.contrast, saturation: PAINT.saturation, vignette: PAINT.paintVignette, grain: PAINT.grain,
-    ramp: PAINT.ramp, steps: PAINT.steps, soft: PAINT.soft, warmLight: PAINT.warmLight, coolShade: PAINT.coolShade,
+    grade: d.grade, lift: d.lift, warmth: d.warmth, shadowTint: d.shadowTint, contrast: d.contrast, saturation: d.saturation, vignette: d.paintVignette, grain: d.grain,
+    ramp: d.ramp, steps: d.steps, soft: d.soft, warmLight: d.warmLight, coolShade: d.coolShade,
+    ...palette.paint,
   };
+}
+
+/** Each mood's live numbers: as written until a ?tune slider moves them */
+const records = new WeakMap<Palette, PaintGrade>();
+
+/** The grade and light in use for a mood */
+export function paintFor(palette: Palette): PaintGrade {
+  let r = records.get(palette);
+  if (!r) records.set(palette, (r = fresh(palette)));
+  return r;
+}
+
+/** The ?tune sliders take the mood on screen, so they always show what is seen */
+export function paintToSliders(palette: Palette) {
+  const r = paintFor(palette);
+  PAINT.grade = r.grade;
+  PAINT.lift = r.lift;
+  PAINT.warmth = r.warmth;
+  PAINT.shadowTint = r.shadowTint;
+  PAINT.contrast = r.contrast;
+  PAINT.saturation = r.saturation;
+  PAINT.paintVignette = r.vignette;
+  PAINT.grain = r.grain;
+  PAINT.ramp = r.ramp;
+  PAINT.steps = r.steps;
+  PAINT.soft = r.soft;
+  PAINT.warmLight = r.warmLight;
+  PAINT.coolShade = r.coolShade;
+}
+
+/** A moved slider changes the mood on screen (in memory: the JSON goes into its palette to keep it) */
+export function slidersToPaint(palette: Palette) {
+  const r = paintFor(palette);
+  r.grade = PAINT.grade;
+  r.lift = PAINT.lift;
+  r.warmth = PAINT.warmth;
+  r.shadowTint = PAINT.shadowTint;
+  r.contrast = PAINT.contrast;
+  r.saturation = PAINT.saturation;
+  r.vignette = PAINT.paintVignette;
+  r.grain = PAINT.grain;
+  r.ramp = PAINT.ramp;
+  r.steps = PAINT.steps;
+  r.soft = PAINT.soft;
+  r.warmLight = PAINT.warmLight;
+  r.coolShade = PAINT.coolShade;
+}
+
+/** The mood back to its numbers as written, and the sliders with it */
+export function resetPaint(palette: Palette) {
+  records.set(palette, fresh(palette));
+  paintToSliders(palette);
 }
 
 /** Step two, the light: uniforms shared by every atmospheric (land, plant, structure) material */
@@ -180,15 +234,6 @@ export function updatePaintLight(palette: Palette) {
   PAINT_LIGHT.soft.value = p.soft;
   PAINT_LIGHT.warm.value = p.warmLight;
   PAINT_LIGHT.cool.value = p.coolShade;
-}
-
-/**
- * The grade for a mood: its own numbers over PAINT's defaults, or the sliders alone while
- * PAINT.override is on (tuning a mood that has numbers of its own already)
- */
-export function paintFor(palette: Palette): PaintGrade {
-  const base = sliders();
-  return PAINT.override || !palette.paint ? base : { ...base, ...palette.paint };
 }
 
 /** Feeds the pass the mood's grade each frame; the pass is skipped altogether at grade 0 */

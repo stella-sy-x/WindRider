@@ -52,13 +52,14 @@ export const FX = {
 };
 
 /**
- * The painted (storybook) look, step one: a colour grade over the finished frame, a vignette
- * and a paper grain (paint.ts). Judged one mood at a time: a mood that has been judged carries
- * its own numbers (`paint` in its palette) over these defaults; the rest take these as they
- * are, off. It only runs with the bloom (High quality), as a pass on the same chain. Looks only
+ * The painted (storybook) look (paint.ts): a colour grade over the finished frame with a
+ * vignette (a pass on the bloom chain, High quality only), and the banded light. Judged one
+ * mood at a time: the numbers below are what a mood starts from; a judged mood carries its own
+ * (`paint` in its palette). In ?tune these sliders mirror the mood on screen and a moved slider
+ * changes that mood, in memory: copy the JSON into its palette to keep it. Nothing here is
+ * saved across visits. Looks only
  */
 export const PAINT = {
-  override: false, // the sliders below apply to every mood, over the numbers a mood has of its own (while tuning)
   grade: 0, // 0..1: how much of the grade below is applied (0 skips the pass)
   lift: 0.06, // black level lifted to a dark warm grey: ink on paper, never pure black
   warmth: 0.5, // highlights pushed towards the mood's sun colour (gold on an amber mood, nothing on a white-sun one)
@@ -76,6 +77,9 @@ export const PAINT = {
   warmLight: 0.5, // the lit side pushed towards the mood's sun colour
   coolShade: 0.5, // the shade pushed towards the mood's sky colour (the sky's light, not the sun's)
 };
+
+/** PAINT as written above: what a mood without numbers of its own takes, and what reset returns a mood to */
+export const PAINT_DEFAULTS = { ...PAINT };
 
 /** The crystal gates */
 export const RINGS = {
@@ -234,7 +238,8 @@ export const AUDIO = {
   nightMuffle: 0.55, // how much the highs are rolled off at night
 };
 
-const GROUPS = { ANIM, FX, PAINT, RINGS, CAMERA, TERRAIN, FLORA, STRUCTURES, WATER, DEEP, AUTOPILOT, AUDIO } as const;
+// (PAINT is not here: its sliders mirror the mood on screen, paint.ts keeps the numbers per mood)
+const GROUPS = { ANIM, FX, RINGS, CAMERA, TERRAIN, FLORA, STRUCTURES, WATER, DEEP, AUTOPILOT, AUDIO } as const;
 const DEFAULTS = JSON.parse(JSON.stringify(GROUPS)) as typeof GROUPS;
 const STORAGE_KEY = "windrider.tuning.speed-control-v1";
 
