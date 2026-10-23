@@ -1,5 +1,6 @@
 import * as THREE from "three";
 import { PAINT } from "./tuning";
+import type { PaintGrade, Palette } from "./world/palette";
 
 // The painted (storybook) look, step one: a colour grade over the finished frame, a vignette
 // and a paper grain. A full-screen pass after the bloom and the output pass, so it works in
@@ -67,18 +68,33 @@ export const PAINT_SHADER = {
   `,
 };
 
-/** Feeds the pass PAINT's numbers each frame; the pass is skipped altogether at grade 0 */
-export function updatePaintPass(pass: { enabled: boolean; uniforms: Record<string, THREE.IUniform> }, aspect: number) {
-  pass.enabled = PAINT.grade > 0;
+/** PAINT's sliders as a grade */
+function sliders(): PaintGrade {
+  return { grade: PAINT.grade, lift: PAINT.lift, warmth: PAINT.warmth, shadowTint: PAINT.shadowTint, contrast: PAINT.contrast, saturation: PAINT.saturation, vignette: PAINT.paintVignette, grain: PAINT.grain };
+}
+
+/**
+ * The grade for a mood: its own numbers over PAINT's defaults, or the sliders alone while
+ * PAINT.override is on (tuning a mood that has numbers of its own already)
+ */
+export function paintFor(palette: Palette): PaintGrade {
+  const base = sliders();
+  return PAINT.override || !palette.paint ? base : { ...base, ...palette.paint };
+}
+
+/** Feeds the pass the mood's grade each frame; the pass is skipped altogether at grade 0 */
+export function updatePaintPass(pass: { enabled: boolean; uniforms: Record<string, THREE.IUniform> }, aspect: number, palette: Palette) {
+  const p = paintFor(palette);
+  pass.enabled = p.grade > 0;
   if (!pass.enabled) return;
   const u = pass.uniforms;
-  u.strength.value = PAINT.grade;
-  u.lift.value = PAINT.lift;
-  u.warmth.value = PAINT.warmth;
-  u.shadowTint.value = PAINT.shadowTint;
-  u.contrast.value = PAINT.contrast;
-  u.saturation.value = PAINT.saturation;
-  u.vignette.value = PAINT.paintVignette;
-  u.grain.value = PAINT.grain;
+  u.strength.value = p.grade;
+  u.lift.value = p.lift;
+  u.warmth.value = p.warmth;
+  u.shadowTint.value = p.shadowTint;
+  u.contrast.value = p.contrast;
+  u.saturation.value = p.saturation;
+  u.vignette.value = p.vignette;
+  u.grain.value = p.grain;
   u.aspect.value = aspect;
 }

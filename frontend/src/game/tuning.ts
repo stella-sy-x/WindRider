@@ -53,10 +53,12 @@ export const FX = {
 
 /**
  * The painted (storybook) look, step one: a colour grade over the finished frame, a vignette
- * and a paper grain (paint.ts). An experiment, off by default; it only runs with the bloom
- * (High quality), as a pass on the same chain. Looks only
+ * and a paper grain (paint.ts). Judged one mood at a time: a mood that has been judged carries
+ * its own numbers (`paint` in its palette) over these defaults; the rest take these as they
+ * are, off. It only runs with the bloom (High quality), as a pass on the same chain. Looks only
  */
 export const PAINT = {
+  override: false, // the sliders below apply to every mood, over the numbers a mood has of its own (while tuning)
   grade: 0, // 0..1: how much of the grade below is applied (0 skips the pass)
   lift: 0.06, // black level lifted to a dark warm grey: ink on paper, never pure black
   warmth: 0.5, // highlights pushed towards gold

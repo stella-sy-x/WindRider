@@ -24,10 +24,14 @@ cosmetics, items and the gallery are gone; the game is racing only.
 0. **The painted look**, one step at a time, judged on the Archipelago's
    Autumn mood (the closest to a storybook already), each step a tuning
    group with an off switch so it can be compared and dropped. Step 1 is
-   in (branch `paint-look`): a colour grade over the finished frame, warm
-   highlights, violet shadows, lifted blacks, vignette, paper grain
-   (`PAINT` in tuning.ts, `paint.ts`, a pass after the bloom; High quality
-   only). Steps to come if step 1 reads right: ramped (two or three step)
+   in (branch `paint-look`, PR #13): a colour grade over the finished
+   frame, warm highlights, violet shadows, lifted blacks, vignette, paper
+   grain (`PAINT` in tuning.ts, `paint.ts`, a pass after the bloom; High
+   quality only). Each mood is judged on its own and keeps its own numbers
+   (`paint` in its palette); `PAINT.override` puts the sliders over every
+   mood while tuning. Judged so far: Archipelago Autumn (full strength).
+   Order: the day moods (Alpine, Lagoon noon, Glacier polar day and dawn,
+   Gloaming), then the nights, the Reef last with its own grade. Steps to come if step 1 reads right: ramped (two or three step)
    lighting with warm/cool shadow colours and a sky-driven ambient, in the
    flat-shaded material (never smoothed normals on the low-poly land: that
    was tried once and turned every facet into a gradient); a vertical

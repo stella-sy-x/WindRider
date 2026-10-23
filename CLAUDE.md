@@ -136,10 +136,13 @@ structures, sky, particles, music); update it when a biome recipe changes.
   LUT) with warm highlights, violet-blue shadows, lifted blacks, contrast,
   saturation, a corner vignette and a grain fixed to the screen like
   paper. Skipped entirely at grade 0; runs only with the bloom (High
-  quality). An experiment towards a storybook look, judged on the
-  Archipelago's Autumn mood first; the next steps (ramped lighting with
-  warm/cool shadows, vertex-colour gradients, silhouette ornament) wait on
-  how this one reads.
+  quality). An experiment towards a storybook look, judged one mood at a
+  time: a judged mood carries its own numbers (`paint` in its palette,
+  `PaintGrade`) over PAINT's defaults, and `PAINT.override` puts the
+  sliders over every mood while tuning. Archipelago Autumn judged first,
+  at full strength. The next steps (ramped lighting with warm/cool
+  shadows, vertex-colour gradients, silhouette ornament) wait on how the
+  grade reads across the moods.
 
 ### 2026-10-19: Archipelago moods trimmed to Alpine and Autumn (Claude)
 

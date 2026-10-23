@@ -1470,7 +1470,7 @@ export class Game {
       for (let i = 0; i < this.bloomPass.bloomTintColors.length; i++) {
         this.bloomPass.bloomTintColors[i].setScalar(i < 2 ? 1 : FX.bloomHalo);
       }
-      if (this.paintPass) updatePaintPass(this.paintPass, camera.aspect);
+      if (this.paintPass) updatePaintPass(this.paintPass, camera.aspect, this.world.palette);
       this.composer.render();
     } else {
       this.renderer.render(this.scene, camera);

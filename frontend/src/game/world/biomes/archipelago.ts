@@ -65,6 +65,8 @@ const MOODS: readonly Palette[] = [
     mist: "#ffe8cc",
     mistDensity: 0.45,
     glow: 1.2,
+    // Judged 2026-10-23: the painted look at full strength
+    paint: { grade: 1, lift: 0.06, warmth: 0.5, shadowTint: 0.5, contrast: 1.05, saturation: 1.1, vignette: 0.4, grain: 0.08 },
   },
 ];
 

@@ -22,6 +22,24 @@ export interface Palette {
   mistDensity: number; // 0..1
   glow: number; // brightness of particles and trails; bright scenes need more to read
   aurora?: number; // 0..1: curtains of light across the night sky
+  /**
+   * This mood's painted-look grade (paint.ts), judged one mood at a time: any of PAINT's
+   * numbers, the rest from PAINT's defaults. Left out, the mood takes PAINT as it is (off by
+   * default). PAINT.override puts the ?tune sliders over every mood while tuning
+   */
+  paint?: Partial<PaintGrade>;
+}
+
+/** The painted look's grade: PAINT in tuning.ts has the meaning of each number */
+export interface PaintGrade {
+  grade: number;
+  lift: number;
+  warmth: number;
+  shadowTint: number;
+  contrast: number;
+  saturation: number;
+  vignette: number;
+  grain: number;
 }
 
 /** Unit vector towards the sun (or moon) */
