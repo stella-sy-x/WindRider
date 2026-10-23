@@ -3,7 +3,7 @@ import * as THREE from "three";
 import type { EffectComposer } from "three/examples/jsm/postprocessing/EffectComposer.js";
 import type { UnrealBloomPass } from "three/examples/jsm/postprocessing/UnrealBloomPass.js";
 import type { ShaderPass } from "three/examples/jsm/postprocessing/ShaderPass.js";
-import { PAINT_SHADER, paintFor, paintToSliders, resetPaint, slidersToPaint, updatePaintLight, updatePaintPass } from "./paint";
+import { PAINT_SHADER, paintEdited, paintToSliders, resetPaint, slidersToPaint, updatePaintLight, updatePaintPass } from "./paint";
 import { Ambient } from "./ambient";
 import { Autopilot } from "./autopilot";
 import { GameAudio } from "./audio";
@@ -1619,6 +1619,11 @@ export class Game {
     for (const key of Object.keys(FLIGHT) as (keyof typeof FLIGHT)[]) flight.add(FLIGHT, key);
     flight.close();
 
+    // The painted look's sliders go grey while PAINT.override is off (the picture uses the numbers as written then)
+    const paintSliders: { domElement: HTMLElement }[] = [];
+    const dimPaint = () => {
+      for (const c of paintSliders) c.domElement.style.opacity = PAINT.override ? "" : "0.4";
+    };
     for (const [title, group] of TUNING_GROUPS) {
       const folder = gui.addFolder(title);
       for (const key of Object.keys(group)) {
@@ -1628,10 +1633,12 @@ export class Game {
           typeof group[key] === "boolean" || !range
             ? folder.add(group, key)
             : folder.add(group, key, range[0], range[1], range[2] ?? (range[1] - range[0]) / 200);
+        if (group === PAINT && key !== "override") paintSliders.push(controller);
         controller.onChange(() => {
-          // A painted-look slider moves the mood on screen, nothing saved: its JSON goes into the palette
+          // A painted-look slider is yours for the mood on screen, seen with override on; nothing saved, its JSON goes into the palette
           if (group === PAINT) {
-            slidersToPaint(this.world.palette);
+            if (key === "override") dimPaint();
+            else slidersToPaint(this.world.palette);
             return;
           }
           save();
@@ -1641,13 +1648,14 @@ export class Game {
       }
       folder.close();
     }
+    dimPaint();
 
     const actions = {
       barrelLeft: () => this.barrelRoll(-1),
       barrelRight: () => this.barrelRoll(1),
       copy: () =>
         void navigator.clipboard?.writeText(
-          JSON.stringify({ FLIGHT, ...Object.fromEntries(TUNING_GROUPS.filter(([, group]) => group !== PAINT)), paint: { mood: this.world.palette.name, ...paintFor(this.world.palette) } }, null, 2),
+          JSON.stringify({ FLIGHT, ...Object.fromEntries(TUNING_GROUPS.filter(([, group]) => group !== PAINT)), paint: { mood: this.world.palette.name, ...paintEdited(this.world.palette) } }, null, 2),
         ),
       reset: () => {
         resetTuning();

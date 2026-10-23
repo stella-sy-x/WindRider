@@ -168,11 +168,12 @@ structures, sky, particles, music); update it when a biome recipe changes.
   paper. Skipped entirely at grade 0; runs only with the bloom (High
   quality). An experiment towards a storybook look, judged one mood at a
   time: a judged mood carries its own numbers (`paint` in its palette,
-  `PaintGrade`) over PAINT's defaults. In `?tune` the sliders mirror the
-  mood on screen (`paintToSliders`), a moved slider changes that mood in
-  memory (`slidersToPaint`), reset returns it to the numbers as written,
-  and the JSON copy carries the mood's numbers; PAINT is kept out of the
-  saved tuning. Archipelago Autumn judged first, at full strength. The next steps (ramped lighting with warm/cool
+  `PaintGrade`) over PAINT's defaults. In `?tune` the sliders hold the
+  tuner's numbers for the mood on screen (`paintEdited`, loaded by
+  `paintToSliders`, moved by `slidersToPaint`): `PAINT.override` on shows
+  them, off shows the numbers as written and greys the sliders; reset
+  returns them to the written ones, the JSON copy carries them; PAINT is
+  kept out of the saved tuning. Archipelago Autumn judged first, at full strength. The next steps (ramped lighting with warm/cool
   shadows, vertex-colour gradients, silhouette ornament) wait on how the
   grade reads across the moods.
 

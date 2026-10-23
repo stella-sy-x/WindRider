@@ -55,11 +55,13 @@ export const FX = {
  * The painted (storybook) look (paint.ts): a colour grade over the finished frame with a
  * vignette (a pass on the bloom chain, High quality only), and the banded light. Judged one
  * mood at a time: the numbers below are what a mood starts from; a judged mood carries its own
- * (`paint` in its palette). In ?tune these sliders mirror the mood on screen and a moved slider
- * changes that mood, in memory: copy the JSON into its palette to keep it. Nothing here is
+ * (`paint` in its palette). In ?tune the sliders hold your numbers for the mood on screen:
+ * with `override` on the picture uses them, off it uses the numbers as written and the sliders
+ * go grey (still yours to move). Copy the JSON into the palette to keep a set. Nothing here is
  * saved across visits. Looks only
  */
 export const PAINT = {
+  override: false, // on: the picture takes the sliders; off: the mood's numbers as written, the sliders grey
   grade: 0, // 0..1: how much of the grade below is applied (0 skips the pass)
   lift: 0.06, // black level lifted to a dark warm grey: ink on paper, never pure black
   warmth: 0.5, // highlights pushed towards the mood's sun colour (gold on an amber mood, nothing on a white-sun one)

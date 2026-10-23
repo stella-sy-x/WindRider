@@ -83,19 +83,31 @@ function fresh(palette: Palette): PaintGrade {
   };
 }
 
-/** Each mood's live numbers: as written until a ?tune slider moves them */
-const records = new WeakMap<Palette, PaintGrade>();
+/** Each mood's numbers as written, and the ?tune sliders' numbers for it (yours, from the written ones) */
+const written = new WeakMap<Palette, PaintGrade>();
+const edited = new WeakMap<Palette, PaintGrade>();
 
-/** The grade and light in use for a mood */
-export function paintFor(palette: Palette): PaintGrade {
-  let r = records.get(palette);
-  if (!r) records.set(palette, (r = fresh(palette)));
+function writtenFor(palette: Palette): PaintGrade {
+  let r = written.get(palette);
+  if (!r) written.set(palette, (r = fresh(palette)));
   return r;
 }
 
-/** The ?tune sliders take the mood on screen, so they always show what is seen */
+/** The sliders' numbers for a mood: what Copy settings as JSON carries */
+export function paintEdited(palette: Palette): PaintGrade {
+  let r = edited.get(palette);
+  if (!r) edited.set(palette, (r = fresh(palette)));
+  return r;
+}
+
+/** The grade and light in use for a mood: the sliders' numbers with PAINT.override on, else the numbers as written */
+export function paintFor(palette: Palette): PaintGrade {
+  return PAINT.override ? paintEdited(palette) : writtenFor(palette);
+}
+
+/** The ?tune sliders take the mood's numbers (yours for it, as written until you move them) */
 export function paintToSliders(palette: Palette) {
-  const r = paintFor(palette);
+  const r = paintEdited(palette);
   PAINT.grade = r.grade;
   PAINT.lift = r.lift;
   PAINT.warmth = r.warmth;
@@ -111,9 +123,9 @@ export function paintToSliders(palette: Palette) {
   PAINT.coolShade = r.coolShade;
 }
 
-/** A moved slider changes the mood on screen (in memory: the JSON goes into its palette to keep it) */
+/** A moved slider changes your numbers for the mood (seen with PAINT.override on; the JSON goes into its palette to keep them) */
 export function slidersToPaint(palette: Palette) {
-  const r = paintFor(palette);
+  const r = paintEdited(palette);
   r.grade = PAINT.grade;
   r.lift = PAINT.lift;
   r.warmth = PAINT.warmth;
@@ -129,9 +141,9 @@ export function slidersToPaint(palette: Palette) {
   r.coolShade = PAINT.coolShade;
 }
 
-/** The mood back to its numbers as written, and the sliders with it */
+/** Your numbers for the mood back to the ones as written, and the sliders with them */
 export function resetPaint(palette: Palette) {
-  records.set(palette, fresh(palette));
+  edited.set(palette, fresh(palette));
   paintToSliders(palette);
 }
 

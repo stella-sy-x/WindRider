@@ -28,10 +28,11 @@ cosmetics, items and the gallery are gone; the game is racing only.
    frame, warm highlights, violet shadows, lifted blacks, vignette, paper
    grain (`PAINT` in tuning.ts, `paint.ts`, a pass after the bloom; High
    quality only). Each mood is judged on its own and keeps its own numbers
-   (`paint` in its palette); in `?tune` the Painted look sliders always
-   show the mood on screen, a moved slider changes that mood in memory,
-   reset returns it to the numbers as written, and "Copy settings as
-   JSON" includes the mood's numbers to paste into its palette. Judged so
+   (`paint` in its palette); in `?tune` the Painted look sliders hold
+   Stella's numbers for the mood on screen: `override` on shows them, off
+   shows the numbers as written and greys the sliders; reset returns them
+   to the written ones, and "Copy settings as JSON" includes them to
+   paste into the palette. Judged so
    far: Archipelago Autumn (full strength).
    Step 2 is in on Autumn, under judgement: the sun's light banded into
    three steps with soft edges in every flat-shaded land, plant and
