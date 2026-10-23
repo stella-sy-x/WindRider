@@ -544,11 +544,11 @@ export class Game {
     this.debris.setColor(color);
   }
 
-  /** Test mode only (from its panel): half speed on, or back to normal. No key does this */
-  toggleTestSpeed() {
+  /** Test mode only (from its panel): normal, half or frozen (0: the frame keeps drawing, nothing moves). No key does this */
+  setTestSpeed(rate: number) {
     if (!this.testPlayback || controlsBlocked()) return;
     this.input.reset();
-    this.events.testSpeed?.(this.testPlayback.toggle());
+    this.events.testSpeed?.(this.testPlayback.set(rate));
   }
 
   observeInput(observer: InputObserver): () => void {

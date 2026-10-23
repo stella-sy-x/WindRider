@@ -17,9 +17,10 @@ An unknown world falls back to the Sky Archipelago.
 ## The panel
 
 Test mode has no keys of its own (they fought the rebindable flight keys).
-Its panel, top right, has a button per world, a button per lighting mood of
-the current world, and a half-speed toggle (physics, animation, shaders,
-camera and CSS animations all slow together). On desktop the mouse is locked
+Its panel has a button per world, a button per lighting mood of the current
+world, and three speeds: normal, half and frozen (physics, animation,
+shaders, camera and CSS animations all slow or stop together; frozen keeps
+drawing the frame, for looking at it and pulling `?tune` sliders). On desktop the mouse is locked
 to the game while flying: press Esc to free it before clicking the panel.
 
 ## How it's built

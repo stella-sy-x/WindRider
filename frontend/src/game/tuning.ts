@@ -66,7 +66,7 @@ export const PAINT = {
   contrast: 1.05,
   saturation: 1.1,
   paintVignette: 0.4, // the corners darkened, the middle untouched (FX.vignette is the speed one)
-  grain: 0.08, // paper grain, fixed to the screen
+  grain: 0, // screen grain. Off: the nostalgia we want is a feeling (warm light, soft colour), never an aged or dirty picture; the grain read as a film over the lens
   // Step two, the light itself (every flat-shaded land, plant and structure material): the sun's
   // light quantised into a few bands with soft edges, the lit side warmed, the shade cooled.
   // The flat faces stay flat: each face takes one band. Never smoothed normals on the low-poly land

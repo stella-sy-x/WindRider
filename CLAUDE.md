@@ -16,6 +16,12 @@ of `rooms.py` COLORS); every glowing particle uses that gold. Each biome
 mood's `accent` is muted (no neon) and belongs to the biome's own things:
 the gates and future biome gameplay pieces, never the pilot or its effects.
 
+The look we are moving towards is a storybook: nostalgic, fairy-tale,
+ornate. "Nostalgic" means the feeling (warm low light, soft colour, lifted
+blacks, a haze like memory), never an aged or dirty picture: no grain, no
+scratches, no worn paper, no dust on the lens. Flat faces stay flat; the
+painted look lives in the light and the colour, not in smoothed normals.
+
 ## The game
 
 Wind Rider is a browser wingsuit racer. Seeded procedural courses through

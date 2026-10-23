@@ -15,8 +15,9 @@ export class TestPlayback {
     root.addEventListener("transitionrun", this.sync);
   }
 
-  toggle() {
-    this.rate = this.rate === 1 ? 0.5 : 1;
+  /** Normal (1), half (0.5) or frozen (0): the world stands still but keeps drawing, for looking at a frame */
+  set(rate: number) {
+    this.rate = rate;
     this.sync();
     return this.rate;
   }

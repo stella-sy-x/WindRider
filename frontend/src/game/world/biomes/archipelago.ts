@@ -66,7 +66,7 @@ const MOODS: readonly Palette[] = [
     mistDensity: 0.45,
     glow: 1.2,
     // Judged 2026-10-23: the grade at full strength; the banded light is step two, under judgement
-    paint: { grade: 1, lift: 0.06, warmth: 0.5, shadowTint: 0.5, contrast: 1.05, saturation: 1.1, vignette: 0.4, grain: 0.08, ramp: 1, steps: 3, soft: 0.12, warmLight: 0.5, coolShade: 0.5 },
+    paint: { grade: 1, lift: 0.06, warmth: 0.5, shadowTint: 0.5, contrast: 1.05, saturation: 1.1, vignette: 0.4, grain: 0, ramp: 1, steps: 3, soft: 0.12, warmLight: 0.5, coolShade: 0.5 },
   },
 ];
 

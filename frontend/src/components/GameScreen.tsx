@@ -392,8 +392,13 @@ const TestScreen = ({ biome, seed, settings, onSettings, onExit }: ScreenProps &
             </button>
           ))}
         </div>
+        <h3>Speed</h3>
         <div className="debug-row">
-          <button onClick={() => session.toggleSpeed()}>{speed === 1 ? "Half speed" : "Normal speed"}</button>
+          {([[1, "Normal"], [0.5, "Half"], [0, "Frozen"]] as [number, string][]).map(([rate, label]) => (
+            <button key={rate} className={speed === rate ? "on" : ""} onClick={() => session.setSpeed(rate)}>
+              {label}
+            </button>
+          ))}
         </div>
       </aside>
     </div>
