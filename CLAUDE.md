@@ -137,6 +137,18 @@ structures, sky, particles, music); update it when a biome recipe changes.
 
 ## Change log
 
+### 2026-10-23: Paper airplane closed into a watertight solid (Claude)
+
+- `pilot.glb` rebuilt from its own 16 paper sheets: each sheet (faces joined
+  across nearly coplanar edges) becomes the convex hull of its vertices
+  pushed 3 mm either way along its normal, a closed thin slab with the
+  sheet's exact outline; the slabs are joined, not booleaned. 32 verts / 51
+  faces / 22 open edges became 146 / 228 / none. Same silhouette and
+  thickness taper (the raised root layers are still there), no crack along
+  the wing root under the banded light, nothing to leak under a rim light
+  or the glow shell. Hulling whole parts (keel, wings) was tried first and
+  filled the fold between wing and keel; per-sheet slabs do not.
+
 ### 2026-10-23: Painted look: the tints are each mood's own sun and sky (Claude)
 
 - The lit side and the highlights go towards the mood's sun colour, the
