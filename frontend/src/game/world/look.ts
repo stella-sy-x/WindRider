@@ -1,5 +1,5 @@
 import { BIOMES } from "./biomes";
-import type { Biome } from "./biomes/types";
+import type { AmbientKind, Biome } from "./biomes/types";
 import type { Palette } from "./palette";
 
 // How a map looks, beyond its colours: every rule and number that decides the picture and is
@@ -77,8 +77,10 @@ export interface LandLook {
   crystalEdge: Linear; // crystal surfaces: the pale tint of their edges…
   crystalSheen: Linear; // …and of their sheen
   underShade: number; // undersides (faces looking down) when the surface names no colour: the rock this dark
-  rockJitter: number; // brightness scattered across rock faces
-  coverJitter: number; // and across the cover
+  rockBright: number; // rock faces: this bright at the least…
+  rockJitter: number; // …plus this much scattered from face to face
+  coverBright: number; // the cover (grass, moss, sand…) likewise
+  coverJitter: number;
 }
 
 export interface WaterLook {
@@ -147,10 +149,8 @@ export interface DeepLook {
   nightDim: number; // caustics and shafts this much dimmer by moonlight
 }
 
-export type ParticleKind = "fireflies" | "motes" | "glitter" | "spores" | "snow" | "starfall" | "bubbles" | "leaves" | "petals";
-
-/** Each kind of particle in the air: its size and brightness, 1 as built */
-export type ParticleLook = Record<ParticleKind, { size: number; bright: number }>;
+/** Each kind of particle in the air (biomes/types AmbientKind): its size and brightness, 1 as built */
+export type ParticleLook = Record<AmbientKind, { size: number; bright: number }>;
 
 /** The painted look's grade and light; the meaning of each number is with LOOK_DEFAULTS.paint */
 export interface PaintLook {
@@ -235,7 +235,9 @@ export const LOOK_DEFAULTS: Look = {
     crystalEdge: [0.8, 0.88, 1.0],
     crystalSheen: [0.85, 0.92, 1.0],
     underShade: 0.6,
+    rockBright: 0.9,
     rockJitter: 0.18,
+    coverBright: 0.88,
     coverJitter: 0.2,
   },
   water: {

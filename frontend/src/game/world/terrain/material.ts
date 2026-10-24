@@ -27,6 +27,14 @@ export interface TerrainUniforms {
   /** Crystal surfaces: the pale tint of their edges and of their sheen (look.land, linear) */
   crystalEdge: { value: THREE.Vector3 };
   crystalSheen: { value: THREE.Vector3 };
+  // How the land is painted (look.land): the slope bands of cover and soil, how much soil shows,
+  // how dark wet rock goes, the snow's fade, the painted noise's scale
+  coverBand: { value: number };
+  soilBand: { value: number };
+  soil: { value: number };
+  wetDark: { value: number };
+  snowFade: { value: number };
+  paintScale: { value: number };
 }
 
 const PARS = /* glsl */ `
@@ -41,6 +49,12 @@ const PARS = /* glsl */ `
   uniform float terrainGlow;
   uniform vec3 terrainCrystalEdge;
   uniform vec3 terrainCrystalSheen;
+  uniform float terrainCoverBand;
+  uniform float terrainSoilBand;
+  uniform float terrainSoil;
+  uniform float terrainWetDark;
+  uniform float terrainSnowFade;
+  uniform float terrainPaintScale;
   varying vec4 vRock;
   varying vec4 vCover;
   varying float vSnow;
@@ -76,6 +90,12 @@ export function terrainMaterial(layers: Layers): { material: THREE.MeshLambertMa
     glow: { value: 1 },
     crystalEdge: { value: new THREE.Vector3(0.8, 0.88, 1.0) },
     crystalSheen: { value: new THREE.Vector3(0.85, 0.92, 1.0) },
+    coverBand: { value: 0.14 },
+    soilBand: { value: 0.2 },
+    soil: { value: 0.85 },
+    wetDark: { value: 0.32 },
+    snowFade: { value: 14 },
+    paintScale: { value: 0.07 },
   };
   const material = atmospheric(new THREE.MeshLambertMaterial({ flatShading: true }), 0.35);
   const atmosphere = material.onBeforeCompile;
@@ -92,6 +112,12 @@ export function terrainMaterial(layers: Layers): { material: THREE.MeshLambertMa
     shader.uniforms.terrainGlow = uniforms.glow;
     shader.uniforms.terrainCrystalEdge = uniforms.crystalEdge;
     shader.uniforms.terrainCrystalSheen = uniforms.crystalSheen;
+    shader.uniforms.terrainCoverBand = uniforms.coverBand;
+    shader.uniforms.terrainSoilBand = uniforms.soilBand;
+    shader.uniforms.terrainSoil = uniforms.soil;
+    shader.uniforms.terrainWetDark = uniforms.wetDark;
+    shader.uniforms.terrainSnowFade = uniforms.snowFade;
+    shader.uniforms.terrainPaintScale = uniforms.paintScale;
     shader.vertexShader = shader.vertexShader
       .replace(
         "void main() {",
@@ -121,21 +147,21 @@ export function terrainMaterial(layers: Layers): { material: THREE.MeshLambertMa
           vec3 faceNormal = normalize(cross(dFdx(vAtmoWorld), dFdy(vAtmoWorld)));
           float up = faceNormal.y;
           float slope = terrainCoverSlope;
-          float coverW = smoothstep(slope - 0.14, slope + 0.04, up);
-          float dirtW = smoothstep(slope - 0.34, slope - 0.14, up) * (1.0 - coverW);
-          vec3 color = mix(vRock.rgb, mix(terrainDirt, vRock.rgb, 0.2), dirtW * 0.85);
+          float coverW = smoothstep(slope - terrainCoverBand, slope + 0.04, up);
+          float dirtW = smoothstep(slope - terrainCoverBand - terrainSoilBand, slope - terrainCoverBand, up) * (1.0 - coverW);
+          vec3 color = mix(vRock.rgb, mix(terrainDirt, vRock.rgb, 0.2), dirtW * terrainSoil);
           color = mix(color, vCover.rgb, coverW);
           // The water's edge: sand on the flat, dark wet rock on the steep
           float wet = vCover.a;
           float flatness = smoothstep(0.25, 0.55, up);
           color = mix(color, terrainSand, wet * flatness);
-          color *= 1.0 - 0.32 * wet * (1.0 - flatness);
+          color *= 1.0 - terrainWetDark * wet * (1.0 - flatness);
           // Snow on faces flat enough to hold it, above the snow line
-          float snowW = smoothstep(terrainSnowLine - 14.0, terrainSnowLine + 14.0, vSnow) * smoothstep(0.38, 0.6, up);
+          float snowW = smoothstep(terrainSnowLine - terrainSnowFade, terrainSnowLine + terrainSnowFade, vSnow) * smoothstep(0.38, 0.6, up);
           color = mix(color, terrainSnow, snowW);
           // Painted stone: soft noise, stronger on cliffs
           float steep = 1.0 - smoothstep(0.35, 0.8, abs(up));
-          float paint = terrainTriplanar(vAtmoWorld * 0.07 * terrainTextureScale, faceNormal);
+          float paint = terrainTriplanar(vAtmoWorld * terrainPaintScale * terrainTextureScale, faceNormal);
           color *= 1.0 + (paint - 0.5) * (0.08 + 0.24 * steep) * terrainTexture;
           if (vCrystal > 0.5) {
             vec3 viewDir = normalize(cameraPosition - vAtmoWorld);
@@ -176,4 +202,10 @@ export function applyTerrainTuning(uniforms: TerrainUniforms, layers: Layers, la
   uniforms.glow.value = land.glow;
   uniforms.crystalEdge.value.fromArray(land.crystalEdge);
   uniforms.crystalSheen.value.fromArray(land.crystalSheen);
+  uniforms.coverBand.value = land.coverBand;
+  uniforms.soilBand.value = land.soilBand;
+  uniforms.soil.value = land.soil;
+  uniforms.wetDark.value = land.wetDark;
+  uniforms.snowFade.value = land.snowFade;
+  uniforms.paintScale.value = land.paintScale;
 }
