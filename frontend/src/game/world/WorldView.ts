@@ -91,7 +91,7 @@ export class WorldView {
       this.group.add(this.shafts.mesh, this.seaLife.group);
     }
     // Gates in muted stone, tinted a touch by the biome's accent rather than painted in it
-    this.gateColors = gateColors(accent);
+    this.gateColors = gateColors(accent, lookFor(palette).gates);
     this.gates = new CrystalGates(world.seed, world.course.rings, this.gateColors, sun, palette);
     this.group.add(this.gates.group);
     this.setRings("free");
@@ -315,7 +315,7 @@ export class WorldView {
     const look = lookFor(this.world.palette);
     if (underwater) {
       // The surface stays the same height over the racing line all the way down; moonlight ripples less
-      const dim = 1 - this.world.palette.night * 0.5;
+      const dim = 1 - this.world.palette.night * look.deep.nightDim;
       ATMOSPHERE.surface.value = this.world.course.y(camera.position.z) + underwater.surface;
       ATMOSPHERE.caustics.value = look.deep.caustics * dim;
       ATMOSPHERE.surfaceGlow.value = look.deep.surface;

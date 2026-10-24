@@ -24,6 +24,9 @@ export interface TerrainUniforms {
   texture: { value: number };
   textureScale: { value: number };
   glow: { value: number };
+  /** Crystal surfaces: the pale tint of their edges and of their sheen (look.land, linear) */
+  crystalEdge: { value: THREE.Vector3 };
+  crystalSheen: { value: THREE.Vector3 };
 }
 
 const PARS = /* glsl */ `
@@ -36,6 +39,8 @@ const PARS = /* glsl */ `
   uniform float terrainTexture;
   uniform float terrainTextureScale;
   uniform float terrainGlow;
+  uniform vec3 terrainCrystalEdge;
+  uniform vec3 terrainCrystalSheen;
   varying vec4 vRock;
   varying vec4 vCover;
   varying float vSnow;
@@ -69,6 +74,8 @@ export function terrainMaterial(layers: Layers): { material: THREE.MeshLambertMa
     texture: { value: layers.texture },
     textureScale: { value: 1 },
     glow: { value: 1 },
+    crystalEdge: { value: new THREE.Vector3(0.8, 0.88, 1.0) },
+    crystalSheen: { value: new THREE.Vector3(0.85, 0.92, 1.0) },
   };
   const material = atmospheric(new THREE.MeshLambertMaterial({ flatShading: true }), 0.35);
   const atmosphere = material.onBeforeCompile;
@@ -83,6 +90,8 @@ export function terrainMaterial(layers: Layers): { material: THREE.MeshLambertMa
     shader.uniforms.terrainTexture = uniforms.texture;
     shader.uniforms.terrainTextureScale = uniforms.textureScale;
     shader.uniforms.terrainGlow = uniforms.glow;
+    shader.uniforms.terrainCrystalEdge = uniforms.crystalEdge;
+    shader.uniforms.terrainCrystalSheen = uniforms.crystalSheen;
     shader.vertexShader = shader.vertexShader
       .replace(
         "void main() {",
@@ -133,7 +142,7 @@ export function terrainMaterial(layers: Layers): { material: THREE.MeshLambertMa
             float edge = pow(1.0 - abs(dot(faceNormal, viewDir)), 3.0);
             // A saturated core and pale reflective edges suggest optical depth.
             // Stay opaque: no sorting, refraction pass, or see-through colliders.
-            color = mix(vRock.rgb * 0.78, mix(vRock.rgb, vec3(0.8, 0.88, 1.0), 0.5), edge * 0.8);
+            color = mix(vRock.rgb * 0.78, mix(vRock.rgb, terrainCrystalEdge, 0.5), edge * 0.8);
           }
           diffuseColor.rgb = color;
         }`,
@@ -150,7 +159,7 @@ export function terrainMaterial(layers: Layers): { material: THREE.MeshLambertMa
           float edge = pow(1.0 - abs(dot(crystalNormal, viewDir)), 3.0);
           vec3 halfDirection = normalize(viewDir + normalize(vec3(0.35, 0.8, 0.45)));
           float sheen = pow(max(0.0, dot(crystalNormal, halfDirection)), 24.0);
-          totalEmissiveRadiance += mix(vRock.rgb, vec3(0.85, 0.92, 1.0), 0.6) * (edge * 0.16 + sheen * 0.22);
+          totalEmissiveRadiance += mix(vRock.rgb, terrainCrystalSheen, 0.6) * (edge * 0.16 + sheen * 0.22);
         }`,
       );
   };
@@ -165,4 +174,6 @@ export function applyTerrainTuning(uniforms: TerrainUniforms, layers: Layers, la
   uniforms.texture.value = layers.texture * land.texture;
   uniforms.textureScale.value = land.textureScale;
   uniforms.glow.value = land.glow;
+  uniforms.crystalEdge.value.fromArray(land.crystalEdge);
+  uniforms.crystalSheen.value.fromArray(land.crystalSheen);
 }

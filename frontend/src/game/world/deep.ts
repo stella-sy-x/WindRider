@@ -184,12 +184,13 @@ const fishVertex = /* glsl */ `
 const fishFragment = /* glsl */ `
   uniform vec3 atmoSunColor;
   uniform float glow;
+  uniform float fishSun; // how far the fish take the sun's colour (look.deep)
   varying vec3 vColor;
   varying float vShade;
   #include <fog_pars_fragment>
   void main() {
     // Lit from above: bright backs, shaded bellies; at night they glow by themselves
-    vec3 color = vColor * (0.62 + vShade * 2.2) * mix(vec3(1.0), atmoSunColor, 0.5) + vColor * glow;
+    vec3 color = vColor * (0.62 + vShade * 2.2) * mix(vec3(1.0), atmoSunColor, fishSun) + vColor * glow;
     #ifdef USE_FOG
       color = mix(color, fogColor, smoothstep(fogNear, fogFar, vFogDepth));
     #endif
@@ -290,6 +291,7 @@ const jellyVertex = /* glsl */ `
 const jellyFragment = /* glsl */ `
   uniform float glow;
   uniform float zapGlow;
+  uniform vec3 zapColor; // the electric light of a discharge, linear (look.deep)
   uniform sampler2D bellMap; // the model's textures as luminance + alpha: the bell's, and the tentacles'
   uniform sampler2D tentacleMap;
   uniform float bellFill; // the bell's opacity
@@ -315,7 +317,7 @@ const jellyFragment = /* glsl */ `
     // former, and the result is capped just under the bloom threshold so the burst stays crisp)
     float energy = 1.0 + vCharge * 0.9 + vZap * zapGlow;
     vec3 color = vColor * (0.4 + edge * 1.2) * (1.0 + glow) * energy;
-    color = mix(color, vec3(0.78, 0.96, 1.0) * (1.0 + glow), vZap * 0.55);
+    color = mix(color, zapColor * (1.0 + glow), vZap * 0.55);
     float alpha = (0.3 + edge * 0.6) * (1.0 - vHang * 0.7) * (1.0 + vZap * 0.6 + vCharge * 0.2);
     if (vShell < 0.5) {
       // The model's parts: the author's shading (luminance, with its ribs and lines) in the
@@ -329,7 +331,7 @@ const jellyFragment = /* glsl */ `
     if (vShell > 0.5) {
       // The shock hoop: a tube of electric light, rounded by its facing, fading as it rolls out
       float facing = 0.45 + 0.55 * vShellRim;
-      color = min(vec3(0.78, 0.96, 1.0) * (1.0 + glow) * facing * 1.2, vec3(1.25));
+      color = min(zapColor * (1.0 + glow) * facing * 1.2, vec3(1.25));
       alpha = (0.35 + 0.5 * vShellRim) * (1.0 - vShellSpread) * vZap;
     }
     #ifdef USE_FOG
@@ -493,6 +495,8 @@ export class SeaLife {
   private readonly raceTime = { value: 0 };
   private readonly zapCycle = { value: new THREE.Vector3(DEEP.zapCycle, DEEP.zapTelegraph, DEEP.zapActive) };
   private readonly zapGlow = { value: 1 };
+  private readonly zapColor = { value: new THREE.Vector3(0.78, 0.96, 1.0) };
+  private readonly fishSun = { value: 0.5 };
 
   constructor(world: World, spec: UnderwaterSpec) {
     const { course } = world;
@@ -538,7 +542,7 @@ export class SeaLife {
       geometry.setAttribute("tint", new THREE.InstancedBufferAttribute(new Float32Array(tint), 3));
       geometry.instanceCount = shoal.length / 4;
       const material = new THREE.ShaderMaterial({
-        uniforms: { ...fog(), atmoSunColor: ATMOSPHERE.sunColor, glow: this.glow, time: fxTime },
+        uniforms: { ...fog(), atmoSunColor: ATMOSPHERE.sunColor, glow: this.glow, time: fxTime, fishSun: this.fishSun },
         vertexShader: fishVertex,
         fragmentShader: fishFragment,
         side: THREE.DoubleSide,
@@ -580,6 +584,7 @@ export class SeaLife {
             raceTime: this.raceTime,
             zapCycle: this.zapCycle,
             zapGlow: this.zapGlow,
+            zapColor: this.zapColor,
             bellMap: { value: source.bellMap },
             tentacleMap: { value: source.tentacleMap },
             bellFill: this.bellFill,
@@ -632,6 +637,8 @@ export class SeaLife {
     const deep = lookFor(this.palette).deep;
     this.zapCycle.value.set(DEEP.zapCycle, DEEP.zapTelegraph, DEEP.zapActive);
     this.zapGlow.value = deep.zapGlow;
+    this.zapColor.value.fromArray(deep.zapColor);
+    this.fishSun.value = deep.fishSun;
     this.bellFill.value = deep.jellyFill;
     this.tentacleLength.value = deep.jellyTentacle;
     this.viewRange.value.set(Math.max(DEEP.jellyView - 40, 1), Math.max(DEEP.jellyView, 2));

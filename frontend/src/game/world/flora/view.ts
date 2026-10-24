@@ -345,7 +345,7 @@ export class FloraView {
     // Structures follow the species, as in the nodes' plant lists
     for (const spec of structuresOf(world.biome)) {
       const info = STRUCTURE_INFO[spec.id];
-      const geometry = structureGeometry(spec, info.spin?.y ?? 0);
+      const geometry = structureGeometry(spec, info.spin?.y ?? 0, lookFor(world.palette).structures);
       this.geometries.push(geometry);
       const material = plantMaterial(world.palette, info.sway, false, 0, { spin: info.spin });
       this.materials.push(material);
@@ -418,7 +418,8 @@ export class FloraView {
     const clearAlpha = renderer.getClearAlpha();
     const scissor = renderer.getScissorTest();
     renderer.setRenderTarget(this.atlas);
-    renderer.setClearColor(new THREE.Color(palette.horizon).multiplyScalar(0.5), 0);
+    // The colour behind the trees in the atlas, seen at their edges: the horizon, this dark (look.plants.fringe)
+    renderer.setClearColor(new THREE.Color(palette.horizon).multiplyScalar(lookFor(palette).plants.fringe), 0);
     renderer.clear();
     renderer.setScissorTest(true);
     this.geometries.slice(0, this.full.length).forEach((geometry, i) => {

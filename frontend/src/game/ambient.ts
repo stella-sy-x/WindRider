@@ -155,10 +155,17 @@ export class Ambient {
   /** Mist and spray at the foot of waterfalls near you */
   private falls(dt: number, camera: THREE.Vector3, budget: number) {
     const steps = this.world?.steps;
-    const spray = this.world ? lookFor(this.world.palette).water.spray : 0;
-    if (!steps || spray <= 0) return;
+    const water = this.world ? lookFor(this.world.palette).water : null;
+    if (!steps || !water || water.spray <= 0) return;
     if (steps.river?.kind === "ice") return;
-    this.fallDebt += 26 * budget * spray * dt;
+    // The mist's and spray's colours are the mood's (look.water)
+    const key = `${water.mistColor.join()}/${water.sprayColor}`;
+    if (key !== fallColorsKey) {
+      fallColorsKey = key;
+      MIST.setRGB(water.mistColor[0], water.mistColor[1], water.mistColor[2]);
+      SPRAY.set(water.sprayColor);
+    }
+    this.fallDebt += 26 * budget * water.spray * dt;
     if (this.fallDebt < 1) return;
     const s = this.spec;
     for (const fall of steps.falls) {
@@ -185,5 +192,6 @@ export class Ambient {
   }
 }
 
-const MIST = new THREE.Color("#ffffff").multiplyScalar(0.92);
+const MIST = new THREE.Color(0.92, 0.92, 0.92);
 const SPRAY = new THREE.Color("#e6f6ff");
+let fallColorsKey = "";

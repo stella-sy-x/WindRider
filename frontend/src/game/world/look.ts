@@ -90,7 +90,7 @@ export interface WaterLook {
   lipFoam: number; // subtle broken foam along outgoing waterfall edges
   lipFoamWidth: number; // maximum upstream reach of edge foam, in metres
   sprayColor: string; // the fine spray at the foot of a fall
-  mistColor: string; // the mist there
+  mistColor: Linear; // the mist there
   nightDim: number; // how much less light falls into the water at night
   fallNightDim: number; // and into a falling curtain
   reflectBody: number; // the sky's reflection tinted this far by the water's own colour
@@ -247,7 +247,7 @@ export const LOOK_DEFAULTS: Look = {
     lipFoam: 0.45,
     lipFoamWidth: 0.9,
     sprayColor: "#e6f6ff",
-    mistColor: "#ebebeb",
+    mistColor: [0.92, 0.92, 0.92],
     nightDim: 0.32,
     fallNightDim: 0.4,
     reflectBody: 0.3,
