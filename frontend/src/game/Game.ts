@@ -4,7 +4,7 @@ import type { EffectComposer } from "three/examples/jsm/postprocessing/EffectCom
 import type { UnrealBloomPass } from "three/examples/jsm/postprocessing/UnrealBloomPass.js";
 import type { ShaderPass } from "three/examples/jsm/postprocessing/ShaderPass.js";
 import { PAINT_SHADER, updatePaintLight, updatePaintPass } from "./paint";
-import { LOOK_TUNING, lookDiff, lookFor, resetLook } from "./world/look";
+import { LOOK_TUNING, lookDiff, lookEdited, lookFor, lookRange, resetLook } from "./world/look";
 import { Ambient } from "./ambient";
 import { Autopilot } from "./autopilot";
 import { GameAudio } from "./audio";
@@ -258,6 +258,8 @@ export class Game {
   private frame = 0;
   private readonly resizeObserver: ResizeObserver;
   private gui: { destroy(): void } | null = null;
+  /** Set by dispose: the tune panel, which opens after an import, must not open on a game that is gone */
+  private disposed = false;
   /** The on-screen stick and buttons of phones and tablets */
   private touch: TouchControls | null = null;
 
@@ -335,7 +337,7 @@ export class Game {
     if (new URLSearchParams(location.search).has("tune")) void this.openTuning();
     // Lets browser tests drive the game in development
     if (import.meta.env.DEV) {
-      Object.assign(window, { __game: this, __fxTime: fxTime, __tuning: Object.fromEntries(TUNING_GROUPS) });
+      Object.assign(window, { __game: this, __fxTime: fxTime, __tuning: Object.fromEntries(TUNING_GROUPS), __look: { LOOK_TUNING, lookFor, lookEdited, lookDiff } });
       void import("./devtools").then(({ installDevtools }) => {
         if((window as unknown as {__game: Game}).__game===this)installDevtools();
       });
@@ -641,6 +643,7 @@ export class Game {
   }
 
   dispose() {
+    this.disposed = true;
     cancelAnimationFrame(this.frame);
     this.unhold?.();
     this.resizeObserver.disconnect();
@@ -1592,6 +1595,8 @@ export class Game {
       reloadForNewBuild(error);
       throw error;
     });
+    // Disposed while the import was in flight (a development remount): no panel for a game that is gone
+    if (this.disposed) return;
     const gui = new GUI({ title: "Tuning (?tune)", width: 300 });
     const save = () => saveTuning();
 
@@ -1630,9 +1635,53 @@ export class Game {
       folder.close();
     }
 
-    // The mood's look (look.ts): its sliders come in a later step; until then the override and the JSON copy
+    // The mood's look (look.ts): a folder per group, its sliders bound to the mood's edited copy, which
+    // the picture takes with `override` on (off: the numbers as written, the sliders grey, still yours
+    // to move). Rebuilt whenever the mood on screen changes. Colours as colour pickers; a linear triple
+    // (a flash, a tint born in GLSL) is edited in the file. "Copy settings as JSON" carries what the
+    // sliders changed against the layers below, ready to paste into the mood as its `look`
     const lookFolder = gui.addFolder("Look (the mood on screen)");
-    lookFolder.add(LOOK_TUNING, "override").name("override (use the edited numbers)");
+    const lookControllers: { domElement: HTMLElement }[] = [];
+    let lookFolders: { destroy(): void }[] = [];
+    let lookMood: Palette | null = null;
+    const dimLook = () => {
+      for (const c of lookControllers) c.domElement.style.opacity = LOOK_TUNING.override ? "" : "0.4";
+    };
+    lookFolder.add(LOOK_TUNING, "override").name("override (the picture takes the sliders)").onChange(dimLook);
+    const addLookLeaves = (folder: InstanceType<typeof GUI>, part: Record<string, unknown>, path: string) => {
+      for (const [key, value] of Object.entries(part)) {
+        if (typeof value === "number") {
+          const [min, max, step] = lookRange(`${path}.${key}`, value);
+          lookControllers.push(folder.add(part, key, min, max, step));
+        } else if (typeof value === "string") {
+          lookControllers.push(folder.addColor(part, key));
+        } else if (value && typeof value === "object" && !Array.isArray(value)) {
+          const sub = folder.addFolder(key);
+          lookFolders.push(sub);
+          addLookLeaves(sub, value as Record<string, unknown>, `${path}.${key}`);
+          sub.close();
+        }
+      }
+    };
+    const buildLook = () => {
+      for (const f of lookFolders) f.destroy();
+      lookFolders = [];
+      lookControllers.length = 0;
+      lookMood = this.world.palette;
+      lookFolder.title(`Look: ${lookMood.name}`);
+      const edited = lookEdited(lookMood) as unknown as Record<string, Record<string, unknown>>;
+      for (const [group, part] of Object.entries(edited)) {
+        const f = lookFolder.addFolder(group);
+        lookFolders.push(f);
+        addLookLeaves(f, part, group);
+        f.close();
+      }
+      dimLook();
+    };
+    buildLook();
+    const syncLook = setInterval(() => {
+      if (this.world.palette !== lookMood) buildLook();
+    }, 500);
 
     const actions = {
       barrelLeft: () => this.barrelRoll(-1),
@@ -1644,6 +1693,7 @@ export class Game {
       reset: () => {
         resetTuning();
         resetLook(this.world.palette);
+        buildLook();
         gui.controllersRecursive().forEach((c) => c.updateDisplay());
       },
     };
@@ -1654,6 +1704,7 @@ export class Game {
     this.gui = {
       destroy: () => {
         clearInterval(syncQuality);
+        clearInterval(syncLook);
         gui.destroy();
       },
     };
