@@ -2,6 +2,7 @@ import * as THREE from "three";
 import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
 import type { StructureSpec } from "../biomes/types";
 import { type Paint, leaves, limb, part, reseed, v } from "../flora/meshes";
+import type { StructureLook } from "../look";
 import { type StructureId, WRECK_PITCH } from "./kinds";
 
 // Structure meshes built from primitives like the plants (flora/meshes.ts):
@@ -22,8 +23,8 @@ interface Colors {
   snow: THREE.Color | null;
 }
 
-/** How bright lit windows are: above 1, so they bloom at night */
-const LIT = 2.3;
+/** How bright lit windows are: above 1, so they bloom at night (the mood's look.structures.lit, set as each structure is built) */
+let LIT = 2.3;
 
 function piece(source: THREE.BufferGeometry, paint: Paint, spin = 0): THREE.BufferGeometry {
   const geometry = part(source, { sway: [0, 0], ...paint });
@@ -448,18 +449,19 @@ function shipwreck(c: Colors): THREE.BufferGeometry[] {
   return parts;
 }
 
-/** Builds a structure's mesh in a biome's colors */
-export function structureGeometry(spec: StructureSpec, spinY: number): THREE.BufferGeometry {
+/** Builds a structure's mesh in a biome's colors; the colours its spec leaves out, and how bright its lights are, come from the mood's look.structures */
+export function structureGeometry(spec: StructureSpec, spinY: number, look: StructureLook): THREE.BufferGeometry {
   reseed(spec.id.length * 104729 + 31);
+  LIT = look.lit;
   const stone = new THREE.Color(spec.colors.stone);
   const colors: Colors = {
     stone,
     stone2: new THREE.Color(spec.colors.stone2 ?? stone.clone().multiplyScalar(0.84).getHex()),
     roof: new THREE.Color(spec.colors.roof),
-    wood: new THREE.Color(spec.colors.wood ?? "#6b4a2f"),
-    cloth: new THREE.Color(spec.colors.cloth ?? "#f1e6cf"),
-    trim: new THREE.Color(spec.colors.trim ?? "#f2c761"),
-    light: new THREE.Color(spec.colors.light ?? "#ffd58a"),
+    wood: new THREE.Color(spec.colors.wood ?? look.wood),
+    cloth: new THREE.Color(spec.colors.cloth ?? look.cloth),
+    trim: new THREE.Color(spec.colors.trim ?? look.trim),
+    light: new THREE.Color(spec.colors.light ?? look.light),
     snow: spec.colors.snow ? new THREE.Color(spec.colors.snow) : null,
   };
   const builders: Record<StructureId, () => THREE.BufferGeometry[]> = {

@@ -3,7 +3,8 @@ import * as THREE from "three";
 import type { EffectComposer } from "three/examples/jsm/postprocessing/EffectComposer.js";
 import type { UnrealBloomPass } from "three/examples/jsm/postprocessing/UnrealBloomPass.js";
 import type { ShaderPass } from "three/examples/jsm/postprocessing/ShaderPass.js";
-import { PAINT_SHADER, paintEdited, paintToSliders, resetPaint, slidersToPaint, updatePaintLight, updatePaintPass } from "./paint";
+import { PAINT_SHADER, updatePaintLight, updatePaintPass } from "./paint";
+import { LOOK_TUNING, lookDiff, lookEdited, lookFor, lookRange, resetLook } from "./world/look";
 import { Ambient } from "./ambient";
 import { Autopilot } from "./autopilot";
 import { GameAudio } from "./audio";
@@ -23,7 +24,7 @@ import { clamp } from "./math";
 import { SpeedLines } from "./speedlines";
 // The glow light shared by trims, flora and water (particles.ts has its own FX_LIGHT, the particle boost)
 import { FX_LIGHT as GLOW_LIGHT, GOLD, WHITE } from "./toon";
-import { FX, PAINT, RANGES, RINGS, TUNING_GROUPS, WATER, loadTuning, resetTuning, saveTuning } from "./tuning";
+import { FX, RANGES, TUNING_GROUPS, loadTuning, resetTuning, saveTuning } from "./tuning";
 import { type Level, levelId, seedLevel } from "./world/biomes";
 import { type WaterHit, World } from "./world/World";
 import { WorldView } from "./world/WorldView";
@@ -257,6 +258,8 @@ export class Game {
   private frame = 0;
   private readonly resizeObserver: ResizeObserver;
   private gui: { destroy(): void } | null = null;
+  /** Set by dispose: the tune panel, which opens after an import, must not open on a game that is gone */
+  private disposed = false;
   /** The on-screen stick and buttons of phones and tablets */
   private touch: TouchControls | null = null;
 
@@ -334,7 +337,7 @@ export class Game {
     if (new URLSearchParams(location.search).has("tune")) void this.openTuning();
     // Lets browser tests drive the game in development
     if (import.meta.env.DEV) {
-      Object.assign(window, { __game: this, __fxTime: fxTime, __tuning: Object.fromEntries(TUNING_GROUPS) });
+      Object.assign(window, { __game: this, __fxTime: fxTime, __tuning: Object.fromEntries(TUNING_GROUPS), __look: { LOOK_TUNING, lookFor, lookEdited, lookDiff } });
       void import("./devtools").then(({ installDevtools }) => {
         if((window as unknown as {__game: Game}).__game===this)installDevtools();
       });
@@ -640,6 +643,7 @@ export class Game {
   }
 
   dispose() {
+    this.disposed = true;
     cancelAnimationFrame(this.frame);
     this.unhold?.();
     this.resizeObserver.disconnect();
@@ -960,7 +964,7 @@ export class Game {
     this.view.passRing(index);
     this.rig.kick();
     this.flash = 1;
-    const amount = this.particles.budget * RINGS.shatter;
+    const amount = this.particles.budget * lookFor(this.world.palette).gates.shatter;
     if (amount <= 0) return;
     const tint = ring.finish ? GOLD : this.view.gateColors.accent;
     const forward = ring.normal;
@@ -1107,7 +1111,7 @@ export class Game {
   /** Skimming water: a wake of droplets and mist */
   private waterSpray(dt: number, gap: number, level: number) {
     const close = clamp((7 - gap) / 6, 0, 1);
-    this.dustDebt += (0.3 + close) * 140 * WATER.spray * this.particles.budget * dt;
+    this.dustDebt += (0.3 + close) * 140 * lookFor(this.world.palette).water.spray * this.particles.budget * dt;
     for (; this.dustDebt >= 1; this.dustDebt--) {
       at.set(this.flight.position.x + rand(-1.5, 1.5), level + 0.2, this.flight.position.z + rand(-1.5, 1.5));
       const droplet = Math.random() < 0.6;
@@ -1591,6 +1595,8 @@ export class Game {
       reloadForNewBuild(error);
       throw error;
     });
+    // Disposed while the import was in flight (a development remount): no panel for a game that is gone
+    if (this.disposed) return;
     const gui = new GUI({ title: "Tuning (?tune)", width: 300 });
     const save = () => saveTuning();
 
@@ -1602,16 +1608,8 @@ export class Game {
       .onChange((q: Quality) => this.setQuality(q))
       .listen();
     view.add(FX, "autoQuality").name("auto quality").onChange(save);
-    // The painted look's sliders show the mood on screen: taken from it now, and again whenever the mood changes
-    let paintedMood = this.world.palette;
-    paintToSliders(paintedMood);
     const syncQuality = setInterval(() => {
       settings.quality = this.quality;
-      if (this.world.palette !== paintedMood) {
-        paintedMood = this.world.palette;
-        paintToSliders(paintedMood);
-        gui.controllersRecursive().forEach((c) => c.updateDisplay());
-      }
     }, 500);
 
     // Physics isn't saved: a forgotten tweak shouldn't follow you into races
@@ -1619,11 +1617,6 @@ export class Game {
     for (const key of Object.keys(FLIGHT) as (keyof typeof FLIGHT)[]) flight.add(FLIGHT, key);
     flight.close();
 
-    // The painted look's sliders go grey while PAINT.override is off (the picture uses the numbers as written then)
-    const paintSliders: { domElement: HTMLElement }[] = [];
-    const dimPaint = () => {
-      for (const c of paintSliders) c.domElement.style.opacity = PAINT.override ? "" : "0.4";
-    };
     for (const [title, group] of TUNING_GROUPS) {
       const folder = gui.addFolder(title);
       for (const key of Object.keys(group)) {
@@ -1633,14 +1626,7 @@ export class Game {
           typeof group[key] === "boolean" || !range
             ? folder.add(group, key)
             : folder.add(group, key, range[0], range[1], range[2] ?? (range[1] - range[0]) / 200);
-        if (group === PAINT && key !== "override") paintSliders.push(controller);
         controller.onChange(() => {
-          // A painted-look slider is yours for the mood on screen, seen with override on; nothing saved, its JSON goes into the palette
-          if (group === PAINT) {
-            if (key === "override") dimPaint();
-            else slidersToPaint(this.world.palette);
-            return;
-          }
           save();
           // The bloom's render targets are built with these: rebuild them
           if (key === "bloomResolution" || key === "bloomSamples") this.rebuildBloom();
@@ -1648,18 +1634,66 @@ export class Game {
       }
       folder.close();
     }
-    dimPaint();
+
+    // The mood's look (look.ts): a folder per group, its sliders bound to the mood's edited copy, which
+    // the picture takes with `override` on (off: the numbers as written, the sliders grey, still yours
+    // to move). Rebuilt whenever the mood on screen changes. Colours as colour pickers; a linear triple
+    // (a flash, a tint born in GLSL) is edited in the file. "Copy settings as JSON" carries what the
+    // sliders changed against the layers below, ready to paste into the mood as its `look`
+    const lookFolder = gui.addFolder("Look (the mood on screen)");
+    const lookControllers: { domElement: HTMLElement }[] = [];
+    let lookFolders: { destroy(): void }[] = [];
+    let lookMood: Palette | null = null;
+    const dimLook = () => {
+      for (const c of lookControllers) c.domElement.style.opacity = LOOK_TUNING.override ? "" : "0.4";
+    };
+    lookFolder.add(LOOK_TUNING, "override").name("override (the picture takes the sliders)").onChange(dimLook);
+    const addLookLeaves = (folder: InstanceType<typeof GUI>, part: Record<string, unknown>, path: string) => {
+      for (const [key, value] of Object.entries(part)) {
+        if (typeof value === "number") {
+          const [min, max, step] = lookRange(`${path}.${key}`, value);
+          lookControllers.push(folder.add(part, key, min, max, step));
+        } else if (typeof value === "string") {
+          lookControllers.push(folder.addColor(part, key));
+        } else if (value && typeof value === "object" && !Array.isArray(value)) {
+          const sub = folder.addFolder(key);
+          lookFolders.push(sub);
+          addLookLeaves(sub, value as Record<string, unknown>, `${path}.${key}`);
+          sub.close();
+        }
+      }
+    };
+    const buildLook = () => {
+      for (const f of lookFolders) f.destroy();
+      lookFolders = [];
+      lookControllers.length = 0;
+      lookMood = this.world.palette;
+      lookFolder.title(`Look: ${lookMood.name}`);
+      const edited = lookEdited(lookMood) as unknown as Record<string, Record<string, unknown>>;
+      for (const [group, part] of Object.entries(edited)) {
+        const f = lookFolder.addFolder(group);
+        lookFolders.push(f);
+        addLookLeaves(f, part, group);
+        f.close();
+      }
+      dimLook();
+    };
+    buildLook();
+    const syncLook = setInterval(() => {
+      if (this.world.palette !== lookMood) buildLook();
+    }, 500);
 
     const actions = {
       barrelLeft: () => this.barrelRoll(-1),
       barrelRight: () => this.barrelRoll(1),
       copy: () =>
         void navigator.clipboard?.writeText(
-          JSON.stringify({ FLIGHT, ...Object.fromEntries(TUNING_GROUPS.filter(([, group]) => group !== PAINT)), paint: { mood: this.world.palette.name, ...paintEdited(this.world.palette) } }, null, 2),
+          JSON.stringify({ FLIGHT, ...Object.fromEntries(TUNING_GROUPS), look: { mood: this.world.palette.name, ...lookDiff(this.world.palette) } }, null, 2),
         ),
       reset: () => {
         resetTuning();
-        resetPaint(this.world.palette);
+        resetLook(this.world.palette);
+        buildLook();
         gui.controllersRecursive().forEach((c) => c.updateDisplay());
       },
     };
@@ -1670,6 +1704,7 @@ export class Game {
     this.gui = {
       destroy: () => {
         clearInterval(syncQuality);
+        clearInterval(syncLook);
         gui.destroy();
       },
     };

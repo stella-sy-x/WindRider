@@ -1,4 +1,5 @@
 import type { SpeciesId } from "../flora/species";
+import type { LookPatch } from "../look";
 import type { Palette } from "../palette";
 import type { StructureId } from "../structures/kinds";
 import type { GroundSpec, WallSpec } from "../terrain/ground";
@@ -222,8 +223,6 @@ export interface SkySpec {
    * pooling `above` metres over the valley floor, fading out `thickness` metres higher
    */
   mist: { mode: "camera" } | { mode: "valley"; above: number; thickness: number };
-  /** Where the haze begins and where it hides everything, metres (250 and 1300 when left out) */
-  fog?: [number, number];
   /** Under the sea: the sky is the water's surface, light ripples over the land, shafts of light slant down, sea life drifts by */
   underwater?: UnderwaterSpec;
 }
@@ -255,6 +254,8 @@ export interface Biome {
   readonly structures?: readonly StructureSpec[];
   readonly sky: SkySpec;
   readonly particles: ParticleStyle;
+  /** The biome's own rules and numbers for how it looks (look.ts), over the defaults; a mood's go over these */
+  readonly look?: LookPatch;
 }
 
 /** Everything that decides a level, small enough to post to the mesher workers */

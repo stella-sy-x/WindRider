@@ -1,8 +1,9 @@
 import * as THREE from "three";
 import { FX_LIGHT, sceneryTime as fxTime } from "../particles";
 import { FX_LIGHT as GLOW_LIGHT } from "../toon";
-import { WATER } from "../tuning";
-import { ATMOSPHERE, MIST } from "./atmosphere";
+import { ATMOSPHERE, MIST, SUN_GLOW } from "./atmosphere";
+import { lookFor } from "./look";
+import type { Palette } from "./palette";
 import type { WaterKind } from "./terrain/river";
 import type { IslandFall, World } from "./World";
 import type { IslandPond } from "./terrain/shapes";
@@ -53,17 +54,15 @@ const COMMON = /* glsl */ `
   uniform float atmoMistThickness;
   ${MIST}
   ${NOISE}
-  vec3 waterSunGlow(vec3 dir) {
-    float d = max(dot(dir, atmoSunDirection), 0.0);
-    return atmoSunColor * (pow(d, 6.0) * 0.35 + pow(d, 48.0) * 0.5);
-  }
+  ${SUN_GLOW}
+  vec3 waterSunGlow(vec3 dir) { return sunGlow(dir); }
   vec3 waterAir(vec3 color, vec3 world, float fogDepth) {
     vec3 toFrag = world - cameraPosition;
     float dist = length(toFrag);
     vec3 viewDir = toFrag / max(dist, 0.001);
     #ifdef USE_FOG
       float fogFactor = smoothstep(fogNear, fogFar, fogDepth);
-      color = mix(color, atmoMistColor, clamp(atmoMist(world, dist), 0.0, 0.85) * (1.0 - fogFactor));
+      color = mix(color, atmoMistColor, clamp(atmoMist(world, dist), 0.0, atmoMistCap) * (1.0 - fogFactor));
       color = mix(color, fogColor + waterSunGlow(viewDir), fogFactor);
     #endif
     return color;
@@ -278,8 +277,11 @@ export class WaterView {
   readonly group = new THREE.Group();
   private readonly materials: THREE.ShaderMaterial[] = [];
   private readonly geometries: THREE.BufferGeometry[] = [];
+  /** The mood, for its look.water (set on the materials every frame) */
+  private readonly palette: Palette;
 
   constructor(world: World) {
+    this.palette = world.palette;
     const terrain = world.biome.terrain;
     if (terrain.kind !== "v2") return;
     if (world.hasSea && terrain.sea) this.buildSea(world, this.uniforms("water", terrain.sea.colors, world.palette.night, 0, 0));
@@ -613,10 +615,10 @@ export class WaterView {
       night: { value: night },
       flowing: { value: flowing },
       fade: { value: fade },
-      fallBlend: { value: WATER.fallBlend },
-      fallSpeed: { value: WATER.fallSpeed },
-      lipFoam: { value: WATER.lipFoam },
-      lipFoamWidth: { value: WATER.lipFoamWidth },
+      fallBlend: { value: 0 },
+      fallSpeed: { value: 0 },
+      lipFoam: { value: 0 },
+      lipFoamWidth: { value: 0 },
       horizon: ATMOSPHERE.horizon,
       zenith: ATMOSPHERE.zenith,
       atmoSunDirection: ATMOSPHERE.sunDirection,
@@ -626,6 +628,10 @@ export class WaterView {
       atmoMistMode: ATMOSPHERE.mistMode,
       atmoMistHeight: ATMOSPHERE.mistHeight,
       atmoMistThickness: ATMOSPHERE.mistThickness,
+      atmoMistDrop: ATMOSPHERE.mistDrop,
+      atmoMistRange: ATMOSPHERE.mistRange,
+      atmoMistCap: ATMOSPHERE.mistCap,
+      atmoGlow: ATMOSPHERE.glow,
     };
   }
 
@@ -642,15 +648,16 @@ export class WaterView {
     return material;
   }
 
-  /** Per frame: glitter and glow follow the tuning and the biome's light */
+  /** Per frame: the mood's look.water (the falls, the foam, glitter and glow) and the biome's light */
   update() {
+    const water = lookFor(this.palette).water;
     for (const m of this.materials) {
-      m.uniforms.fallBlend.value = WATER.fallBlend;
-      m.uniforms.fallSpeed.value = WATER.fallSpeed;
-      m.uniforms.lipFoam.value = WATER.lipFoam;
-      m.uniforms.lipFoamWidth.value = WATER.lipFoamWidth;
-      m.uniforms.glitter.value = WATER.glitter * FX_LIGHT.boost.value;
-      m.uniforms.glow.value = WATER.glow * (0.55 + GLOW_LIGHT.glow.value * 0.6);
+      m.uniforms.fallBlend.value = water.fallBlend;
+      m.uniforms.fallSpeed.value = water.fallSpeed;
+      m.uniforms.lipFoam.value = water.lipFoam;
+      m.uniforms.lipFoamWidth.value = water.lipFoamWidth;
+      m.uniforms.glitter.value = water.glitter * FX_LIGHT.boost.value;
+      m.uniforms.glow.value = water.glow * (0.55 + GLOW_LIGHT.glow.value * 0.6);
     }
   }
 

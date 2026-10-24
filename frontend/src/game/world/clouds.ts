@@ -35,6 +35,7 @@ const fragmentShader = /* glsl */ `
   uniform vec3 atmoSunDirection;
   uniform vec3 atmoSunColor;
   uniform float night;
+  uniform vec4 puff; // the mood's air: shaded side towards the horizon, its brightness, the lit side, the sun through the edge
   varying vec2 vUv;
   varying vec2 vShade;
   varying vec3 vWorld;
@@ -56,10 +57,10 @@ const fragmentShader = /* glsl */ `
     // Lit on top and towards the sun, greyer underneath
     float lit = clamp(vShade.x * 0.7 + vUv.y * 0.25 + 0.25, 0.0, 1.0);
     // By night clouds are moonlit veils, close to the sky behind them, not dark blots
-    vec3 shadow = mix(mix(cloudColor, horizon, 0.45) * 0.72, horizon * 1.1, night * 0.7);
-    vec3 color = mix(shadow, mix(cloudColor * 1.05, mix(cloudColor, horizon, 0.5) * 1.35, night), lit);
+    vec3 shadow = mix(mix(cloudColor, horizon, puff.x) * puff.y, horizon * 1.1, night * 0.7);
+    vec3 color = mix(shadow, mix(cloudColor * puff.z, mix(cloudColor, horizon, 0.5) * 1.35, night), lit);
     float towardsSun = max(dot(viewDir, atmoSunDirection), 0.0);
-    color += atmoSunColor * pow(towardsSun, 8.0) * (1.0 - a) * 1.2 * (1.0 - night * 0.6);
+    color += atmoSunColor * pow(towardsSun, 8.0) * (1.0 - a) * puff.w * (1.0 - night * 0.6);
     // Thin out up close, so flying into a cloud is a soft whiteout, not a wall
     a *= smoothstep(8.0, 70.0, dist) * mix(0.92, 0.6, night);
     #ifdef USE_FOG
@@ -112,6 +113,7 @@ export class SoftClouds {
         atmoSunDirection: ATMOSPHERE.sunDirection,
         atmoSunColor: ATMOSPHERE.sunColor,
         night: ATMOSPHERE.night,
+        puff: ATMOSPHERE.puff,
       },
       vertexShader,
       fragmentShader,

@@ -12,6 +12,8 @@ export const LAGOON: Biome = {
   moods: [
     {
       name: "Tropical noon",
+      // Draft brief (Claude, 2026-10-24): not yet judged against the picture
+      brief: "Tropical noon with the sun nearly overhead: white light, turquoise water, a bright pale sky.",
       horizon: "#d9f3ff",
       zenith: "#2f8fe0",
       grass: "#3f9a4a",
@@ -33,6 +35,8 @@ export const LAGOON: Biome = {
     },
     {
       name: "Moonlit lagoon",
+      // Draft brief (Claude, 2026-10-24): not yet judged against the picture
+      brief: "A warm tropical night under a bright moon: deep blue all round, the water lit from within.",
       horizon: "#22406a",
       zenith: "#06102a",
       grass: "#2f5a46",

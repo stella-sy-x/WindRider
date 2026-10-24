@@ -4,6 +4,7 @@ import { TERRAIN_DETAIL } from "../../tuning";
 import { hash3 } from "../../rng";
 import type { Surface } from "../biomes/types";
 import { cleanMesh, remapFaces } from "../meshCleanup";
+import { lookWritten } from "../look";
 import { type MoodShift, shifted } from "../palette";
 import type { World } from "../World";
 
@@ -87,7 +88,7 @@ function paintFor(world: World, mood: MoodShift, surface: Surface): Paint {
     paint = {
       rock,
       rock2: shifted(surface.rock2 ?? surface.rock, rockShift),
-      under: surface.under ? new Color(surface.under) : rock.clone().multiplyScalar(0.6),
+      under: surface.under ? new Color(surface.under) : rock.clone().multiplyScalar(lookWritten(world.palette).land.underShade),
       top: shifted(surface.top, coverShift),
       top2: shifted(surface.top2 ?? surface.top, coverShift),
       surface,
@@ -108,6 +109,8 @@ export function meshNode(world: World, lod: number, ix: number, iy: number, iz: 
   const field = world.land!;
   const terrain = world.biome.terrain;
   if (terrain.kind !== "v2") return EMPTY;
+  // How the mood paints its land, baked into the faces (as written: the tune panel's edits reach the next map)
+  const land = lookWritten(world.palette).land;
   const N = NODE_CELLS;
   const S = VOXEL << lod;
   const size = S * N;
@@ -265,12 +268,12 @@ export function meshNode(world: World, lod: number, ix: number, iy: number, iz: 
     }
     if (s.streaks) rock.multiplyScalar(1 - s.streaks * 0.45 * smoothstep(0.1, 0.65, noise(mx * 0.09, mz * 0.09)));
     rock.lerp(paint.under, smoothstep(-0.2, -0.6, up));
-    rock.multiplyScalar(0.9 + 0.18 * jitter);
+    rock.multiplyScalar(land.rockBright + land.rockJitter * jitter);
 
     // Cover: lusher low down and in damp hollows, drier up high
     const damp = 0.5 + 0.5 * noise(mx / 240, mz / 240) - smoothstep(20, 160, above) * 0.45;
     cover.copy(paint.top).lerp(paint.top2, clamp(1 - damp, 0, 1));
-    cover.multiplyScalar(0.88 + 0.2 * jitter);
+    cover.multiplyScalar(land.coverBright + land.coverJitter * jitter);
 
     // Wet: river banks and the water's edge
     let wet = 0;

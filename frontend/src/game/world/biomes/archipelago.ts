@@ -25,6 +25,8 @@ const MOODS: readonly Palette[] = [
   {
     // Bright blue sky, green grass, warm brown rock: the archipelago at its crispest
     name: "Alpine",
+    // Draft brief (Claude, 2026-10-24): not yet judged against the picture
+    brief: "A crisp alpine morning high over the sea of clouds: a white sun, a clean blue sky, green islands.",
     horizon: "#cdeaf6",
     zenith: "#3f8fd2",
     grass: "#8cb648",
@@ -47,6 +49,8 @@ const MOODS: readonly Palette[] = [
   {
     // Amber light, warm gold horizon
     name: "Autumn",
+    // Stella, 2026-10-24. The numbers below are not there yet: the sky, haze and sun are still amber
+    brief: "A clean autumn afternoon, about three o'clock: the autumn is in the orange trees and the dry grass, the light itself is clear.",
     horizon: "#ffe2bd",
     zenith: "#5f9bd6",
     grass: "#a9a24c",
@@ -65,8 +69,10 @@ const MOODS: readonly Palette[] = [
     mist: "#ffe8cc",
     mistDensity: 0.3, // was 0.45: with the painted look's warmth on top, far islands melted into the sky
     glow: 1.2,
-    // Judged 2026-10-23/24 (Stella, in ?tune): grade 0.82, gradient 1.2; lift and warmth eased on the 24th against a yellow veil
-    paint: { grade: 0.82, lift: 0.06, warmth: 0.3, shadowTint: 0.5, contrast: 1.05, saturation: 1.1, vignette: 0.4, grain: 0, ramp: 1, steps: 3, soft: 0.12, warmLight: 0.5, coolShade: 0.15, bounce: 0.7, shade: 0.85, gradient: 1.2 },
+    look: {
+      // Judged 2026-10-23/24 (Stella, in ?tune): grade 0.82, gradient 1.2; lift and warmth eased on the 24th against a yellow veil
+      paint: { grade: 0.82, lift: 0.06, warmth: 0.3, shadowTint: 0.5, contrast: 1.05, saturation: 1.1, vignette: 0.4, grain: 0, ramp: 1, steps: 3, soft: 0.12, warmLight: 0.5, coolShade: 0.15, bounce: 0.7, shade: 0.85, gradient: 1.2 },
+    },
   },
 ];
 
@@ -134,7 +140,9 @@ export const ARCHIPELAGO: Biome = {
     // Lanterns gather around the ponds
     { id: "stoneLantern", spacing: 10, chance: 0.7, height: [2.6, 3.4], colors: { stone: "#efe6d2", stone2: "#b8c79a", roof: "#3f7fb8" }, where: { lateral: [0, 300], on: "rock", wet: true } },
   ],
-  sky: { cloudSea: { depth: 260 }, puffs: 65, puffsBelow: true, puffLift: 200, mist: { mode: "camera" }, fog: [80, 1400] },
+  sky: { cloudSea: { depth: 260 }, puffs: 65, puffsBelow: true, puffLift: 200, mist: { mode: "camera" } },
+  // The haze begins close and reaches far: islands keep arriving out of it for a long way
+  look: { air: { fogNear: 80, fogFar: 1400 } },
   particles: {
     ambient: [
       { kind: "motes", rate: 12, colors: ["#ffe9b0", "#fff6dc"] },

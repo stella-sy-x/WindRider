@@ -2,8 +2,9 @@ import * as THREE from "three";
 import { FX_LIGHT, sceneryTime as fxTime, pixelScale } from "../particles";
 import { makeRng, range } from "../rng";
 import { GOLD } from "../toon";
-import { RINGS } from "../tuning";
 import type { Ring } from "./course";
+import { type GateLook, lookFor } from "./look";
+import type { Palette } from "./palette";
 
 // The gates: a cohort of floating crystals around every ring, each bobbing and
 // turning on its own, orbiting a ring of glowing motes that trace the gate.
@@ -31,11 +32,11 @@ export interface GateColors {
  * The gates' colors for a biome: soft grey-blue stone and a warm sand glow, each tinted a little
  * by the biome's accent so a gate belongs to its world without taking on its neon
  */
-export function gateColors(biomeAccent: THREE.ColorRepresentation): GateColors {
+export function gateColors(biomeAccent: THREE.ColorRepresentation, gates: GateLook): GateColors {
   const accent = new THREE.Color(biomeAccent);
   return {
-    ice: new THREE.Color("#c8d8e0").lerp(accent, 0.08),
-    accent: new THREE.Color("#e8d8c0").lerp(accent, 0.15),
+    ice: new THREE.Color(gates.stone).lerp(accent, gates.stoneAccent),
+    accent: new THREE.Color(gates.lit).lerp(accent, gates.litAccent),
   };
 }
 
@@ -103,6 +104,7 @@ const crystalFragment = /* glsl */ `
   uniform vec3 gold;
   uniform vec3 sunDirection; // view space
   uniform float glow;
+  uniform vec3 flash; // the flash on passing through, linear, over white (look.gates.flash)
   uniform float time;
   varying vec3 vViewPosition;
   varying float vHighlight;
@@ -129,7 +131,7 @@ const crystalFragment = /* glsl */ `
     color += fresnel * mix(base, vec3(1.0), 0.3 + vFinish * 0.3) * rim;
     color += spec * (0.7 + vFinish * 0.8);
     color *= 1.0 + vHighlight * glow * (0.3 + 0.15 * sin(time * 3.0 + vSeed));
-    color += vFlash * vec3(3.2, 3.0, 2.6);
+    color += vFlash * flash;
 
     #ifdef USE_FOG
       float fogFactor = smoothstep(fogNear, fogFar, vFogDepth) * (1.0 - vHighlight);
@@ -321,6 +323,10 @@ export class CrystalGates {
   private readonly geometries: THREE.BufferGeometry[] = [];
   private readonly sunView = new THREE.Vector3();
   private readonly sunDirection: THREE.Vector3;
+  /** The mood, for its look.gates (how the gates move and glow) */
+  private readonly palette: Palette;
+  /** The flash on passing through (look.gates.flash), linear, over white */
+  private readonly flash = { value: new THREE.Vector3(3.2, 3.0, 2.6) };
   /** Per gate: the crystals' angle and distance from the center, for particle bursts */
   private readonly layout: { angle: number; radius: number }[][] = [];
   private mode: RingMode = "free";
@@ -333,13 +339,16 @@ export class CrystalGates {
   /** Per gate: the direction it faces now (Resonance can turn it; looks only, the run keeps its own) */
   private readonly facing: THREE.Vector3[];
 
-  constructor(seed: number, rings: Ring[], colors: GateColors, sunDirection: THREE.Vector3) {
+  constructor(seed: number, rings: Ring[], colors: GateColors, sunDirection: THREE.Vector3, palette: Palette) {
     this.rings = rings;
+    this.palette = palette;
+    const RINGS = lookFor(palette).gates;
     this.sunDirection = sunDirection;
     this.states = rings.map(() => ({ visible: 1, highlight: 0, passedAt: -1e3, passed: false }));
     this.facing = rings.map((r) => r.normal.clone());
     this.gateUniform = rings.map((r) => new THREE.Vector4(1, 0, -1e3, r.finish ? 1 : 0));
     const defines = { GATE_COUNT: Math.max(1, rings.length) };
+    this.flash.value.fromArray(RINGS.flash);
     const shared = {
       gates: { value: this.gateUniform },
       time: fxTime,
@@ -349,6 +358,7 @@ export class CrystalGates {
       gold: { value: GOLD },
       glow: { value: RINGS.glow },
       finishBeam: { value: RINGS.finishBeam },
+      flash: this.flash,
     };
 
     // Crystals: per gate, a main circle of big ones and a scatter of small satellites
@@ -574,13 +584,13 @@ export class CrystalGates {
   /** Is a gate in the middle of its pass animation? */
   passing(index: number): boolean {
     const since = fxTime.value - (this.states[index]?.passedAt ?? -1e3);
-    return since >= 0 && since < RINGS.passTime;
+    return since >= 0 && since < lookFor(this.palette).gates.passTime;
   }
 
   /** World positions of a gate's crystals (roughly: without their bobbing), for particle bursts */
   crystalPositions(index: number, out: THREE.Vector3[]): THREE.Vector3[] {
     const ring = this.rings[index];
-    const spin = fxTime.value * RINGS.spin;
+    const spin = fxTime.value * lookFor(this.palette).gates.spin;
     tmpQuaternion.setFromUnitVectors(Z, this.facing[index]);
     const layout = this.layout[index] ?? [];
     // Reuses the vectors already in `out`
@@ -596,6 +606,7 @@ export class CrystalGates {
   }
 
   update(dt: number, camera: THREE.Camera) {
+    const RINGS = lookFor(this.palette).gates;
     const k = 1 - Math.exp(-dt * 3);
     const now = fxTime.value;
     for (let i = 0; i < this.rings.length; i++) {
@@ -619,6 +630,7 @@ export class CrystalGates {
       state.highlight += (highlight - state.highlight) * k * 2;
       this.gateUniform[i].set(state.visible, state.highlight, state.passedAt, finish ? 1 : 0);
     }
+    this.flash.value.fromArray(RINGS.flash);
     const material = this.materials[0];
     material.uniforms.motion.value.set(RINGS.drift, RINGS.driftRate, RINGS.spin, RINGS.selfSpin);
     (this.motes.material as THREE.ShaderMaterial).uniforms.moteLook.value.set(RINGS.moteSize, RINGS.moteDrift);

@@ -14,12 +14,9 @@ import { LightShafts, SeaLife } from "./deep";
 import { sunDirection } from "./palette";
 import type { World } from "./World";
 import { reloadForNewBuild } from "../../staleBuild";
-import { DEEP, TERRAIN } from "../tuning";
+import { TERRAIN } from "../tuning";
+import { lookFor } from "./look";
 
-// Fog ramps up quickly so terrain loads behind a thick haze; the sky dome's
-// horizon silhouettes give depth behind the fog instead of a blank wash.
-const FOG_NEAR = 200;
-const FOG_FAR = 900;
 const REQUESTS_PER_WORKER = 4;
 
 export type { RingMode };
@@ -56,6 +53,10 @@ export class WorldView {
   /** The gates' muted stone colors (for the particles a gate gives off; the finish is gold) */
   readonly gateColors: GateColors;
   private readonly sky: THREE.Mesh;
+  /** The sky's light from above and the ground's (the sea of clouds') from below */
+  private readonly hemi: THREE.HemisphereLight;
+  private scene: THREE.Scene | null = null;
+  private fogColorKey = "";
   private disposed = false;
 
   constructor(world: World, scene: THREE.Scene) {
@@ -65,16 +66,13 @@ export class WorldView {
     const accent = new THREE.Color(palette.accent);
     const sun = sunDirection(palette);
     const underwater = world.biome.sky.underwater;
+    // The sky lights the shadows from above, the sea of clouds bounces light from below (its
+    // colours follow the mood's air every frame: applyAir)
+    this.hemi = new THREE.HemisphereLight(palette.horizon, palette.cloud, palette.ambient);
     this.light(scene);
-    // The sky lights the shadows from above, the sea of clouds bounces light from below
-    const hemi = new THREE.HemisphereLight(
-      new THREE.Color(palette.horizon).lerp(new THREE.Color(palette.zenith), 0.25),
-      palette.cloud,
-      palette.ambient,
-    );
     const sunLight = new THREE.DirectionalLight(palette.sun, palette.sunIntensity);
     sunLight.position.copy(sun);
-    this.group.add(hemi, sunLight);
+    this.group.add(this.hemi, sunLight);
 
     this.sky = new THREE.Mesh(this.geometry(new THREE.SphereGeometry(4000, 32, 16)), this.material(skyMaterial()));
     // After the land (it writes no depth and is tested against the land's), so its clouds
@@ -93,8 +91,8 @@ export class WorldView {
       this.group.add(this.shafts.mesh, this.seaLife.group);
     }
     // Gates in muted stone, tinted a touch by the biome's accent rather than painted in it
-    this.gateColors = gateColors(accent);
-    this.gates = new CrystalGates(world.seed, world.course.rings, this.gateColors, sun);
+    this.gateColors = gateColors(accent, lookFor(palette).gates);
+    this.gates = new CrystalGates(world.seed, world.course.rings, this.gateColors, sun, palette);
     this.group.add(this.gates.group);
     this.setRings("free");
 
@@ -121,7 +119,6 @@ export class WorldView {
     ATMOSPHERE.mistDensity.value = palette.mistDensity;
     const mist = world.biome.sky.mist;
     ATMOSPHERE.mistMode.value = mist.mode === "valley" ? 1 : 0;
-    ATMOSPHERE.mistThickness.value = mist.mode === "valley" ? mist.thickness : 120;
     ATMOSPHERE.horizon.value.set(palette.horizon);
     ATMOSPHERE.zenith.value.set(palette.zenith);
     ATMOSPHERE.clouds.value.set(palette.cloud);
@@ -134,8 +131,45 @@ export class WorldView {
     ATMOSPHERE.silhouettes.value = underwater ? 0 : 1;
 
     scene.background = new THREE.Color(palette.horizon);
-    const [fogNear, fogFar] = world.biome.sky.fog ?? [FOG_NEAR, FOG_FAR];
-    scene.fog = new THREE.Fog(palette.horizon, fogNear, fogFar);
+    scene.fog = new THREE.Fog(palette.horizon, 200, 900);
+    this.scene = scene;
+    this.fogColorKey = "";
+    this.applyAir();
+  }
+
+  /**
+   * The mood's air (look.ts), every frame so the tune panel's numbers show at once: the haze,
+   * the sky's rules, the mist, the light's colours, the puffs
+   */
+  private applyAir() {
+    const palette = this.world.palette;
+    const air = lookFor(palette).air;
+    const scene = this.scene;
+    if (scene?.fog && scene.fog instanceof THREE.Fog) {
+      scene.fog.near = air.fogNear;
+      scene.fog.far = air.fogFar;
+      const key = air.fogColor ?? palette.horizon;
+      if (key !== this.fogColorKey) {
+        this.fogColorKey = key;
+        scene.fog.color.set(key);
+        (scene.background as THREE.Color).set(key);
+      }
+    }
+    ATMOSPHERE.glow.value.set(air.glowWidth, air.glowStrength, air.glowCore, air.glowCoreStrength);
+    ATMOSPHERE.discs.value.set(air.sunDisc, air.moonDisc);
+    ATMOSPHERE.skyCurve.value = air.skyCurve;
+    ATMOSPHERE.silhouette.value.set(air.silhouetteSky, air.silhouetteShade);
+    ATMOSPHERE.cloudBright.value = air.cloudBright;
+    const mist = this.world.biome.sky.mist;
+    ATMOSPHERE.mistThickness.value = mist.mode === "valley" ? mist.thickness : air.mistThickness;
+    ATMOSPHERE.mistDrop.value = air.mistDrop;
+    ATMOSPHERE.mistRange.value = air.mistRange;
+    ATMOSPHERE.mistCap.value = air.mistCap;
+    ATMOSPHERE.rim.value = air.rim;
+    ATMOSPHERE.puff.value.set(air.puffShadowSky, air.puffShadow, air.puffLit, air.puffGlow);
+    this.hemi.color.set(palette.horizon).lerp(new THREE.Color(palette.zenith), air.hemiSky);
+    this.hemi.groundColor.set(air.hemiGround ?? palette.cloud);
+    this.hemi.intensity = palette.ambient;
   }
 
   /**
@@ -200,6 +234,8 @@ export class WorldView {
     };
     const positions: number[] = [];
     const colors: number[] = [];
+    // Built once in the mood's air (its facets and own light): a change applies to the next map
+    const air = lookFor(palette).air;
     const base = new THREE.Color(palette.cloud);
     const color = new THREE.Color();
     for (let r = 0; r < rows; r++) {
@@ -208,7 +244,7 @@ export class WorldView {
           [point(r, c), point(r + 1, c), point(r + 1, c + 1)],
           [point(r, c), point(r + 1, c + 1), point(r, c + 1)],
         ]) {
-          color.copy(base).multiplyScalar(0.9 + 0.1 * hash3(r, c, tri[2][0] | 0));
+          color.copy(base).multiplyScalar(1 - air.seaFacets + air.seaFacets * hash3(r, c, tri[2][0] | 0));
           for (const v of tri) {
             positions.push(...v);
             colors.push(color.r, color.g, color.b);
@@ -221,7 +257,7 @@ export class WorldView {
     geometry.setAttribute("color", new THREE.Float32BufferAttribute(colors, 3));
     geometry.computeVertexNormals();
     const material = new THREE.MeshLambertMaterial({ vertexColors: true });
-    material.emissive.set(palette.cloud).multiplyScalar(0.35);
+    material.emissive.set(palette.cloud).multiplyScalar(air.seaEmissive);
     this.group.add(new THREE.Mesh(geometry, this.material(material)));
   }
 
@@ -272,21 +308,23 @@ export class WorldView {
     // The clock arriving land fades in by: the wall clock, so it also runs while the game's is slowed
     ATMOSPHERE.now.value = performance.now() / 1000;
     ATMOSPHERE.revealRate.value = 1 / Math.max(TERRAIN.fadeIn, 1e-3);
+    this.applyAir();
     const mist = this.world.biome.sky.mist;
     if (mist.mode === "valley") ATMOSPHERE.mistHeight.value = this.world.valleyFloor(camera.position.z) + mist.above;
     const underwater = this.world.biome.sky.underwater;
+    const look = lookFor(this.world.palette);
     if (underwater) {
       // The surface stays the same height over the racing line all the way down; moonlight ripples less
-      const dim = 1 - this.world.palette.night * 0.5;
+      const dim = 1 - this.world.palette.night * look.deep.nightDim;
       ATMOSPHERE.surface.value = this.world.course.y(camera.position.z) + underwater.surface;
-      ATMOSPHERE.caustics.value = DEEP.caustics * dim;
-      ATMOSPHERE.surfaceGlow.value = DEEP.surface;
-      this.shafts!.update(DEEP.shafts * dim);
-      this.seaLife!.update(DEEP.life, raceTime);
+      ATMOSPHERE.caustics.value = look.deep.caustics * dim;
+      ATMOSPHERE.surfaceGlow.value = look.deep.surface;
+      this.shafts!.update(look.deep.shafts * dim);
+      this.seaLife!.update(look.deep.life, raceTime);
     }
     this.land.update(camera.position, this.dispatch, velocity);
     this.ready = this.land.ready;
-    applyTerrainTuning(this.terrainUniforms, this.world.biome.terrain.layers);
+    applyTerrainTuning(this.terrainUniforms, this.world.biome.terrain.layers, look.land);
     this.flora?.update(camera);
     this.water?.update();
     this.sky.position.copy(camera.position);
