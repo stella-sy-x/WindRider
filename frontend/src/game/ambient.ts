@@ -87,6 +87,8 @@ export class Ambient {
     s.gravity = 0;
     s.drag = 0;
     s.intensity = 1;
+    // This kind's size and brightness in this mood (look.particles)
+    const p = lookFor(this.world!.palette).particles[e.spec.kind];
     switch (e.spec.kind) {
       case "fireflies": {
         // In the shade of the woods (anywhere low at night), close to the ground
@@ -96,38 +98,38 @@ export class Ambient {
         const shade = forestAt(this.world!, at.x, at.z);
         if (Math.random() > shade + night * 0.5) return;
         at.y = g + rand(0.6, 5);
-        look(s, rand(4, 7), rand(0.28, 0.45), Kind.Firefly, -0.03, 0.4, 2.4 + night);
+        look(s, rand(4, 7), rand(0.28, 0.45) * p.size, Kind.Firefly, -0.03, 0.4, (2.4 + night) * p.bright);
         this.glow.emit(at, vel.set(rand(-0.6, 0.6), rand(-0.2, 0.3), rand(-0.6, 0.6)), s);
         break;
       }
       case "motes": {
         at.set(cx + rand(-45, 45), cy + rand(-25, 20), cz + rand(-45, 45));
-        look(s, rand(4, 7), rand(0.1, 0.18), Kind.Glow, -0.06, 0.6, 1.3);
+        look(s, rand(4, 7), rand(0.1, 0.18) * p.size, Kind.Glow, -0.06, 0.6, 1.3 * p.bright);
         this.glow.emit(at, vel.set(rand(-0.5, 0.5), rand(-0.1, 0.25), rand(-0.5, 0.5)), s);
         break;
       }
       case "glitter": {
         at.set(cx + rand(-40, 40), cy + rand(-20, 15), cz + rand(-40, 40));
-        look(s, rand(0.5, 1.2), rand(0.25, 0.5), Kind.Star, 0, 0, 2.2);
+        look(s, rand(0.5, 1.2), rand(0.25, 0.5) * p.size, Kind.Star, 0, 0, 2.2 * p.bright);
         this.glow.emit(at, vel.set(0, rand(-0.3, 0.1), 0), s);
         break;
       }
       case "spores": {
         at.set(cx + rand(-50, 50), cy + rand(-25, 15), cz + rand(-50, 50));
-        look(s, rand(5, 8), rand(0.14, 0.26), Kind.Glow, -0.25, 0.8, 1.8 + night);
+        look(s, rand(5, 8), rand(0.14, 0.26) * p.size, Kind.Glow, -0.25, 0.8, (1.8 + night) * p.bright);
         this.glow.emit(at, vel.set(rand(-0.4, 0.4), rand(0.1, 0.5), rand(-0.4, 0.4)), s);
         break;
       }
       case "snow": {
         at.set(cx + rand(-50, 50), cy + rand(0, 30), cz + rand(-50, 50));
-        look(s, rand(5, 8), rand(0.12, 0.24), Kind.Glow, 0, 0, 1);
+        look(s, rand(5, 8), rand(0.12, 0.24) * p.size, Kind.Glow, 0, 0, p.bright);
         this.soft.emit(at, vel.set(rand(-1.2, 1.2), rand(-2.4, -1.4), rand(-1.2, 1.2)), s);
         break;
       }
       case "starfall": {
         // Shooting stars streaking across the sky far above
         at.set(cx + rand(-300, 300), cy + rand(120, 240), cz + rand(-200, 400));
-        look(s, rand(0.7, 1.3), rand(1.4, 2.4), Kind.Star, 0, 0, 3);
+        look(s, rand(0.7, 1.3), rand(1.4, 2.4) * p.size, Kind.Star, 0, 0, 3 * p.bright);
         const a = rand(0, Math.PI * 2);
         this.glow.emit(at, vel.set(Math.cos(a) * 55, rand(-35, -20), Math.sin(a) * 55), s);
         break;
@@ -137,7 +139,7 @@ export class Ambient {
         at.set(cx + rand(-45, 45), cy + rand(-28, 8), cz + rand(-45, 45));
         const g = this.groundAt(at.x, at.z);
         if (!Number.isNaN(g) && (at.y < g + 0.5 || Math.random() < 0.4)) at.y = g + rand(0.3, 2.5);
-        look(s, rand(3.5, 6.5), rand(0.14, 0.4), Kind.Bubble, -1.4, 0.5, 1);
+        look(s, rand(3.5, 6.5), rand(0.14, 0.4) * p.size, Kind.Bubble, -1.4, 0.5, p.bright);
         this.soft.emit(at, vel.set(rand(-0.3, 0.3), rand(0.8, 2.2), rand(-0.3, 0.3)), s);
         break;
       }
@@ -145,7 +147,7 @@ export class Ambient {
       case "petals": {
         at.set(cx + rand(-45, 45), cy + rand(-10, 25), cz + rand(-45, 45));
         const petal = e.spec.kind === "petals";
-        look(s, rand(4, 7), petal ? rand(0.12, 0.2) : rand(0.28, 0.45), Kind.Shard, 0, 0, 1);
+        look(s, rand(4, 7), (petal ? rand(0.12, 0.2) : rand(0.28, 0.45)) * p.size, Kind.Shard, 0, 0, p.bright);
         this.soft.emit(at, vel.set(rand(-1.5, 1.5), rand(-1.4, -0.6), rand(-1.5, 1.5)), s);
         break;
       }
