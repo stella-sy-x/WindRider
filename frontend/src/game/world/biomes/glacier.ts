@@ -14,6 +14,8 @@ export const GLACIER: Biome = {
   moods: [
     {
       name: "Polar day",
+      // Draft brief (Claude, 2026-10-24): not yet judged against the picture
+      brief: "A high, cold, clear polar noon: white light, blue shadow, a blue sky; the ice does the colouring.",
       horizon: "#e2edf7",
       zenith: "#4a82c4",
       grass: "#f4f8fc",
@@ -36,6 +38,8 @@ export const GLACIER: Biome = {
     {
       // A low sun just over the ridge, pink on the snow
       name: "Summit dawn",
+      // Draft brief (Claude, 2026-10-24): not yet judged against the picture
+      brief: "The first minutes of a summit sunrise: a low pink-orange sun straight down the course, a violet-blue sky, long shadows.",
       horizon: "#ffc8b0",
       zenith: "#4a6ac0",
       grass: "#f6f8ff",
@@ -59,6 +63,8 @@ export const GLACIER: Biome = {
     {
       // Curtains of light over the peaks, stars falling
       name: "Aurora night",
+      // Draft brief (Claude, 2026-10-24): not yet judged against the picture
+      brief: "Deep polar night under the aurora: a near-black sky, moonlit snow, the curtains of light the only warmth.",
       horizon: "#1a2a4a",
       zenith: "#03061a",
       grass: "#d8e0f0",

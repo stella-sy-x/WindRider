@@ -11,6 +11,8 @@ export const TWILIGHT: Biome = {
   moods: [
     {
       name: "Gloaming",
+      // Draft brief (Claude, 2026-10-24): not yet judged against the picture
+      brief: "The last of the light in a glowing forest: a violet sky, a low amber sun, the plants beginning to shine.",
       horizon: "#8a6fb0",
       zenith: "#2a2a6a",
       grass: "#2f5a5a",
@@ -32,6 +34,8 @@ export const TWILIGHT: Biome = {
     },
     {
       name: "Midnight bloom",
+      // Draft brief (Claude, 2026-10-24): not yet judged against the picture
+      brief: "Midnight in the glowing forest: a near-black violet sky, everything lit by what grows there.",
       horizon: "#2a1f4a",
       zenith: "#07051a",
       grass: "#1f3a3a",

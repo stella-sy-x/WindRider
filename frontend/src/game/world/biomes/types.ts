@@ -1,4 +1,5 @@
 import type { SpeciesId } from "../flora/species";
+import type { LookPatch } from "../look";
 import type { Palette } from "../palette";
 import type { StructureId } from "../structures/kinds";
 import type { GroundSpec, WallSpec } from "../terrain/ground";
@@ -255,6 +256,8 @@ export interface Biome {
   readonly structures?: readonly StructureSpec[];
   readonly sky: SkySpec;
   readonly particles: ParticleStyle;
+  /** The biome's own rules and numbers for how it looks (look.ts), over the defaults; a mood's go over these */
+  readonly look?: LookPatch;
 }
 
 /** Everything that decides a level, small enough to post to the mesher workers */

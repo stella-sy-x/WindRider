@@ -1,7 +1,14 @@
 import { Color, type ColorRepresentation, MathUtils, Vector3 } from "three";
+import type { LookPatch } from "./look";
 
 export interface Palette {
   name: string;
+  /**
+   * One sentence saying what this mood is (the time of day, the light, where its colour lives):
+   * what every number below and in its look is judged against. A mood whose brief is marked a
+   * draft has not been judged against it yet
+   */
+  brief: string;
   horizon: string; // sky at the horizon, also the fog color
   zenith: string; // sky straight up
   grass: string; // the islands' grassy tops
@@ -28,6 +35,8 @@ export interface Palette {
    * default). PAINT.override puts the ?tune sliders over every mood while tuning
    */
   paint?: Partial<PaintGrade>;
+  /** This mood's own rules and numbers (look.ts), over its biome's and the defaults */
+  look?: LookPatch;
 }
 
 /** The painted look's grade and light: PAINT in tuning.ts has the meaning of each number */

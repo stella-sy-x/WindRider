@@ -25,6 +25,8 @@ const MOODS: readonly Palette[] = [
   {
     // Bright blue sky, green grass, warm brown rock: the archipelago at its crispest
     name: "Alpine",
+    // Draft brief (Claude, 2026-10-24): not yet judged against the picture
+    brief: "A crisp alpine morning high over the sea of clouds: a white sun, a clean blue sky, green islands.",
     horizon: "#cdeaf6",
     zenith: "#3f8fd2",
     grass: "#8cb648",
@@ -47,6 +49,8 @@ const MOODS: readonly Palette[] = [
   {
     // Amber light, warm gold horizon
     name: "Autumn",
+    // Stella, 2026-10-24. The numbers below are not there yet: the sky, haze and sun are still amber
+    brief: "A clean autumn afternoon, about three o'clock: the autumn is in the orange trees and the dry grass, the light itself is clear.",
     horizon: "#ffe2bd",
     zenith: "#5f9bd6",
     grass: "#a9a24c",

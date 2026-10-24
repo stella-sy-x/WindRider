@@ -16,6 +16,8 @@ export const REEF: Biome = {
     {
       // Under the sea, `horizon` is the water all around (and the haze), `zenith` the light of the surface
       name: "Sunlit shallows",
+      // Draft brief (Claude, 2026-10-24): not yet judged against the picture
+      brief: "Bright shallows at midday: sunlight through the water, a turquoise haze, ripples of light on the sand.",
       horizon: "#2f9fc4",
       zenith: "#c9fbff",
       grass: "#4fb8a0",
@@ -37,6 +39,8 @@ export const REEF: Biome = {
     },
     {
       name: "Moonlit deep",
+      // Draft brief (Claude, 2026-10-24): not yet judged against the picture
+      brief: "The reef by night: deep blue-black water, moonlight from above, the life glowing by itself.",
       horizon: "#0d2f52",
       zenith: "#2f6a9a",
       grass: "#2a6a6a",
