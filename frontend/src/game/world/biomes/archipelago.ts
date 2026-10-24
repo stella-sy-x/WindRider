@@ -74,6 +74,8 @@ const MOODS: readonly Palette[] = [
     mistDensity: 0.3, // was 0.45: with the painted look's warmth on top, far islands melted into the sky
     glow: 1.2,
     look: {
+      // A clear afternoon: no haze within 250 m (the biome's begins at 80), the far islands keep their shape to 1800
+      air: { fogNear: 250, fogFar: 1800 },
       // Judged 2026-10-23/24 (Stella, in ?tune): grade 0.82, gradient 1.2; lift and warmth eased on the 24th against a yellow veil
       paint: { grade: 0.82, lift: 0.06, warmth: 0.3, shadowTint: 0.5, contrast: 1.05, saturation: 1.1, vignette: 0.4, grain: 0, ramp: 1, steps: 3, soft: 0.12, warmLight: 0.5, coolShade: 0.15, bounce: 0.7, shade: 0.85, gradient: 1.2 },
     },
