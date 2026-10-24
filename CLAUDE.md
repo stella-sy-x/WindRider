@@ -137,18 +137,6 @@ structures, sky, particles, music); update it when a biome recipe changes.
 
 ## Change log
 
-### 2026-10-24: No greyish colours on the Archipelago (Claude)
-
-- A pass over the islands' 80 colours flagged 17 under 25 % saturation:
-  the Autumn mood's `rock` (which greyed every rock, since a mood repaints
-  by its difference from Alpine), the gates' rock (grey on purpose, to
-  read against the islands), the bridges' worked stone and the structures'
-  stone colours, and the shrine gate's grey-blue roof. All recoloured:
-  Autumn rock warm (#96674a), gates a paler sandstone (told apart by
-  lightness), worked stone and structure stone a warm limestone in the
-  paper's cream family, the shrine roof a deep lacquer red. The storybook
-  rule: every colour saturated, however soft; grey reads as "rendered".
-
 ### 2026-10-23: Undersides out of the grey (Claude)
 
 - The grade pass keeps its shadows cool (the mood's sky tint) and lifts
