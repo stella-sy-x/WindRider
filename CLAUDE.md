@@ -151,9 +151,12 @@ structures, sky, particles, music); update it when a biome recipe changes.
 
 ### 2026-10-23: Undersides out of the grey (Claude)
 
-- The grade pass no longer pushes every dark pixel towards the sky: its
-  shadow colour is half the mood's sky tint, half its bounce (ground) tint,
-  and the lifted black is the bounce tint at 0.15, never a fixed grey.
+- The grade pass keeps its shadows cool (the mood's sky tint) and lifts
+  black to a deep version of the sky, never a fixed grey. Warm shadows
+  under a warm sun were tried for the undersides and read as a yellow veil
+  over the whole picture: the temperature contrast (cool shade, warm
+  light) is what keeps a warm mood crisp. Undersides get their warmth from
+  the bounce term in the lighting pass instead.
 - `PAINT.bounce`: in the light, shade facing down is brightened (0.3 by
   default), as the light bounced up from below is bright; the Archipelago's
   under-rock colour is a richer brown (#7a4e2c, was a greyish #5e4330).

@@ -56,11 +56,13 @@ export const PAINT_SHADER = {
       // The painter's rule: the highlights take the colour of the light, the shadows the colour of
       // the sky. Which colours those are is the mood's own (its sun and sky), not a fixed warm/cool
       float shade = (1.0 - l) * (1.0 - l);
-      vec3 shadowColor = mix(skyTint, groundTint, 0.5);
-      c += shadowTint * shade * (shadowColor - 1.0) * 0.6;
+      // Shadows cool (the sky), highlights warm (the sun): the temperature contrast is what keeps a
+      // warm mood crisp. Warm shadows under a warm sun went to a yellow veil, like dirty glasses;
+      // undersides get their warmth from the bounce light in the lighting pass instead
+      c += shadowTint * shade * (skyTint - 1.0) * 0.6;
       c += warmth * smoothstep(0.35, 1.0, l) * (sunTint - 1.0) * 1.2;
-      // No pure black: the darkest dark is a deep version of the mood's bounce light (never a fixed grey)
-      c = c * (1.0 - lift) + lift * groundTint * 0.15;
+      // No pure black: the darkest dark is a deep version of the mood's sky (cool), never a fixed grey
+      c = c * (1.0 - lift) + lift * skyTint * 0.15;
       c = (c - 0.5) * contrast + 0.5;
       c = mix(vec3(luma(c)), c, saturation);
       // Vignette: the corners darken, the middle is untouched
