@@ -158,6 +158,28 @@ structures, sky, particles, music); update it when a biome recipe changes.
 
 ## Change log
 
+### 2026-10-24: The view distance and the mist's density are the mood's (Claude)
+
+- `look.view`: the LOD tiers (`lodDetail` 140, `lodNear` 300, `lodFar`
+  700), `viewDistance` (700) and `prefetchDistance` (1200) left `TERRAIN`
+  for the mood's look: a mood's haze says how far land is worth drawing,
+  and Stella wants streaming decided per mood, never globally. The
+  streamer reads the mood's `view` at every update (the tune panel moves
+  it live); full trees give way to impostors at the mood's `lodDetail`.
+  The racing line's land is always within every tier, so collisions are
+  unchanged. Archipelago Autumn draws to 1400 m at 12 m cells (prefetch
+  1900): a clear afternoon's haze begins far out and the islands must
+  arrive before they are seen. Measured over three seeds, the islands
+  700 to 1400 m ahead at 12 m cells are 7k to 15k triangles; 24 m cells
+  are never shown, since they lose the 14 m islands and the land would
+  change shape as it came in.
+- `mistDensity` left the palette for `look.air` (every mood carries its
+  old number in `look.air.mistDensity`), so it has a slider in the Look
+  folder; the mist's colour stays the palette's `mist`. Autumn: no mist
+  under the camera (0), and the cloud sea's floor 60 % haze-coloured
+  (`seaHaze` 0.6, was 1: at 1 it lost its facets and the lower half of
+  the picture read as fog, which is what "雾蒙蒙" was).
+
 ### 2026-10-24: Archipelago Autumn: the sea of clouds is the haze floor alone (Claude)
 
 - `sky.cloudSea` on the Archipelago carries no `puffs` any more: below

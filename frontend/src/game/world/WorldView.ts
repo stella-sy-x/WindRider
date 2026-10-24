@@ -118,7 +118,6 @@ export class WorldView {
     ATMOSPHERE.sunDirection.value.copy(sunDirection(palette));
     ATMOSPHERE.sunColor.value.set(palette.sun);
     ATMOSPHERE.mistColor.value.set(palette.mist);
-    ATMOSPHERE.mistDensity.value = palette.mistDensity;
     const mist = world.biome.sky.mist;
     ATMOSPHERE.mistMode.value = mist.mode === "valley" ? 1 : 0;
     ATMOSPHERE.horizon.value.set(palette.horizon);
@@ -170,6 +169,7 @@ export class WorldView {
     ATMOSPHERE.rim.value = air.rim;
     ATMOSPHERE.puff.value.set(air.puffShadowSky, air.puffShadow, air.puffLit, air.puffGlow);
     ATMOSPHERE.puffShadowZenith.value = air.puffShadowZenith;
+    ATMOSPHERE.mistDensity.value = air.mistDensity;
     this.hemi.color.set(palette.horizon).lerp(new THREE.Color(palette.zenith), air.hemiSky);
     this.hemi.groundColor.set(air.hemiGround ?? palette.cloud);
     this.hemi.intensity = palette.ambient;

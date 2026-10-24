@@ -38,6 +38,7 @@ export interface AirLook {
   /** Clouds painted on the dome: their brightness (1: as built) */
   cloudBright: number;
   // The mist below you (over a sea of clouds; in a valley the biome's `mist` says where it pools)
+  mistDensity: number; // how thick it is, 0..1 (its colour is the mood's `mist`)
   mistDrop: number; // metres under the camera where it begins
   mistThickness: number; // metres over which it thickens
   mistRange: number; // metres of distance over which it builds up
@@ -178,8 +179,22 @@ export interface PaintLook {
   gradient: number;
 }
 
+/**
+ * How far the land is drawn and at what detail, metres from the camera: a mood's haze says what
+ * is worth drawing (Stella, 2026-10-24: the view is the mood's, never a global). Looks only: the
+ * colliders follow the drawn land, but the racing line's land is always within every tier
+ */
+export interface ViewLook {
+  lodDetail: number; // within this of any land node: the finest 3 m cells
+  lodNear: number; // 6 m cells
+  lodFar: number; // 12 m cells; beyond, 24 m, which is never shown (see viewDistance)
+  viewDistance: number; // land further than this is not drawn: keep it at lodFar, since 24 m cells lose the small islands and the far land would change shape as it comes in
+  prefetchDistance: number; // the workers make land ahead out to here, held off screen until it comes within viewDistance; always more than viewDistance
+}
+
 export interface Look {
   air: AirLook;
+  view: ViewLook;
   land: LandLook;
   water: WaterLook;
   plants: PlantLook;
@@ -210,6 +225,7 @@ export const LOOK_DEFAULTS: Look = {
     silhouetteSky: 1,
     silhouetteShade: 1,
     cloudBright: 1,
+    mistDensity: 0.5,
     mistDrop: 40,
     mistThickness: 120,
     mistRange: 280,
@@ -230,6 +246,13 @@ export const LOOK_DEFAULTS: Look = {
     puffGlow: 1.2,
     tintSky: 0.3,
     tintGround: 0.5,
+  },
+  view: {
+    lodDetail: 140,
+    lodNear: 300,
+    lodFar: 700,
+    viewDistance: 700,
+    prefetchDistance: 1200,
   },
   land: {
     snowLine: 0,
@@ -365,6 +388,12 @@ export const LOOK_RANGES: Record<string, [number, number, number?]> = {
   "air.seaJitter": [0, 20],
   "air.seaRelief": [0, 80],
   "air.seaWave": [60, 800, 5],
+  "air.mistDensity": [0, 1],
+  "view.lodDetail": [50, 400, 10],
+  "view.lodNear": [100, 1000, 10],
+  "view.lodFar": [300, 2500, 10],
+  "view.viewDistance": [300, 3000, 10],
+  "view.prefetchDistance": [500, 4000, 10],
   "air.puffShadowSky": [0, 1],
   "air.puffShadowZenith": [0, 1],
   "air.puffShadow": [0.2, 1.2],

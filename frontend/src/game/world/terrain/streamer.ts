@@ -1,5 +1,6 @@
 import * as THREE from "three";
 import { TERRAIN } from "../../tuning";
+import { type ViewLook, lookFor } from "../look";
 import { bornFresh, bornSwapped } from "../atmosphere";
 import { PLANT_STRIDE } from "../flora/species";
 import type { FloraView } from "../flora/view";
@@ -33,7 +34,7 @@ import { NODE_SIZE, type TerrainMesh, VOXEL, nodeKey } from "./mesh";
 // leave holes), and it never stops the workers: the finer replacements still
 // load ahead of you, so the land is complete before it enters the radius.
 //
-// Beyond the view distance, out to TERRAIN.prefetchDistance, land ahead of you is
+// Beyond the view distance, out to the mood's prefetchDistance (look.view), land ahead of you is
 // generated too and held off screen (loaded, never shown): when it comes within the
 // view distance it is already there and fades in at once, instead of waiting for a
 // worker. Prefetch requests always queue behind requests for land on screen.
@@ -89,6 +90,8 @@ interface Node {
 export class LandStreamer {
   ready = false;
   private readonly world: World;
+  /** How far and how finely the land is drawn: the mood's look.view, read again every update (the tune panel moves it) */
+  private view: ViewLook;
   private readonly group: THREE.Group;
   private readonly material: THREE.Material;
   private readonly flora: FloraView | null;
@@ -110,6 +113,7 @@ export class LandStreamer {
 
   constructor(world: World, group: THREE.Group, material: THREE.Material, flora: FloraView | null, collider: LandCollider) {
     this.world = world;
+    this.view = lookFor(world.palette).view;
     this.collider = collider;
     this.group = group;
     this.material = material;
@@ -215,6 +219,7 @@ export class LandStreamer {
 
   /** Which nodes should be on screen from here, and which to ask the workers for next */
   update(at: THREE.Vector3, request: (r: NodeRequest) => boolean, velocity?: THREE.Vector3) {
+    this.view = lookFor(this.world.palette).view;
     this.lookAhead.copy(at);
     this.predicting = !!velocity && velocity.lengthSq() > 1;
     if (this.predicting) {
@@ -276,11 +281,11 @@ export class LandStreamer {
     // of it, and a pilot who climbs them is not racing (nothing out there is paid for)
     if (node.lateral > TERRAIN.generateLateral) return;
     const d = node.box.distanceToPoint(at);
-    const ahead = d > TERRAIN.viewDistance;
+    const ahead = d > this.view.viewDistance;
     // Beyond the view: prefetched (loaded, not shown) out to the prefetch distance, and
     // only ahead of the camera; the course runs towards +z and you never fly back
-    if (ahead && (d > TERRAIN.prefetchDistance || node.box.max.z < at.z)) return;
-    const split = node.lod === 3 ? TERRAIN.lodFar : node.lod === 2 ? TERRAIN.lodNear : TERRAIN.lodDetail;
+    if (ahead && (d > this.view.prefetchDistance || node.box.max.z < at.z)) return;
+    const split = node.lod === 3 ? this.view.lodFar : node.lod === 2 ? this.view.lodNear : this.view.lodDetail;
     const detailDistance = this.predicting ? Math.min(d, node.box.distanceToPoint(this.lookAhead)) : d;
     // Decoration, off to the side of the racing line, never splits finer than decorationMaxLod
     const finest = node.lateral > TERRAIN.decorationLateral ? Math.min(Math.max(TERRAIN.decorationMaxLod, 0), ROOT_LOD) : 0;

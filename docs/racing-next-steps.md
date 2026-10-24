@@ -134,6 +134,12 @@ cosmetics, items and the gallery are gone; the game is racing only.
 
 ## Done lately
 
+- 2026-10-24: the view distance is the mood's (`look.view`: the LOD
+  tiers, view and prefetch distances left `TERRAIN`), as is the mist's
+  density (`look.air.mistDensity`, out of the palette); both have sliders.
+  Archipelago Autumn draws to 1400 m at 12 m cells (7k to 15k triangles
+  more), no mist under the camera, the cloud sea's floor 60 % haze.
+
 - 2026-10-24: the Archipelago's sea of clouds is the haze floor alone.
   Tried and dropped on Autumn: a faceted floor (dunes, ice, crumpled
   paper), puff clusters on it (a grey/white patchwork from above: the

@@ -43,7 +43,7 @@ const MOODS: readonly Palette[] = [
     sunAzimuth: 35,
     night: 0,
     mist: "#e6f4fb",
-    mistDensity: 0.45,
+    look: { air: { mistDensity: 0.45 } },
     glow: 1.25,
   },
   {
@@ -75,17 +75,21 @@ const MOODS: readonly Palette[] = [
     sunAzimuth: 150,
     night: 0,
     mist: "#e4ecf2",
-    mistDensity: 0.3, // was 0.45: with the painted look's warmth on top, far islands melted into the sky
     glow: 1.2,
     look: {
       // A clear afternoon: no haze within 250 m (the biome's begins at 80), the far islands keep their shape to 1800
-      // The sea of clouds is the haze floor alone (unlit, the horizon's colour) with nothing lying on it. A
-      // faceted floor was tried twice (rolling swells, a quilt of rounded heads) and read as ice or crumpled
-      // paper; clusters of puffs on it read, from 260 m above, as a grey and white patchwork (soft), as
-      // scales (hard-edged), as boats (one cut-out card per cloud); low-poly hull clouds as white rock, at
-      // 50k triangles. Below the line, only the haze (Stella, 2026-10-24)
+      // The sea of clouds is the faceted floor alone, with nothing lying on it, painted 60 % in the haze's
+      // colour (seaHaze 0.6: at 1 it lost its facets and the whole lower half of the picture read as fog).
+      // Clusters of puffs on it read, from 260 m above, as a grey and white patchwork (soft), as scales
+      // (hard-edged), as boats (one cut-out card per cloud); low-poly hull clouds as white rock, at 50k
+      // triangles. Below the line, only the floor (Stella, 2026-10-24)
       // The puffs' shade is the sky's blue, not the horizon's cream
-      air: { fogNear: 250, fogFar: 1800, seaHaze: 1, puffShadowZenith: 0.5 },
+      // No mist under the camera at all (Alpine keeps 0.45): a clear afternoon, and the far haze is enough
+      air: { fogNear: 250, fogFar: 1800, seaHaze: 0.6, puffShadowZenith: 0.5, mistDensity: 0 },
+      // The islands drawn out to 1400 m at 12 m cells (the defaults stop at 700): a clear afternoon's haze
+      // begins far out, so the land must arrive further out too, before it is seen. Islands are sparse:
+      // the extra 700 m cost 7k to 15k triangles over three seeds (Stella, 2026-10-24)
+      view: { lodFar: 1400, viewDistance: 1400, prefetchDistance: 1900 },
       // Judged 2026-10-23/24 (Stella, in ?tune): grade 0.82, gradient 1.2; lift and warmth eased on the 24th against a yellow veil
       paint: { grade: 0.82, lift: 0.06, warmth: 0.3, shadowTint: 0.5, contrast: 1.05, saturation: 1.1, vignette: 0.4, grain: 0, ramp: 1, steps: 3, soft: 0.12, warmLight: 0.5, coolShade: 0.15, bounce: 0.7, shade: 0.85, gradient: 1.2 },
     },

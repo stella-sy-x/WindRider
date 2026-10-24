@@ -42,12 +42,13 @@ test("the look in use follows the override: edited numbers with it on, the writt
   assert.equal(lookFor(palette), written);
   LOOK_TUNING.override = true;
   assert.equal(lookFor(palette), edited);
-  assert.deepEqual(lookDiff(palette).air, { fogNear: written.air.fogNear + 50 });
+  // The diff is against the layers below the mood, so it carries what the mood itself writes too
+  assert.deepEqual(lookDiff(palette).air, { ...(palette.look?.air ?? {}), fogNear: written.air.fogNear + 50 });
   LOOK_TUNING.override = false;
   const reset = resetLook(palette);
   assert.deepEqual(reset, written);
   assert.equal(lookEdited(palette), reset);
-  assert.deepEqual(lookDiff(palette), {});
+  assert.deepEqual(lookDiff(palette), palette.look ?? {});
 });
 
 test("the defaults are shared with nobody: resolving never hands out LOOK_DEFAULTS' own objects", () => {

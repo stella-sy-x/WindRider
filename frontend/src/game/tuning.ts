@@ -112,18 +112,16 @@ export const MESH_CLEANUP = {
   tipMaxTrim: 3, // maximum attached-tip shortening (m)
 };
 
-/** Generator-v2 terrain streaming and appearance. Collisions follow the visible meshes. */
+/**
+ * Generator-v2 terrain streaming. Collisions follow the visible meshes. How far the land is drawn and
+ * at what detail (the LOD tiers, the view and prefetch distances) is the mood's `look.view`
+ */
 export const TERRAIN = {
   lodLookAheadSeconds: 3, // prepare approaching terrain three seconds ahead of current velocity
   lodLookAheadMax: 240, // cap extra detail extent during fast dives (m)
   freezeRadius: 80, // metres from the camera within which land already on screen keeps its level of detail (no split/merge, no plants popping)
-  lodDetail: 140, // metres from any terrain node: finest 3 m cells, including side mountains
-  lodNear: 300, // metres: 6 m cells before the finest approach tier
-  lodFar: 700, // closer than this at half detail (12 m), further at quarter (24 m)
   lodHysteresis: 48, // extra distance before merging fine detail again
   cacheMiB: 48, // bounded cache of hidden terrain (estimated CPU + GPU buffers)
-  viewDistance: 700, // metres: LOD 2 ceiling; LOD 3 (24 m) is skipped — sky silhouettes fill the far distance
-  prefetchDistance: 1200, // metres: the workers generate land ahead out to here, held off screen until it comes within viewDistance
   decorationLateral: 80, // metres from the racing line beyond which land is decoration: never finer than decorationMaxLod
   generateLateral: 280, // metres from the racing line beyond which no land is generated or drawn at all: the canyon walls (WALLS) stand in front of it, and nothing past them is play. On the reef the wall breaks the water surface at 275 m, so all that is cut is above the water (mesh test)
   decorationMaxLod: 2, // the finest level decoration land reaches (2: 12 m cells)

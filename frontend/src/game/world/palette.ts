@@ -25,8 +25,7 @@ export interface Palette {
   sunElevation: number; // degrees above the horizon
   sunAzimuth: number; // degrees; 0 = straight down the course (ahead of you), so low suns backlight the run
   night: number; // 0 = day … 1 = night: stars, glowing trims, stronger bloom
-  mist: string; // haze that thickens below you, towards the sea of clouds
-  mistDensity: number; // 0..1
+  mist: string; // the colour of the mist that thickens below you, towards the sea of clouds (its density is `look.air.mistDensity`)
   glow: number; // brightness of particles and trails; bright scenes need more to read
   aurora?: number; // 0..1: curtains of light across the night sky
   /**

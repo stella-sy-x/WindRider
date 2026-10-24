@@ -43,9 +43,14 @@ with every number explained beside it in `look.ts`:
 
 - **air**: the haze (where it begins and ends, its colour, by default the
   horizon's), the sky gradient's curve, the sun's glow and discs, the far
-  silhouettes, the dome clouds, the mist under the camera, the hemisphere
-  light's colours, the backlit rims, the sea of clouds and the puffs, and
-  the painted look's tints.
+  silhouettes, the dome clouds, the mist under the camera (its density;
+  its colour is the palette's `mist`), the hemisphere light's colours, the
+  backlit rims, the sea of clouds and the puffs, and the painted look's
+  tints.
+- **view**: how far the land is drawn and at what detail (the 3, 6 and
+  12 m tiers, the view distance, the prefetch distance), since a mood's
+  haze says what is worth drawing. Looks only: the racing line's land is
+  always within every tier.
 - **land**: the snow line, the cover slope, the painted noise, the strata,
   the slope bands of cover and soil, wet rock, the snow's fade, the crystal
   surfaces' tints, and what the mesher bakes (undersides, rock and cover
