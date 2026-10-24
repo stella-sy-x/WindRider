@@ -169,6 +169,7 @@ export class WorldView {
     ATMOSPHERE.mistCap.value = air.mistCap;
     ATMOSPHERE.rim.value = air.rim;
     ATMOSPHERE.puff.value.set(air.puffShadowSky, air.puffShadow, air.puffLit, air.puffGlow);
+    ATMOSPHERE.puffShadowZenith.value = air.puffShadowZenith;
     this.hemi.color.set(palette.horizon).lerp(new THREE.Color(palette.zenith), air.hemiSky);
     this.hemi.groundColor.set(air.hemiGround ?? palette.cloud);
     this.hemi.intensity = palette.ambient;

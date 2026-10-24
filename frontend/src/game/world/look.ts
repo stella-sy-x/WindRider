@@ -57,7 +57,8 @@ export interface AirLook {
   seaJitter: number; // metres each vertex of the sea is thrown up or down, so the facets vary
   seaRelief: number; // the sea as a quilt of rounded cloud heads this many metres tall (0: flat but for the jitter)…
   seaWave: number; // …one head per this many metres
-  puffShadowSky: number; // a puff's shaded side: cloud colour this far towards the horizon's…
+  puffShadowSky: number; // a puff's shaded side: cloud colour this far towards the sky's colour…
+  puffShadowZenith: number; // …which is the horizon's, this far towards the zenith's (0: the horizon as built)
   puffShadow: number; // …and this bright
   puffLit: number; // its lit side, times the cloud colour
   puffGlow: number; // the sun's light through its edge
@@ -223,6 +224,7 @@ export const LOOK_DEFAULTS: Look = {
     seaRelief: 0,
     seaWave: 260,
     puffShadowSky: 0.45,
+    puffShadowZenith: 0,
     puffShadow: 0.72,
     puffLit: 1.05,
     puffGlow: 1.2,
@@ -364,6 +366,7 @@ export const LOOK_RANGES: Record<string, [number, number, number?]> = {
   "air.seaRelief": [0, 80],
   "air.seaWave": [60, 800, 5],
   "air.puffShadowSky": [0, 1],
+  "air.puffShadowZenith": [0, 1],
   "air.puffShadow": [0.2, 1.2],
   "air.puffLit": [0.5, 1.5],
   "air.puffGlow": [0, 3],

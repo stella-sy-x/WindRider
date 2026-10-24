@@ -158,6 +158,27 @@ structures, sky, particles, music); update it when a biome recipe changes.
 
 ## Change log
 
+### 2026-10-24: Archipelago Autumn: the sea of clouds is the haze floor alone (Claude)
+
+- `sky.cloudSea` on the Archipelago carries no `puffs` any more: below
+  the line there is only the unlit haze floor (`seaHaze` 1). Everything
+  tried on it read wrong from 260 m above, which is the only way a cloud
+  sea is ever seen: puff clusters as a grey and white patchwork (a puff
+  is shaded by its height in its cloud and the puffs are drawn unsorted,
+  so grey bottoms paint over white tops), hard-edged or square puffs as
+  scales, one paper-cut card per cloud (lobed outline, flat white, a
+  shade band) as a row of boats, low-poly hull clouds as white rock at
+  50k triangles. Stella: no face budget for cloud decoration.
+- `look.air.puffShadowZenith` (0 as built; Autumn 0.5): the puffs' shade
+  takes the horizon's colour this far towards the zenith's, so under a
+  warm grade the shade stays blue, not cream. Cloud widths (70 to 320 m),
+  proportions (0.25 to 0.6) and puff counts (4 to 12) are spread wide: the
+  clouds were all alike and stacked into even bands.
+- A cloud is a cluster of camera-facing puff cards; nothing about that
+  changed. The soft edge, the continuous shade and the overlapping
+  half-transparent cards are what make it read as cloud; hardening any
+  of them shows every card's outline.
+
 ### 2026-10-24: Every map's look in three layers; a brief per mood (Claude)
 
 - `world/look.ts`: a `Look` is every rule and number that decides how a

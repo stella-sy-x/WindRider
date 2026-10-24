@@ -32,6 +32,8 @@ const vertexShader = /* glsl */ `
 const fragmentShader = /* glsl */ `
   uniform vec3 cloudColor;
   uniform vec3 horizon;
+  uniform vec3 zenith;
+  uniform float puffShadowZenith; // the sky colour the shade takes: the horizon's, this far towards the zenith's
   uniform vec3 atmoSunDirection;
   uniform vec3 atmoSunColor;
   uniform float night;
@@ -57,7 +59,8 @@ const fragmentShader = /* glsl */ `
     // Lit on top and towards the sun, greyer underneath
     float lit = clamp(vShade.x * 0.7 + vUv.y * 0.25 + 0.25, 0.0, 1.0);
     // By night clouds are moonlit veils, close to the sky behind them, not dark blots
-    vec3 shadow = mix(mix(cloudColor, horizon, puff.x) * puff.y, horizon * 1.1, night * 0.7);
+    vec3 sky = mix(horizon, zenith, puffShadowZenith);
+    vec3 shadow = mix(mix(cloudColor, sky, puff.x) * puff.y, horizon * 1.1, night * 0.7);
     vec3 color = mix(shadow, mix(cloudColor * puff.z, mix(cloudColor, horizon, 0.5) * 1.35, night), lit);
     float towardsSun = max(dot(viewDir, atmoSunDirection), 0.0);
     color += atmoSunColor * pow(towardsSun, 8.0) * (1.0 - a) * puff.w * (1.0 - night * 0.6);
@@ -88,18 +91,20 @@ export class SoftClouds {
         shades.push(v, rng());
       }
     };
+    // Sizes, proportions and puff counts spread wide (Stella, 2026-10-24: the clouds were all alike
+    // and the sea of clouds stacked into even bands)
     for (let i = 0; i < count; i++) {
       const z = range(rng, course.start.z - 500, course.endZ + 1300);
-      const width = range(rng, 110, 260);
-      cloud(course.x(z) + range(rng, -900, 900), course.y(z) + range(rng, 160, 380) + lift, z, width, width * range(rng, 0.3, 0.45), 6 + Math.floor(rng() * 6));
+      const width = range(rng, 70, 320);
+      cloud(course.x(z) + range(rng, -900, 900), course.y(z) + range(rng, 160, 380) + lift, z, width, width * range(rng, 0.25, 0.6), 4 + Math.floor(rng() * 9));
     }
     // Clusters lying on the sea of clouds: wide, low and dense, so the sea reads as cloud (its flat
     // floor shows only between them); the same puffs as the clouds above, so one kind of cloud
     for (let i = 0; sea && i < sea.count; i++) {
       const z = range(rng, course.start.z - 600, course.endZ + 1400);
-      const width = range(rng, 160, 340);
-      const height = width * range(rng, 0.2, 0.3);
-      cloud(course.x(z) + range(rng, -1000, 1000), course.y(z) - sea.depth + height * 0.25, z, width, height, 10 + Math.floor(rng() * 5));
+      const width = range(rng, 100, 420);
+      const height = width * range(rng, 0.14, 0.38);
+      cloud(course.x(z) + range(rng, -1000, 1000), course.y(z) - sea.depth + height * 0.25, z, width, height, 6 + Math.floor(rng() * 10));
     }
     // Banks across the racing line: fly straight through them
     for (let i = 0; i < banks; i++) {
@@ -118,6 +123,8 @@ export class SoftClouds {
         ...THREE.UniformsUtils.clone(THREE.UniformsLib.fog),
         cloudColor: { value: new THREE.Color(palette.cloud) },
         horizon: ATMOSPHERE.horizon,
+        zenith: ATMOSPHERE.zenith,
+        puffShadowZenith: ATMOSPHERE.puffShadowZenith,
         atmoSunDirection: ATMOSPHERE.sunDirection,
         atmoSunColor: ATMOSPHERE.sunColor,
         night: ATMOSPHERE.night,

@@ -79,10 +79,13 @@ const MOODS: readonly Palette[] = [
     glow: 1.2,
     look: {
       // A clear afternoon: no haze within 250 m (the biome's begins at 80), the far islands keep their shape to 1800
-      // The sea of clouds: its floor is the haze itself (unlit, the horizon's colour) and the clouds are the
-      // clusters of puffs lying on it (sky.cloudSea.puffs). A faceted floor was tried twice (rolling swells, a
-      // quilt of rounded heads) and read as ice or crumpled paper: a cloud is its soft edge, not its relief
-      air: { fogNear: 250, fogFar: 1800, seaHaze: 1 },
+      // The sea of clouds is the haze floor alone (unlit, the horizon's colour) with nothing lying on it. A
+      // faceted floor was tried twice (rolling swells, a quilt of rounded heads) and read as ice or crumpled
+      // paper; clusters of puffs on it read, from 260 m above, as a grey and white patchwork (soft), as
+      // scales (hard-edged), as boats (one cut-out card per cloud); low-poly hull clouds as white rock, at
+      // 50k triangles. Below the line, only the haze (Stella, 2026-10-24)
+      // The puffs' shade is the sky's blue, not the horizon's cream
+      air: { fogNear: 250, fogFar: 1800, seaHaze: 1, puffShadowZenith: 0.5 },
       // Judged 2026-10-23/24 (Stella, in ?tune): grade 0.82, gradient 1.2; lift and warmth eased on the 24th against a yellow veil
       paint: { grade: 0.82, lift: 0.06, warmth: 0.3, shadowTint: 0.5, contrast: 1.05, saturation: 1.1, vignette: 0.4, grain: 0, ramp: 1, steps: 3, soft: 0.12, warmLight: 0.5, coolShade: 0.15, bounce: 0.7, shade: 0.85, gradient: 1.2 },
     },
@@ -155,7 +158,7 @@ export const ARCHIPELAGO: Biome = {
     // Lanterns gather around the ponds
     { id: "stoneLantern", spacing: 10, chance: 0.7, height: [2.6, 3.4], colors: { stone: "#efe6d2", stone2: "#b8c79a", roof: "#3f7fb8" }, where: { lateral: [0, 300], on: "rock", wet: true } },
   ],
-  sky: { cloudSea: { depth: 260, puffs: 150 }, puffs: 65, puffsBelow: true, puffLift: 200, mist: { mode: "camera" } },
+  sky: { cloudSea: { depth: 260 }, puffs: 65, puffsBelow: true, puffLift: 200, mist: { mode: "camera" } },
   // The haze begins close and reaches far: islands keep arriving out of it for a long way
   look: { air: { fogNear: 80, fogFar: 1400 } },
   particles: {

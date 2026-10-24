@@ -134,6 +134,15 @@ cosmetics, items and the gallery are gone; the game is racing only.
 
 ## Done lately
 
+- 2026-10-24: the Archipelago's sea of clouds is the haze floor alone.
+  Tried and dropped on Autumn: a faceted floor (dunes, ice, crumpled
+  paper), puff clusters on it (a grey/white patchwork from above: the
+  puffs are shaded by height and drawn unsorted), hard-edged and square
+  puffs (scales), one cut-out card per cloud (boats), low-poly hull
+  clouds (white rock, 50k triangles). Kept: the puffs' shade can lean
+  towards the zenith (`look.air.puffShadowZenith`, Autumn 0.5) and the
+  clouds' sizes, proportions and puff counts are scattered wide.
+
 - 2026-10-24: every map's look in three layers (`world/look.ts`:
   defaults, biome, mood; about 110 numbers and colours out of shaders,
   builders and tuning groups; `paint` folded in), a `brief` per mood, the
