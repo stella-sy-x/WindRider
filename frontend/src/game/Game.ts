@@ -3,7 +3,8 @@ import * as THREE from "three";
 import type { EffectComposer } from "three/examples/jsm/postprocessing/EffectComposer.js";
 import type { UnrealBloomPass } from "three/examples/jsm/postprocessing/UnrealBloomPass.js";
 import type { ShaderPass } from "three/examples/jsm/postprocessing/ShaderPass.js";
-import { PAINT_SHADER, paintEdited, paintToSliders, resetPaint, slidersToPaint, updatePaintLight, updatePaintPass } from "./paint";
+import { PAINT_SHADER, updatePaintLight, updatePaintPass } from "./paint";
+import { LOOK_TUNING, lookDiff, lookFor, resetLook } from "./world/look";
 import { Ambient } from "./ambient";
 import { Autopilot } from "./autopilot";
 import { GameAudio } from "./audio";
@@ -23,7 +24,7 @@ import { clamp } from "./math";
 import { SpeedLines } from "./speedlines";
 // The glow light shared by trims, flora and water (particles.ts has its own FX_LIGHT, the particle boost)
 import { FX_LIGHT as GLOW_LIGHT, GOLD, WHITE } from "./toon";
-import { FX, PAINT, RANGES, RINGS, TUNING_GROUPS, WATER, loadTuning, resetTuning, saveTuning } from "./tuning";
+import { FX, RANGES, TUNING_GROUPS, loadTuning, resetTuning, saveTuning } from "./tuning";
 import { type Level, levelId, seedLevel } from "./world/biomes";
 import { type WaterHit, World } from "./world/World";
 import { WorldView } from "./world/WorldView";
@@ -960,7 +961,7 @@ export class Game {
     this.view.passRing(index);
     this.rig.kick();
     this.flash = 1;
-    const amount = this.particles.budget * RINGS.shatter;
+    const amount = this.particles.budget * lookFor(this.world.palette).gates.shatter;
     if (amount <= 0) return;
     const tint = ring.finish ? GOLD : this.view.gateColors.accent;
     const forward = ring.normal;
@@ -1107,7 +1108,7 @@ export class Game {
   /** Skimming water: a wake of droplets and mist */
   private waterSpray(dt: number, gap: number, level: number) {
     const close = clamp((7 - gap) / 6, 0, 1);
-    this.dustDebt += (0.3 + close) * 140 * WATER.spray * this.particles.budget * dt;
+    this.dustDebt += (0.3 + close) * 140 * lookFor(this.world.palette).water.spray * this.particles.budget * dt;
     for (; this.dustDebt >= 1; this.dustDebt--) {
       at.set(this.flight.position.x + rand(-1.5, 1.5), level + 0.2, this.flight.position.z + rand(-1.5, 1.5));
       const droplet = Math.random() < 0.6;
@@ -1602,16 +1603,8 @@ export class Game {
       .onChange((q: Quality) => this.setQuality(q))
       .listen();
     view.add(FX, "autoQuality").name("auto quality").onChange(save);
-    // The painted look's sliders show the mood on screen: taken from it now, and again whenever the mood changes
-    let paintedMood = this.world.palette;
-    paintToSliders(paintedMood);
     const syncQuality = setInterval(() => {
       settings.quality = this.quality;
-      if (this.world.palette !== paintedMood) {
-        paintedMood = this.world.palette;
-        paintToSliders(paintedMood);
-        gui.controllersRecursive().forEach((c) => c.updateDisplay());
-      }
     }, 500);
 
     // Physics isn't saved: a forgotten tweak shouldn't follow you into races
@@ -1619,11 +1612,6 @@ export class Game {
     for (const key of Object.keys(FLIGHT) as (keyof typeof FLIGHT)[]) flight.add(FLIGHT, key);
     flight.close();
 
-    // The painted look's sliders go grey while PAINT.override is off (the picture uses the numbers as written then)
-    const paintSliders: { domElement: HTMLElement }[] = [];
-    const dimPaint = () => {
-      for (const c of paintSliders) c.domElement.style.opacity = PAINT.override ? "" : "0.4";
-    };
     for (const [title, group] of TUNING_GROUPS) {
       const folder = gui.addFolder(title);
       for (const key of Object.keys(group)) {
@@ -1633,14 +1621,7 @@ export class Game {
           typeof group[key] === "boolean" || !range
             ? folder.add(group, key)
             : folder.add(group, key, range[0], range[1], range[2] ?? (range[1] - range[0]) / 200);
-        if (group === PAINT && key !== "override") paintSliders.push(controller);
         controller.onChange(() => {
-          // A painted-look slider is yours for the mood on screen, seen with override on; nothing saved, its JSON goes into the palette
-          if (group === PAINT) {
-            if (key === "override") dimPaint();
-            else slidersToPaint(this.world.palette);
-            return;
-          }
           save();
           // The bloom's render targets are built with these: rebuild them
           if (key === "bloomResolution" || key === "bloomSamples") this.rebuildBloom();
@@ -1648,18 +1629,21 @@ export class Game {
       }
       folder.close();
     }
-    dimPaint();
+
+    // The mood's look (look.ts): its sliders come in a later step; until then the override and the JSON copy
+    const lookFolder = gui.addFolder("Look (the mood on screen)");
+    lookFolder.add(LOOK_TUNING, "override").name("override (use the edited numbers)");
 
     const actions = {
       barrelLeft: () => this.barrelRoll(-1),
       barrelRight: () => this.barrelRoll(1),
       copy: () =>
         void navigator.clipboard?.writeText(
-          JSON.stringify({ FLIGHT, ...Object.fromEntries(TUNING_GROUPS.filter(([, group]) => group !== PAINT)), paint: { mood: this.world.palette.name, ...paintEdited(this.world.palette) } }, null, 2),
+          JSON.stringify({ FLIGHT, ...Object.fromEntries(TUNING_GROUPS), look: { mood: this.world.palette.name, ...lookDiff(this.world.palette) } }, null, 2),
         ),
       reset: () => {
         resetTuning();
-        resetPaint(this.world.palette);
+        resetLook(this.world.palette);
         gui.controllersRecursive().forEach((c) => c.updateDisplay());
       },
     };

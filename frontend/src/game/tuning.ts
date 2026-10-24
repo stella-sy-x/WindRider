@@ -1,7 +1,11 @@
-// Every look-and-feel constant that isn't physics lives here, grouped so the
-// ?tune panel can show one folder per group. None of these change how fast you
-// fly or what you hit: the flight model (FLIGHT in flight.ts) does that.
-// Tweaks made in the panel are remembered in this browser.
+// The player's look-and-feel constants that aren't physics, grouped so the
+// ?tune panel can show one folder per group: the pilot, its trails and
+// particles, the camera, the picture's quality, the land streamer and the
+// sounds. None of these change how fast you fly or what you hit: the flight
+// model (FLIGHT in flight.ts) does that. Tweaks made in the panel are
+// remembered in this browser. How a map looks (its air, land, water, plants,
+// structures, gates, deep, particles and painted look) is not here: that is
+// each mood's look (world/look.ts), the same player in every map.
 
 /** How the pilot moves on top of the flight model: rolls, the arm spread, bobbing, membranes, cloth */
 export const ANIM = {
@@ -49,62 +53,6 @@ export const FX = {
   bloomResolution: 1.5, // with bloom, the frame renders at most at this pixel ratio (its cost grows fast with it)
   bloomSamples: 0, // multisampling of the bloom's float target (very dear on integrated GPUs); 0 smooths edges with FXAA instead
   autoQuality: true, // drop effects if the frame rate can't keep up
-};
-
-/**
- * The painted (storybook) look (paint.ts): a colour grade over the finished frame with a
- * vignette (a pass on the bloom chain, High quality only), and the banded light. Judged one
- * mood at a time: the numbers below are what a mood starts from; a judged mood carries its own
- * (`paint` in its palette). In ?tune the sliders hold your numbers for the mood on screen:
- * with `override` on the picture uses them, off it uses the numbers as written and the sliders
- * go grey (still yours to move). Copy the JSON into the palette to keep a set. Nothing here is
- * saved across visits. Looks only
- */
-export const PAINT = {
-  override: false, // on: the picture takes the sliders; off: the mood's numbers as written, the sliders grey
-  grade: 0, // 0..1: how much of the grade below is applied (0 skips the pass)
-  lift: 0.06, // black level lifted to a dark warm grey: ink on paper, never pure black
-  warmth: 0.5, // highlights pushed towards the mood's sun colour (gold on an amber mood, nothing on a white-sun one)
-  shadowTint: 0.5, // shadows pushed towards the mood's sky colour
-  contrast: 1.05,
-  saturation: 1.1,
-  paintVignette: 0.4, // the corners darkened, the middle untouched (FX.vignette is the speed one)
-  grain: 0, // screen grain. Off: the nostalgia we want is a feeling (warm light, soft colour), never an aged or dirty picture; the grain read as a film over the lens
-  // Step two, the light itself (every flat-shaded land, plant and structure material): the sun's
-  // light quantised into a few bands with soft edges, the lit side warmed, the shade cooled.
-  // The flat faces stay flat: each face takes one band. Never smoothed normals on the low-poly land
-  ramp: 0, // 0..1: how far from Lambert's linear light to the banded one (0 leaves the light alone)
-  steps: 3, // bands of light, dark to lit
-  soft: 0.12, // 0..0.5: how soft each band's edge is (0 hard, like cel shading)
-  warmLight: 0.5, // the lit side pushed towards the mood's sun colour
-  coolShade: 0.2, // the shade pushed towards the mood's sky colour. Gently: the hemisphere light is sky-coloured already, and a cool tint on warm rock mixes to grey
-  bounce: 0.7, // shade facing down against shade facing up: under 1 darker (a painter's underside), over 1 lit by a bright bounce from below
-  shade: 0.85, // brightness of shade against Lambert's: the hemisphere light alone leaves shade pale; a painter's shade is darker
-  // Step three, a vertical wash on every thing: its bottom a few percent towards the sky's colour and
-  // darker, its top towards the sun's and lighter (an island from its tip to its top, a tree from
-  // its foot to its crown, the ground from the valley floor up). Vertex colour, no new geometry
-  gradient: 0, // 0..1: strength of the wash
-};
-
-/** PAINT as written above: what a mood without numbers of its own takes, and what reset returns a mood to */
-export const PAINT_DEFAULTS = { ...PAINT };
-
-/** The crystal gates */
-export const RINGS = {
-  crystals: 16, // crystals per gate (finish gets 1.5×); applies to the next map
-  drift: 0.6, // metres each crystal bobs
-  driftRate: 0.55,
-  spin: 0.08, // how fast the cohort turns around the gate (rad/s)
-  selfSpin: 0.6, // how fast each crystal turns on its own axis
-  glow: 1, // inner glow of the lit gates (every gate still to take in a race)
-  gateGlow: 0.15, // 0..1, how brightly a gate you haven't taken yet glows in a race (a whisper: they're optional); the finish glows fully
-  motes: 28, // glowing motes that trace each gate's ring; applies to the next map
-  moteSize: 0.7, // metres across, for a 13 m ring (smaller gates get smaller motes)
-  moteDrift: 0.25, // metres each mote wanders from its place on the ring
-  shatter: 1, // particles when you pass through
-  passTime: 1.4, // seconds of the pass animation
-  finishBeam: 1.6, // brightness of the finish gate's gold pillar (the only gate with one)
-  finishBeamHeight: 2, // the finish pillar's height, in 700 m units; applies to the next map
 };
 
 /** The chase camera */
@@ -182,50 +130,19 @@ export const TERRAIN = {
   readyRadius: 260, // the start waits until the land this close has arrived
   arrivalsPerFrame: 12, // arrived land meshes taken in per frame once you're flying (each costs about 0.04 ms)
   fadeIn: 1.8, // seconds for land that has just arrived to fade in out of the haze and its plants to grow in (a change of detail is instant)
-  snowLine: 0, // metres added to the biome's snow line
-  coverSlope: 0, // added to the slope where grass (moss, sand…) gives way to rock
-  texture: 1, // strength of the painted noise on cliffs
-  textureScale: 1,
-  glow: 1, // glowing cracks and spots
 };
 
-/** Plants and grass. Looks only: colliders don't move with the wind */
+/** Plants and grass: how far they are drawn (how they look is the mood's look.plants) */
 export const FLORA = {
-  wind: 1, // how hard the wind moves leaves and grass
-  glow: 1, // self-lit mushroom caps and crystals
   grassDistance: 140, // metres: grass and flowers grow on screen within this
 };
 
-/** Towers, lanterns, windmills. Looks only: colliders are the swept shapes */
-export const STRUCTURES = {
-  lights: 1, // windows and lanterns (dim by day, glowing at night)
-  sails: 1, // how fast windmill sails turn
-};
-
-/** Rivers, falls and seas */
-export const WATER = {
-  glitter: 1, // sun glitter on the water
-  glow: 1, // bioluminescent pools
-  spray: 1, // spray when skimming the water, mist at the foot of falls
-  fallBlend: 0.2, // short join just below the edge; the flat river keeps its shading
-  fallSpeed: 3, // foam flows downward, accelerating as it falls
-  lipFoam: 0.45, // subtle broken foam along outgoing waterfall edges
-  lipFoamWidth: 0.9, // maximum upstream reach of edge foam, in metres
-};
-
-/** Levels under the sea (Sunken Reef). Looks only */
+/** Under the sea (Sunken Reef): the jellyfish's cycle (future gameplay) and where they are placed; how it looks is the mood's look.deep */
 export const DEEP = {
-  caustics: 1, // ripples of light running over the seabed
-  shafts: 1, // shafts of light slanting down from the surface
-  surface: 1, // how bright the water's surface is from below
-  life: 1, // how brightly fish and jellyfish glow
   zapCycle: 4, // seconds between a jellyfish's discharges
   zapTelegraph: 0.5, // seconds it visibly charges up before one
   zapActive: 1, // seconds the discharge lasts
-  zapGlow: 1.5, // how much brighter it burns while discharging (the shader caps the result just under the bloom threshold)
   jellyNear: 0.6, // share of the small jellyfish placed beside the racing line, in reach; applies to the next map
-  jellyFill: 0.85, // the bell's opacity, 0 (clear) to 1 (as painted)
-  jellyTentacle: 0.6, // the tentacles' length as a share of the model's (4.2 bell radii at 1)
   jellyView: 200, // metres from the camera beyond which jellyfish shrink away (they cost nothing once gone)
 };
 
@@ -246,8 +163,7 @@ export const AUDIO = {
   nightMuffle: 0.55, // how much the highs are rolled off at night
 };
 
-// (PAINT is not here: its sliders mirror the mood on screen, paint.ts keeps the numbers per mood)
-const GROUPS = { ANIM, FX, RINGS, CAMERA, TERRAIN, FLORA, STRUCTURES, WATER, DEEP, AUTOPILOT, AUDIO } as const;
+const GROUPS = { ANIM, FX, CAMERA, TERRAIN, FLORA, DEEP, AUTOPILOT, AUDIO } as const;
 const DEFAULTS = JSON.parse(JSON.stringify(GROUPS)) as typeof GROUPS;
 const STORAGE_KEY = "windrider.tuning.speed-control-v1";
 
@@ -429,14 +345,10 @@ export const RANGES: Record<string, [number, number, number?]> = {
 export const TUNING_GROUPS: [string, Group][] = [
   ["Pilot animation", ANIM],
   ["Trails & particles", FX],
-  ["Painted look", PAINT],
-  ["Crystal gates", RINGS],
   ["Camera", CAMERA],
-  ["Terrain", TERRAIN],
+  ["Terrain streaming", TERRAIN],
   ["Plants", FLORA],
-  ["Structures", STRUCTURES],
-  ["Water", WATER],
-  ["Underwater", DEEP],
+  ["Jellyfish", DEEP],
   ["Autopilot", AUTOPILOT],
   ["Audio", AUDIO],
 ];

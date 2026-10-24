@@ -1,11 +1,11 @@
 import * as THREE from "three";
 import { sceneryTime as fxTime } from "../../particles";
 import { FX_LIGHT } from "../../toon";
-import { FLORA, STRUCTURES, TERRAIN } from "../../tuning";
+import { FLORA, TERRAIN } from "../../tuning";
 import { ATMOSPHERE, BORN_GLSL, MIST, SUN_GLOW, atmospheric } from "../atmosphere";
 import { lookFor } from "../look";
 import type { VegetationSpec } from "../biomes/types";
-import { shifted, sunDirection } from "../palette";
+import { type Palette, shifted, sunDirection } from "../palette";
 import { STRUCTURE_INFO, structuresOf } from "../structures/kinds";
 import { structureGeometry } from "../structures/models";
 import type { World } from "../World";
@@ -54,12 +54,14 @@ const FRAME_Y1 = 1.1;
  * turn about the model's z axis at height `spin.y`
  */
 function plantMaterial(
+  palette: Palette,
   sway: number,
   grass = false,
   grassGlow = 0,
   built: { spin: { y: number; rate: number; upright?: boolean } | null } | null = null,
 ): THREE.MeshLambertMaterial {
   const spin = built?.spin ?? null;
+  const structures = () => lookFor(palette).structures;
   const material = atmospheric(new THREE.MeshLambertMaterial({ vertexColors: !grass, side: grass ? THREE.DoubleSide : THREE.FrontSide }), 0);
   const atmosphere = material.onBeforeCompile;
   const wind = { value: sway };
@@ -71,8 +73,8 @@ function plantMaterial(
     shader.uniforms.floraWind = wind;
     shader.uniforms.floraFade = { get value() { return FLORA.grassDistance; } };
     shader.uniforms.floraFull = floraFull;
-    shader.uniforms.floraLights = { get value() { return built ? STRUCTURES.lights : 1; } };
-    if (spin) shader.uniforms.floraSpin = { get value() { return spin.rate * STRUCTURES.sails; } };
+    shader.uniforms.floraLights = { get value() { return built ? structures().lights : 1; } };
+    if (spin) shader.uniforms.floraSpin = { get value() { return spin.rate * structures().sails; } };
     shader.vertexShader = shader.vertexShader
       .replace(
         "void main() {",
@@ -335,7 +337,7 @@ export class FloraView {
       // Built in the mood's colors: the meshes are this level's, as the land's are
       const geometry = speciesGeometry(spec, snow, world.mood);
       this.geometries.push(geometry);
-      const material = plantMaterial(SPECIES[spec.id].sway);
+      const material = plantMaterial(world.palette, SPECIES[spec.id].sway);
       this.materials.push(material);
       this.full.push(new InstancePool(geometry, material, this.group, 256));
       this.speciesTints.push((spec.tints ?? []).map((t) => new THREE.Color(t)));
@@ -345,7 +347,7 @@ export class FloraView {
       const info = STRUCTURE_INFO[spec.id];
       const geometry = structureGeometry(spec, info.spin?.y ?? 0);
       this.geometries.push(geometry);
-      const material = plantMaterial(info.sway, false, 0, { spin: info.spin });
+      const material = plantMaterial(world.palette, info.sway, false, 0, { spin: info.spin });
       this.materials.push(material);
       this.full.push(new InstancePool(geometry, material, this.group, 32));
       this.speciesTints.push([]);
@@ -383,8 +385,8 @@ export class FloraView {
       const tuft = tuftGeometry();
       const flower = flowerGeometry();
       this.geometries.push(tuft, flower);
-      const grassMaterial = plantMaterial(0.12, true);
-      const flowerMaterial = plantMaterial(0.08, true, veg.grass.glow ?? 0);
+      const grassMaterial = plantMaterial(world.palette, 0.12, true);
+      const flowerMaterial = plantMaterial(world.palette, 0.08, true, veg.grass.glow ?? 0);
       this.materials.push(grassMaterial, flowerMaterial);
       this.grass = new InstancePool(tuft, grassMaterial, this.group, 2048);
       this.flowers = new InstancePool(flower, flowerMaterial, this.group, 512);
@@ -566,8 +568,9 @@ export class FloraView {
 
   /** Per frame: grass only on full-detail nodes near the camera; light and wind from the biome */
   update(camera: THREE.Camera) {
-    FLORA_UNIFORMS.glow.value = FX_LIGHT.glow.value * FLORA.glow;
-    FLORA_UNIFORMS.gust.value = FLORA.wind;
+    const plants = lookFor(this.world.palette).plants;
+    FLORA_UNIFORMS.glow.value = FX_LIGHT.glow.value * plants.glow;
+    FLORA_UNIFORMS.gust.value = plants.wind;
     if (this.grass && this.lastGrassCheck.distanceToSquared(camera.position) > 10 * 10) {
       this.lastGrassCheck.copy(camera.position);
       for (const [key, node] of this.nodes) {

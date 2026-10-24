@@ -1,7 +1,7 @@
 import * as THREE from "three";
-import { TERRAIN } from "../../tuning";
 import { atmospheric } from "../atmosphere";
 import type { Layers } from "../biomes/types";
+import type { LandLook } from "../look";
 
 // The terrain shader for generator-v2 land, on top of atmospheric() (haze,
 // mist, backlit rims). Each triangle arrives flat-painted from the mesher: a
@@ -158,11 +158,11 @@ export function terrainMaterial(layers: Layers): { material: THREE.MeshLambertMa
   return { material, uniforms };
 }
 
-/** Per frame: the ?tune knobs on top of the biome's own values */
-export function applyTerrainTuning(uniforms: TerrainUniforms, layers: Layers) {
-  uniforms.snowLine.value = layers.snowLine + TERRAIN.snowLine;
-  uniforms.coverSlope.value = layers.topSlope + TERRAIN.coverSlope;
-  uniforms.texture.value = layers.texture * TERRAIN.texture;
-  uniforms.textureScale.value = TERRAIN.textureScale;
-  uniforms.glow.value = TERRAIN.glow;
+/** Per frame: the mood's look (how its land is painted) on top of the biome's own values */
+export function applyTerrainTuning(uniforms: TerrainUniforms, layers: Layers, land: LandLook) {
+  uniforms.snowLine.value = layers.snowLine + land.snowLine;
+  uniforms.coverSlope.value = layers.topSlope + land.coverSlope;
+  uniforms.texture.value = layers.texture * land.texture;
+  uniforms.textureScale.value = land.textureScale;
+  uniforms.glow.value = land.glow;
 }

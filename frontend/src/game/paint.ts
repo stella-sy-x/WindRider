@@ -1,13 +1,13 @@
 import * as THREE from "three";
-import { PAINT, PAINT_DEFAULTS } from "./tuning";
 import { lookFor } from "./world/look";
-import type { PaintGrade, Palette } from "./world/palette";
+import type { Palette } from "./world/palette";
 
-// The painted (storybook) look, step one: a colour grade over the finished frame, a vignette
-// and a paper grain. A full-screen pass after the bloom and the output pass, so it works in
-// display (sRGB) space like a colour-grading LUT would; the LUT is computed from PAINT's
-// numbers instead of loaded, so the ?tune sliders move it live. Looks only: nothing here
-// touches the simulation. Off (and skipped) while PAINT.grade is 0.
+// The painted (storybook) look: a colour grade over the finished frame, a vignette and a paper
+// grain (a full-screen pass after the bloom and the output pass, so it works in display (sRGB)
+// space like a colour-grading LUT would; the LUT is computed from the numbers instead of
+// loaded, so the tune panel moves it live), and the banded light in every flat-shaded
+// material. The numbers are each mood's look.paint (look.ts). Looks only: nothing here touches
+// the simulation. The pass is off (and skipped) while a mood's grade is 0.
 
 export const PAINT_SHADER = {
   uniforms: {
@@ -79,87 +79,7 @@ export const PAINT_SHADER = {
   `,
 };
 
-/** A mood's numbers as written: its own over PAINT's defaults */
-function fresh(palette: Palette): PaintGrade {
-  const d = PAINT_DEFAULTS;
-  return {
-    grade: d.grade, lift: d.lift, warmth: d.warmth, shadowTint: d.shadowTint, contrast: d.contrast, saturation: d.saturation, vignette: d.paintVignette, grain: d.grain,
-    ramp: d.ramp, steps: d.steps, soft: d.soft, warmLight: d.warmLight, coolShade: d.coolShade, bounce: d.bounce, shade: d.shade, gradient: d.gradient,
-    ...palette.paint,
-  };
-}
-
-/** Each mood's numbers as written, and the ?tune sliders' numbers for it (yours, from the written ones) */
-const written = new WeakMap<Palette, PaintGrade>();
-const edited = new WeakMap<Palette, PaintGrade>();
-
-function writtenFor(palette: Palette): PaintGrade {
-  let r = written.get(palette);
-  if (!r) written.set(palette, (r = fresh(palette)));
-  return r;
-}
-
-/** The sliders' numbers for a mood: what Copy settings as JSON carries */
-export function paintEdited(palette: Palette): PaintGrade {
-  let r = edited.get(palette);
-  if (!r) edited.set(palette, (r = fresh(palette)));
-  return r;
-}
-
-/** The grade and light in use for a mood: the sliders' numbers with PAINT.override on, else the numbers as written */
-export function paintFor(palette: Palette): PaintGrade {
-  return PAINT.override ? paintEdited(palette) : writtenFor(palette);
-}
-
-/** The ?tune sliders take the mood's numbers (yours for it, as written until you move them) */
-export function paintToSliders(palette: Palette) {
-  const r = paintEdited(palette);
-  PAINT.grade = r.grade;
-  PAINT.lift = r.lift;
-  PAINT.warmth = r.warmth;
-  PAINT.shadowTint = r.shadowTint;
-  PAINT.contrast = r.contrast;
-  PAINT.saturation = r.saturation;
-  PAINT.paintVignette = r.vignette;
-  PAINT.grain = r.grain;
-  PAINT.ramp = r.ramp;
-  PAINT.steps = r.steps;
-  PAINT.soft = r.soft;
-  PAINT.warmLight = r.warmLight;
-  PAINT.coolShade = r.coolShade;
-  PAINT.bounce = r.bounce;
-  PAINT.shade = r.shade;
-  PAINT.gradient = r.gradient;
-}
-
-/** A moved slider changes your numbers for the mood (seen with PAINT.override on; the JSON goes into its palette to keep them) */
-export function slidersToPaint(palette: Palette) {
-  const r = paintEdited(palette);
-  r.grade = PAINT.grade;
-  r.lift = PAINT.lift;
-  r.warmth = PAINT.warmth;
-  r.shadowTint = PAINT.shadowTint;
-  r.contrast = PAINT.contrast;
-  r.saturation = PAINT.saturation;
-  r.vignette = PAINT.paintVignette;
-  r.grain = PAINT.grain;
-  r.ramp = PAINT.ramp;
-  r.steps = PAINT.steps;
-  r.soft = PAINT.soft;
-  r.warmLight = PAINT.warmLight;
-  r.coolShade = PAINT.coolShade;
-  r.bounce = PAINT.bounce;
-  r.shade = PAINT.shade;
-  r.gradient = PAINT.gradient;
-}
-
-/** Your numbers for the mood back to the ones as written, and the sliders with them */
-export function resetPaint(palette: Palette) {
-  edited.set(palette, fresh(palette));
-  paintToSliders(palette);
-}
-
-/** Step two, the light: uniforms shared by every atmospheric (land, plant, structure) material */
+/** The light: uniforms shared by every atmospheric (land, plant, structure) material */
 export const PAINT_LIGHT = {
   ramp: { value: 0 },
   steps: { value: 3 },
@@ -273,7 +193,7 @@ void RE_IndirectDiffuse_Lambert( const in vec3 irradiance, const in vec3 geometr
 
 /** Feeds the light uniforms the mood's numbers each frame (any quality: the light needs no post-processing) */
 export function updatePaintLight(palette: Palette, camera: THREE.Camera) {
-  const p = paintFor(palette);
+  const p = lookFor(palette).paint;
   const t = paintTints(palette);
   PAINT_LIGHT.sunTint.value.copy(t.sun);
   PAINT_LIGHT.skyTint.value.copy(t.sky);
@@ -291,7 +211,7 @@ export function updatePaintLight(palette: Palette, camera: THREE.Camera) {
 
 /** Feeds the pass the mood's grade each frame; the pass is skipped altogether at grade 0 */
 export function updatePaintPass(pass: { enabled: boolean; uniforms: Record<string, THREE.IUniform> }, aspect: number, palette: Palette) {
-  const p = paintFor(palette);
+  const p = lookFor(palette).paint;
   pass.enabled = p.grade > 0;
   if (!pass.enabled) return;
   const u = pass.uniforms;

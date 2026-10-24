@@ -2,8 +2,9 @@ import * as THREE from "three";
 import { FX_LIGHT, sceneryTime as fxTime, pixelScale } from "../particles";
 import { makeRng, range } from "../rng";
 import { GOLD } from "../toon";
-import { RINGS } from "../tuning";
 import type { Ring } from "./course";
+import { lookFor } from "./look";
+import type { Palette } from "./palette";
 
 // The gates: a cohort of floating crystals around every ring, each bobbing and
 // turning on its own, orbiting a ring of glowing motes that trace the gate.
@@ -321,6 +322,8 @@ export class CrystalGates {
   private readonly geometries: THREE.BufferGeometry[] = [];
   private readonly sunView = new THREE.Vector3();
   private readonly sunDirection: THREE.Vector3;
+  /** The mood, for its look.gates (how the gates move and glow) */
+  private readonly palette: Palette;
   /** Per gate: the crystals' angle and distance from the center, for particle bursts */
   private readonly layout: { angle: number; radius: number }[][] = [];
   private mode: RingMode = "free";
@@ -333,8 +336,10 @@ export class CrystalGates {
   /** Per gate: the direction it faces now (Resonance can turn it; looks only, the run keeps its own) */
   private readonly facing: THREE.Vector3[];
 
-  constructor(seed: number, rings: Ring[], colors: GateColors, sunDirection: THREE.Vector3) {
+  constructor(seed: number, rings: Ring[], colors: GateColors, sunDirection: THREE.Vector3, palette: Palette) {
     this.rings = rings;
+    this.palette = palette;
+    const RINGS = lookFor(palette).gates;
     this.sunDirection = sunDirection;
     this.states = rings.map(() => ({ visible: 1, highlight: 0, passedAt: -1e3, passed: false }));
     this.facing = rings.map((r) => r.normal.clone());
@@ -574,13 +579,13 @@ export class CrystalGates {
   /** Is a gate in the middle of its pass animation? */
   passing(index: number): boolean {
     const since = fxTime.value - (this.states[index]?.passedAt ?? -1e3);
-    return since >= 0 && since < RINGS.passTime;
+    return since >= 0 && since < lookFor(this.palette).gates.passTime;
   }
 
   /** World positions of a gate's crystals (roughly: without their bobbing), for particle bursts */
   crystalPositions(index: number, out: THREE.Vector3[]): THREE.Vector3[] {
     const ring = this.rings[index];
-    const spin = fxTime.value * RINGS.spin;
+    const spin = fxTime.value * lookFor(this.palette).gates.spin;
     tmpQuaternion.setFromUnitVectors(Z, this.facing[index]);
     const layout = this.layout[index] ?? [];
     // Reuses the vectors already in `out`
@@ -596,6 +601,7 @@ export class CrystalGates {
   }
 
   update(dt: number, camera: THREE.Camera) {
+    const RINGS = lookFor(this.palette).gates;
     const k = 1 - Math.exp(-dt * 3);
     const now = fxTime.value;
     for (let i = 0; i < this.rings.length; i++) {

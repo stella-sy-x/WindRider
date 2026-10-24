@@ -1,8 +1,8 @@
 import * as THREE from "three";
 import { clamp } from "./math";
 import { Kind, type ParticleSpec, type Particles } from "./particles";
-import { WATER } from "./tuning";
 import type { Ambient as AmbientSpec } from "./world/biomes/types";
+import { lookFor } from "./world/look";
 import { forestAt } from "./world/flora/placement";
 import type { World } from "./world/World";
 
@@ -155,9 +155,10 @@ export class Ambient {
   /** Mist and spray at the foot of waterfalls near you */
   private falls(dt: number, camera: THREE.Vector3, budget: number) {
     const steps = this.world?.steps;
-    if (!steps || WATER.spray <= 0) return;
+    const spray = this.world ? lookFor(this.world.palette).water.spray : 0;
+    if (!steps || spray <= 0) return;
     if (steps.river?.kind === "ice") return;
-    this.fallDebt += 26 * budget * WATER.spray * dt;
+    this.fallDebt += 26 * budget * spray * dt;
     if (this.fallDebt < 1) return;
     const s = this.spec;
     for (const fall of steps.falls) {

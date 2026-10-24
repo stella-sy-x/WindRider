@@ -14,7 +14,7 @@ import { LightShafts, SeaLife } from "./deep";
 import { sunDirection } from "./palette";
 import type { World } from "./World";
 import { reloadForNewBuild } from "../../staleBuild";
-import { DEEP, TERRAIN } from "../tuning";
+import { TERRAIN } from "../tuning";
 import { lookFor } from "./look";
 
 const REQUESTS_PER_WORKER = 4;
@@ -92,7 +92,7 @@ export class WorldView {
     }
     // Gates in muted stone, tinted a touch by the biome's accent rather than painted in it
     this.gateColors = gateColors(accent);
-    this.gates = new CrystalGates(world.seed, world.course.rings, this.gateColors, sun);
+    this.gates = new CrystalGates(world.seed, world.course.rings, this.gateColors, sun, palette);
     this.group.add(this.gates.group);
     this.setRings("free");
 
@@ -312,18 +312,19 @@ export class WorldView {
     const mist = this.world.biome.sky.mist;
     if (mist.mode === "valley") ATMOSPHERE.mistHeight.value = this.world.valleyFloor(camera.position.z) + mist.above;
     const underwater = this.world.biome.sky.underwater;
+    const look = lookFor(this.world.palette);
     if (underwater) {
       // The surface stays the same height over the racing line all the way down; moonlight ripples less
       const dim = 1 - this.world.palette.night * 0.5;
       ATMOSPHERE.surface.value = this.world.course.y(camera.position.z) + underwater.surface;
-      ATMOSPHERE.caustics.value = DEEP.caustics * dim;
-      ATMOSPHERE.surfaceGlow.value = DEEP.surface;
-      this.shafts!.update(DEEP.shafts * dim);
-      this.seaLife!.update(DEEP.life, raceTime);
+      ATMOSPHERE.caustics.value = look.deep.caustics * dim;
+      ATMOSPHERE.surfaceGlow.value = look.deep.surface;
+      this.shafts!.update(look.deep.shafts * dim);
+      this.seaLife!.update(look.deep.life, raceTime);
     }
     this.land.update(camera.position, this.dispatch, velocity);
     this.ready = this.land.ready;
-    applyTerrainTuning(this.terrainUniforms, this.world.biome.terrain.layers);
+    applyTerrainTuning(this.terrainUniforms, this.world.biome.terrain.layers, look.land);
     this.flora?.update(camera);
     this.water?.update();
     this.sky.position.copy(camera.position);

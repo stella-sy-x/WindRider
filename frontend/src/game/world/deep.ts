@@ -6,6 +6,8 @@ import { FX_LIGHT } from "../toon";
 import { DEEP } from "../tuning";
 import { ATMOSPHERE } from "./atmosphere";
 import type { UnderwaterSpec } from "./biomes/types";
+import { lookFor } from "./look";
+import type { Palette } from "./palette";
 import type { World } from "./World";
 
 // What makes a level read as under the sea, besides the surface overhead and
@@ -479,19 +481,22 @@ export class SeaLife {
   readonly meshes: THREE.Mesh<THREE.InstancedBufferGeometry, THREE.ShaderMaterial | THREE.ShaderMaterial[]>[] = [];
   private disposed = false;
   private readonly glow = { value: 0 };
-  /** The bell's opacity, 0..1 (DEEP.jellyFill) */
-  private readonly bellFill = { value: DEEP.jellyFill };
-  /** The tentacles' length as a share of the model's (DEEP.jellyTentacle) */
-  private readonly tentacleLength = { value: DEEP.jellyTentacle };
+  /** The mood, for its look.deep (how the life looks; set every frame in update) */
+  private readonly palette: Palette;
+  /** The bell's opacity, 0..1 (look.deep.jellyFill) */
+  private readonly bellFill = { value: 1 };
+  /** The tentacles' length as a share of the model's (look.deep.jellyTentacle) */
+  private readonly tentacleLength = { value: 1 };
   /** Metres from the camera where a jellyfish starts to shrink away, and where it is gone (DEEP.jellyView) */
   private readonly viewRange = { value: new THREE.Vector2(DEEP.jellyView - 40, DEEP.jellyView) };
   /** The race clock the jellyfish discharge on, seconds */
   private readonly raceTime = { value: 0 };
   private readonly zapCycle = { value: new THREE.Vector3(DEEP.zapCycle, DEEP.zapTelegraph, DEEP.zapActive) };
-  private readonly zapGlow = { value: DEEP.zapGlow };
+  private readonly zapGlow = { value: 1 };
 
   constructor(world: World, spec: UnderwaterSpec) {
     const { course } = world;
+    this.palette = world.palette;
     const rng = makeRng(world.seed, "sea life");
     /** Open water beside the racing line with `room` metres clear of the rock all round, or null */
     const spot = (lateral: [number, number], rise: [number, number], room: number): [number, number, number] | null => {
@@ -624,10 +629,11 @@ export class SeaLife {
   update(life: number, raceTime: number) {
     this.glow.value = FX_LIGHT.glow.value * life;
     this.raceTime.value = raceTime;
+    const deep = lookFor(this.palette).deep;
     this.zapCycle.value.set(DEEP.zapCycle, DEEP.zapTelegraph, DEEP.zapActive);
-    this.zapGlow.value = DEEP.zapGlow;
-    this.bellFill.value = DEEP.jellyFill;
-    this.tentacleLength.value = DEEP.jellyTentacle;
+    this.zapGlow.value = deep.zapGlow;
+    this.bellFill.value = deep.jellyFill;
+    this.tentacleLength.value = deep.jellyTentacle;
     this.viewRange.value.set(Math.max(DEEP.jellyView - 40, 1), Math.max(DEEP.jellyView, 2));
   }
 
