@@ -78,7 +78,7 @@ export const PAINT = {
   soft: 0.12, // 0..0.5: how soft each band's edge is (0 hard, like cel shading)
   warmLight: 0.5, // the lit side pushed towards the mood's sun colour
   coolShade: 0.5, // the shade pushed towards the mood's sky colour (the sky's light, not the sun's)
-  bounce: 0.3, // shade facing down brightened, as the light bounced up from below is bright (undersides of islands and trees)
+  bounce: 0.7, // shade facing down against shade facing up: under 1 darker (a painter's underside), over 1 lit by a bright bounce from below
   // Step three, a vertical wash on every thing: its bottom a few percent towards the sky's colour and
   // darker, its top towards the sun's and lighter (an island from its tip to its top, a tree from
   // its foot to its crown, the ground from the valley floor up). Vertex colour, no new geometry
@@ -336,7 +336,7 @@ export const RANGES: Record<string, [number, number, number?]> = {
   soft: [0, 0.5],
   warmLight: [0, 1.5],
   coolShade: [0, 1.5],
-  bounce: [0, 1.5],
+  bounce: [0.3, 1.5],
   gradient: [0, 1.5],
   lift: [0, 0.3],
   warmth: [0, 2],

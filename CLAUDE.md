@@ -157,9 +157,20 @@ structures, sky, particles, music); update it when a biome recipe changes.
   over the whole picture: the temperature contrast (cool shade, warm
   light) is what keeps a warm mood crisp. Undersides get their warmth from
   the bounce term in the lighting pass instead.
-- `PAINT.bounce`: in the light, shade facing down is brightened (0.3 by
-  default), as the light bounced up from below is bright; the Archipelago's
-  under-rock colour is a richer brown (#7a4e2c, was a greyish #5e4330).
+- `PAINT.bounce`: the brightness of shade facing down against shade
+  facing up, 0.7 by default: a painter's underside is darker and warm
+  (the bounce tint is the cloud sea's colour warmed by the sun), never a
+  flat pale tan. Brightening undersides was tried first and washed them
+  out. The gradient's bottom is darker too (0.8). The Archipelago's
+  under-rock is a richer brown (#7a4e2c, was a greyish #5e4330), and
+  Autumn's mist is thinner (0.3, was 0.45): with the grade's warmth on
+  top, far islands melted into the sky.
+
+### 2026-10-24: Autumn's grade eased: lift 0.06, warmth 0.3 (Claude)
+
+- Against a yellow veil over the whole picture, like an old photograph:
+  the mood is amber already (horizon, mist, sun), and the grade's warm
+  highlights and a high lift piled more amber and haze on it.
 
 ### 2026-10-23: Groves, no trees on rims, undersides in the bounce light (Claude)
 

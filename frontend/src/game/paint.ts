@@ -163,7 +163,7 @@ export const PAINT_LIGHT = {
   soft: { value: 0.12 },
   warm: { value: 0.5 },
   cool: { value: 0.5 },
-  bounce: { value: 0.3 },
+  bounce: { value: 0.7 },
   sunTint: { value: new THREE.Color(1, 1, 1) },
   skyTint: { value: new THREE.Color(1, 1, 1) },
   groundTint: { value: new THREE.Color(1, 1, 1) },
@@ -199,7 +199,8 @@ export function paintTints(palette: Palette): { sun: THREE.Color; sky: THREE.Col
   if (!t) {
     const sun = tint(new THREE.Color(palette.sun), new THREE.Color());
     const sky = tint(scratch.set(palette.horizon).lerp(new THREE.Color(palette.zenith), 0.5), new THREE.Color());
-    const ground = tint(new THREE.Color(palette.cloud), new THREE.Color());
+    // The bounce light under things: the ground's (cloud sea's) colour warmed by the sun's
+    const ground = tint(scratch.set(palette.cloud).lerp(new THREE.Color(palette.sun), 0.5), new THREE.Color());
     t = { sun, sky, ground };
     tints.set(palette, t);
   }
@@ -226,7 +227,7 @@ uniform vec3 paintSunTint; // the mood's sun colour as a tint (mean 1)
 uniform vec3 paintSkyTint; // the mood's sky colour as a tint
 uniform vec3 paintGroundTint; // the mood's ground (bounce) colour as a tint: what undersides see
 uniform vec3 paintViewUp; // the world's up, in view space
-uniform float paintBounce; // how much brighter shade facing down is than shade facing up (the light bounced up from below is bright)
+uniform float paintBounce; // brightness of shade facing down against shade facing up: under 1 darker (a painter's underside), over 1 lit by a bright bounce
 uniform float paintGradient; // the vertical wash, bottom towards the ground's colour, top towards the sun's
 float paintLitness = 1.0;
 
@@ -252,7 +253,7 @@ void RE_IndirectDiffuse_Lambert( const in vec3 irradiance, const in vec3 geometr
   // Shade facing the sky takes the sky's colour; shade facing the ground takes the bounce light's
   float down = clamp( -dot( geometryNormal, paintViewUp ), 0.0, 1.0 );
   vec3 cool = mix( vec3( 1.0 ), mix( paintSkyTint, paintGroundTint, down ), paintCool * paintRamp * ( 1.0 - paintLitness ) );
-  float bounce = 1.0 + paintBounce * paintRamp * down * ( 1.0 - paintLitness );
+  float bounce = mix( 1.0, paintBounce, paintRamp * down );
   reflectedLight.indirectDiffuse += irradiance * cool * bounce * BRDF_Lambert( material.diffuseColor );
 }
 

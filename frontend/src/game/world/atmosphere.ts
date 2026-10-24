@@ -245,7 +245,7 @@ export function atmospheric<T extends THREE.MeshLambertMaterial>(material: T, st
           diffuseColor.rgb *= 1.0 + atmoStrata * bands;
           // The painted look's vertical gradient: darker at the bottom of a thing, in the colour of the
           // light bounced up from below, lighter at its top in the sun's, each a few percent, like a wash
-          diffuseColor.rgb *= mix(vec3(1.0), mix(paintGroundTint * 0.88, paintSunTint * 1.06, vPaintRise), paintGradient);
+          diffuseColor.rgb *= mix(vec3(1.0), mix(paintGroundTint * 0.8, paintSunTint * 1.04, vPaintRise), paintGradient);
         }`,
       )
       .replace(
