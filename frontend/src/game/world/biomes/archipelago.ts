@@ -47,26 +47,30 @@ const MOODS: readonly Palette[] = [
     glow: 1.25,
   },
   {
-    // Amber light, warm gold horizon
+    // The autumn is in the trees and the grass; the air is clear
     name: "Autumn",
-    // Stella, 2026-10-24. The numbers below are not there yet: the sky, haze and sun are still amber
+    // Stella, 2026-10-24. Step 1 (the same day): the air made clear. The amber horizon, haze, cloud and sun
+    // came with the repository's first commit (from the old Sky Isles) and had never been chosen; from
+    // 400 m out they melted the cloud sea, the far islands and the sky into one amber mass. Now the sky
+    // climbs from a pale blue-white to a blue a little deeper than Alpine's, the sun is a warm white, the
+    // cloud sea white, and the haze the horizon's colour, so far islands go pale and cool and keep their shape
     brief: "A clean autumn afternoon, about three o'clock: the autumn is in the orange trees and the dry grass, the light itself is clear.",
-    horizon: "#ffe2bd",
-    zenith: "#5f9bd6",
+    horizon: "#dde8f0",
+    zenith: "#3f82c4",
     grass: "#a9a24c",
     forest: "#c4642c",
     trunk: "#5a3b25",
     rock: "#8a6b58",
     snow: "#fffaf2",
-    cloud: "#fff8ee",
+    cloud: "#ffffff",
     accent: "#6f98d9",
-    sun: "#fff1d6",
+    sun: "#ffe8c4", // a three o'clock sun: gold on what it lights, the shade left to the cool sky
     sunIntensity: 2.3,
     ambient: 1.5,
     sunElevation: 26,
     sunAzimuth: 40,
     night: 0,
-    mist: "#ffe8cc",
+    mist: "#e4ecf2",
     mistDensity: 0.3, // was 0.45: with the painted look's warmth on top, far islands melted into the sky
     glow: 1.2,
     look: {
