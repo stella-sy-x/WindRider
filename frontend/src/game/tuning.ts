@@ -77,8 +77,9 @@ export const PAINT = {
   steps: 3, // bands of light, dark to lit
   soft: 0.12, // 0..0.5: how soft each band's edge is (0 hard, like cel shading)
   warmLight: 0.5, // the lit side pushed towards the mood's sun colour
-  coolShade: 0.5, // the shade pushed towards the mood's sky colour (the sky's light, not the sun's)
+  coolShade: 0.2, // the shade pushed towards the mood's sky colour. Gently: the hemisphere light is sky-coloured already, and a cool tint on warm rock mixes to grey
   bounce: 0.7, // shade facing down against shade facing up: under 1 darker (a painter's underside), over 1 lit by a bright bounce from below
+  shade: 0.85, // brightness of shade against Lambert's: the hemisphere light alone leaves shade pale; a painter's shade is darker
   // Step three, a vertical wash on every thing: its bottom a few percent towards the sky's colour and
   // darker, its top towards the sun's and lighter (an island from its tip to its top, a tree from
   // its foot to its crown, the ground from the valley floor up). Vertex colour, no new geometry
@@ -337,6 +338,7 @@ export const RANGES: Record<string, [number, number, number?]> = {
   warmLight: [0, 1.5],
   coolShade: [0, 1.5],
   bounce: [0.3, 1.5],
+  shade: [0.4, 1.2],
   gradient: [0, 1.5],
   lift: [0, 0.3],
   warmth: [0, 2],

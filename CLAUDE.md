@@ -166,6 +166,17 @@ structures, sky, particles, music); update it when a biome recipe changes.
   Autumn's mist is thinner (0.3, was 0.45): with the grade's warmth on
   top, far islands melted into the sky.
 
+### 2026-10-24: Shade out of the grey-white (Claude)
+
+- Shaded island sides were a pale cool grey: the cool shift was stacked
+  three times (the hemisphere light is sky-coloured already, the Lambert
+  chunk multiplied a sky tint on top, the grade pushed darks to the sky
+  again), and a zenith-blue tint on warm brown rock mixes to grey, since
+  they are complementary. The light's sky tint now leans to the horizon
+  (0.3 towards the zenith), `coolShade` defaults to 0.2 (Autumn 0.15),
+  and `PAINT.shade` (0.85) keeps shade darker than the hemisphere light
+  alone makes it: a painter's shade is darker and still coloured.
+
 ### 2026-10-24: Autumn's grade eased: lift 0.06, warmth 0.3 (Claude)
 
 - Against a yellow veil over the whole picture, like an old photograph:

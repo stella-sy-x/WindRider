@@ -83,7 +83,7 @@ function fresh(palette: Palette): PaintGrade {
   const d = PAINT_DEFAULTS;
   return {
     grade: d.grade, lift: d.lift, warmth: d.warmth, shadowTint: d.shadowTint, contrast: d.contrast, saturation: d.saturation, vignette: d.paintVignette, grain: d.grain,
-    ramp: d.ramp, steps: d.steps, soft: d.soft, warmLight: d.warmLight, coolShade: d.coolShade, bounce: d.bounce, gradient: d.gradient,
+    ramp: d.ramp, steps: d.steps, soft: d.soft, warmLight: d.warmLight, coolShade: d.coolShade, bounce: d.bounce, shade: d.shade, gradient: d.gradient,
     ...palette.paint,
   };
 }
@@ -127,6 +127,7 @@ export function paintToSliders(palette: Palette) {
   PAINT.warmLight = r.warmLight;
   PAINT.coolShade = r.coolShade;
   PAINT.bounce = r.bounce;
+  PAINT.shade = r.shade;
   PAINT.gradient = r.gradient;
 }
 
@@ -147,6 +148,7 @@ export function slidersToPaint(palette: Palette) {
   r.warmLight = PAINT.warmLight;
   r.coolShade = PAINT.coolShade;
   r.bounce = PAINT.bounce;
+  r.shade = PAINT.shade;
   r.gradient = PAINT.gradient;
 }
 
@@ -164,6 +166,7 @@ export const PAINT_LIGHT = {
   warm: { value: 0.5 },
   cool: { value: 0.5 },
   bounce: { value: 0.7 },
+  shade: { value: 0.85 },
   sunTint: { value: new THREE.Color(1, 1, 1) },
   skyTint: { value: new THREE.Color(1, 1, 1) },
   groundTint: { value: new THREE.Color(1, 1, 1) },
@@ -198,7 +201,8 @@ export function paintTints(palette: Palette): { sun: THREE.Color; sky: THREE.Col
   let t = tints.get(palette);
   if (!t) {
     const sun = tint(new THREE.Color(palette.sun), new THREE.Color());
-    const sky = tint(scratch.set(palette.horizon).lerp(new THREE.Color(palette.zenith), 0.5), new THREE.Color());
+    // Nearer the horizon than the zenith: a zenith-blue tint on warm rock mixes to grey (complementaries)
+    const sky = tint(scratch.set(palette.horizon).lerp(new THREE.Color(palette.zenith), 0.3), new THREE.Color());
     // The bounce light under things: the ground's (cloud sea's) colour warmed by the sun's
     const ground = tint(scratch.set(palette.cloud).lerp(new THREE.Color(palette.sun), 0.5), new THREE.Color());
     t = { sun, sky, ground };
@@ -228,6 +232,7 @@ uniform vec3 paintSkyTint; // the mood's sky colour as a tint
 uniform vec3 paintGroundTint; // the mood's ground (bounce) colour as a tint: what undersides see
 uniform vec3 paintViewUp; // the world's up, in view space
 uniform float paintBounce; // brightness of shade facing down against shade facing up: under 1 darker (a painter's underside), over 1 lit by a bright bounce
+uniform float paintShade; // brightness of shade against Lambert's: under 1 the shade is darker than the hemisphere light alone makes it
 uniform float paintGradient; // the vertical wash, bottom towards the ground's colour, top towards the sun's
 float paintLitness = 1.0;
 
@@ -254,7 +259,8 @@ void RE_IndirectDiffuse_Lambert( const in vec3 irradiance, const in vec3 geometr
   float down = clamp( -dot( geometryNormal, paintViewUp ), 0.0, 1.0 );
   vec3 cool = mix( vec3( 1.0 ), mix( paintSkyTint, paintGroundTint, down ), paintCool * paintRamp * ( 1.0 - paintLitness ) );
   float bounce = mix( 1.0, paintBounce, paintRamp * down );
-  reflectedLight.indirectDiffuse += irradiance * cool * bounce * BRDF_Lambert( material.diffuseColor );
+  float level = mix( 1.0, paintShade, paintRamp * ( 1.0 - paintLitness ) );
+  reflectedLight.indirectDiffuse += irradiance * cool * bounce * level * BRDF_Lambert( material.diffuseColor );
 }
 
 #define RE_Direct RE_Direct_Lambert
@@ -275,6 +281,7 @@ export function updatePaintLight(palette: Palette, camera: THREE.Camera) {
   PAINT_LIGHT.warm.value = p.warmLight;
   PAINT_LIGHT.cool.value = p.coolShade;
   PAINT_LIGHT.bounce.value = p.bounce;
+  PAINT_LIGHT.shade.value = p.shade;
   PAINT_LIGHT.gradient.value = p.gradient;
 }
 
