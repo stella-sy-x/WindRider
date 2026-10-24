@@ -48,9 +48,12 @@ with every number explained beside it in `look.ts`:
   backlit rims, the sea of clouds and the puffs, and the painted look's
   tints.
 - **view**: how far the land is drawn and at what detail (the 3, 6 and
-  12 m tiers, the view distance, the prefetch distance), since a mood's
-  haze says what is worth drawing. Looks only: the racing line's land is
-  always within every tier.
+  12 m tiers, the view distance, the prefetch distance, how much must have
+  arrived before the start, how fine land off the line goes), since a
+  mood's haze says what is worth drawing. Looks only: the racing line's
+  land is always within every tier. With every distance past the end of
+  the course the whole map loads at 3 m before the start and nothing is
+  ever swapped (Archipelago Autumn).
 - **land**: the snow line, the cover slope, the painted noise, the strata,
   the slope bands of cover and soil, wet rock, the snow's fade, the crystal
   surfaces' tints, and what the mesher bakes (undersides, rock and cover

@@ -42,7 +42,7 @@ import { NODE_SIZE, type TerrainMesh, VOXEL, nodeKey } from "./mesh";
 // Requests are ordered by distance, but the land under the racing line comes first:
 // land more than LINE_LATERAL metres off the line (decoration) is pushed back in the
 // queue, and land past TERRAIN.decorationLateral never splits finer than
-// TERRAIN.decorationMaxLod, and past TERRAIN.generateLateral no land is made at all:
+// the mood's decorationMaxLod (look.view), and past TERRAIN.generateLateral no land is made at all:
 // the canyon walls hide it. The lateral distance is from the node's box to the line
 // at its centre z, in x and y (the plane the walls are measured in), so a coarse
 // node the line runs through counts as on the line.
@@ -257,7 +257,7 @@ export class LandStreamer {
     for (const node of this.desired) {
       if (node.shown) continue;
       const d = node.box.distanceToPoint(at);
-      if (d < TERRAIN.readyRadius && !this.shownAncestor(node) && !this.visibleCoverage(node)) missingNearby = true;
+      if (d < this.view.readyRadius && !this.shownAncestor(node) && !this.visibleCoverage(node)) missingNearby = true;
       if (node.state === "idle") wanted.push({ node, d: this.order(node, d) });
     }
     this.ready = !missingNearby;
@@ -288,7 +288,7 @@ export class LandStreamer {
     const split = node.lod === 3 ? this.view.lodFar : node.lod === 2 ? this.view.lodNear : this.view.lodDetail;
     const detailDistance = this.predicting ? Math.min(d, node.box.distanceToPoint(this.lookAhead)) : d;
     // Decoration, off to the side of the racing line, never splits finer than decorationMaxLod
-    const finest = node.lateral > TERRAIN.decorationLateral ? Math.min(Math.max(TERRAIN.decorationMaxLod, 0), ROOT_LOD) : 0;
+    const finest = node.lateral > TERRAIN.decorationLateral ? Math.min(Math.max(this.view.decorationMaxLod, 0), ROOT_LOD) : 0;
     node.split = node.lod > finest && detailDistance < split + (node.split ? TERRAIN.lodHysteresis : 0);
     if (node.split) {
       for (const child of this.childrenOf(node)) this.visit(child, at);

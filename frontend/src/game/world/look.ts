@@ -190,6 +190,8 @@ export interface ViewLook {
   lodFar: number; // 12 m cells; beyond, 24 m, which is never shown (see viewDistance)
   viewDistance: number; // land further than this is not drawn: keep it at lodFar, since 24 m cells lose the small islands and the far land would change shape as it comes in
   prefetchDistance: number; // the workers make land ahead out to here, held off screen until it comes within viewDistance; always more than viewDistance
+  readyRadius: number; // the start waits until the land this close has arrived (the whole map: as far as viewDistance)
+  decorationMaxLod: number; // land more than TERRAIN.decorationLateral off the line never splits finer than this level (2: 12 m cells; 0: as fine as the line's)
 }
 
 export interface Look {
@@ -253,6 +255,8 @@ export const LOOK_DEFAULTS: Look = {
     lodFar: 700,
     viewDistance: 700,
     prefetchDistance: 1200,
+    readyRadius: 260,
+    decorationMaxLod: 2,
   },
   land: {
     snowLine: 0,
@@ -394,6 +398,8 @@ export const LOOK_RANGES: Record<string, [number, number, number?]> = {
   "view.lodFar": [300, 2500, 10],
   "view.viewDistance": [300, 3000, 10],
   "view.prefetchDistance": [500, 4000, 10],
+  "view.readyRadius": [100, 4000, 10],
+  "view.decorationMaxLod": [0, 3, 1],
   "air.puffShadowSky": [0, 1],
   "air.puffShadowZenith": [0, 1],
   "air.puffShadow": [0.2, 1.2],

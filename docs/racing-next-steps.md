@@ -134,6 +134,11 @@ cosmetics, items and the gallery are gone; the game is racing only.
 
 ## Done lately
 
+- 2026-10-24: Archipelago Autumn loads the whole map at 3 m before the
+  start and never swaps a level (`look.view` past the course's end,
+  `decorationMaxLod` 0; `readyRadius` and `decorationMaxLod` are the
+  mood's now). Desktop first; device budgets later.
+
 - 2026-10-24: the view distance is the mood's (`look.view`: the LOD
   tiers, view and prefetch distances left `TERRAIN`), as is the mist's
   density (`look.air.mistDensity`, out of the palette); both have sliders.

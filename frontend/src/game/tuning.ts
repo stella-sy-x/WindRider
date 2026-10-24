@@ -124,8 +124,6 @@ export const TERRAIN = {
   cacheMiB: 48, // bounded cache of hidden terrain (estimated CPU + GPU buffers)
   decorationLateral: 80, // metres from the racing line beyond which land is decoration: never finer than decorationMaxLod
   generateLateral: 280, // metres from the racing line beyond which no land is generated or drawn at all: the canyon walls (WALLS) stand in front of it, and nothing past them is play. On the reef the wall breaks the water surface at 275 m, so all that is cut is above the water (mesh test)
-  decorationMaxLod: 2, // the finest level decoration land reaches (2: 12 m cells)
-  readyRadius: 260, // the start waits until the land this close has arrived
   arrivalsPerFrame: 12, // arrived land meshes taken in per frame once you're flying (each costs about 0.04 ms)
   fadeIn: 1.8, // seconds for land that has just arrived to fade in out of the haze and its plants to grow in (a change of detail is instant)
 };
@@ -299,8 +297,6 @@ export const RANGES: Record<string, [number, number, number?]> = {
   prefetchDistance: [600, 4000, 50],
   decorationLateral: [20, 300, 10],
   generateLateral: [150, 1400, 10],
-  decorationMaxLod: [0, 3, 1],
-  readyRadius: [100, 500, 10],
   arrivalsPerFrame: [1, 32, 1],
   fadeIn: [0, 3, 0.05],
   snowLine: [-300, 300],

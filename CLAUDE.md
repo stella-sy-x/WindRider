@@ -158,6 +158,26 @@ structures, sky, particles, music); update it when a biome recipe changes.
 
 ## Change log
 
+### 2026-10-24: Archipelago Autumn: the whole map at 3 m, nothing swapped (Claude)
+
+- Stella: an island changing shape as a finer level takes over is worse
+  than not drawing it (a dissolve between levels was tried once and
+  rejected), and the Archipelago is an open course where every island can
+  matter, so no "decoration" there is drawn coarser than the line's land.
+  Desktop browsers first; laptops and phones get their own numbers when
+  the game is done. So Autumn's `look.view` puts every tier, the view and
+  prefetch distances and the ready radius past the end of the course
+  (4000 m) with `decorationMaxLod` 0: every node splits to 3 m at once,
+  the start waits for all of it, nothing is dropped behind, every tree is
+  a full tree. `readyRadius` and `decorationMaxLod` left `TERRAIN` for
+  `look.view` to make that possible.
+- Measured, seed 1, desktop, 1893×901: 982 land nodes, 558k land
+  triangles, 450k drawn a frame, 153 draw calls, 1.2 ms GPU, 2.7 ms CPU
+  (the 1400 m tiers: 131k drawn, 75 calls, 0.65 / 0.96 ms). Whole-map
+  numbers from the mesher, start to 1400 m ahead, three seeds: 12 m
+  everywhere 13k to 23k triangles; 6 m everywhere 60k to 105k; 3 m
+  everywhere 180k to 300k and 365 to 503 drawn nodes.
+
 ### 2026-10-24: The view distance and the mist's density are the mood's (Claude)
 
 - `look.view`: the LOD tiers (`lodDetail` 140, `lodNear` 300, `lodFar`

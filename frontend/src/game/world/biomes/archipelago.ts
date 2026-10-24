@@ -86,10 +86,16 @@ const MOODS: readonly Palette[] = [
       // The puffs' shade is the sky's blue, not the horizon's cream
       // No mist under the camera at all (Alpine keeps 0.45): a clear afternoon, and the far haze is enough
       air: { fogNear: 250, fogFar: 1800, seaHaze: 0.6, puffShadowZenith: 0.5, mistDensity: 0 },
-      // The islands drawn out to 1400 m at 12 m cells (the defaults stop at 700): a clear afternoon's haze
-      // begins far out, so the land must arrive further out too, before it is seen. Islands are sparse:
-      // the extra 700 m cost 7k to 15k triangles over three seeds (Stella, 2026-10-24)
-      view: { lodFar: 1400, viewDistance: 1400, prefetchDistance: 1900 },
+      // The whole map at 3 m cells, loaded before the start, nothing ever swapped (Stella, 2026-10-24: an
+      // island changing shape as a finer level takes over is worse than not drawing it; a dissolve between
+      // levels was tried once and rejected; the Archipelago is an open course where every island can matter,
+      // so none is drawn coarser than another). Every tier reaches past the far end of the course (2.3 km),
+      // so every node splits to 3 m at once and nothing is dropped behind; the start waits for all of it.
+      // Measured on seed 1 on a desktop (1893x901): 982 land nodes, 558k land triangles, 450k drawn a frame
+      // with every tree a full tree, 153 draw calls, 1.2 ms GPU and 2.7 ms CPU (with the tiers at 1400 m:
+      // 131k drawn, 75 calls, 0.65 / 0.96 ms); six workers load it in a few seconds. Desktop first: laptops
+      // and phones get their own numbers when the game is done
+      view: { lodDetail: 4000, lodNear: 4000, lodFar: 4000, viewDistance: 4000, prefetchDistance: 4000, readyRadius: 4000, decorationMaxLod: 0 },
       // Judged 2026-10-23/24 (Stella, in ?tune): grade 0.82, gradient 1.2; lift and warmth eased on the 24th against a yellow veil
       paint: { grade: 0.82, lift: 0.06, warmth: 0.3, shadowTint: 0.5, contrast: 1.05, saturation: 1.1, vignette: 0.4, grain: 0, ramp: 1, steps: 3, soft: 0.12, warmLight: 0.5, coolShade: 0.15, bounce: 0.7, shade: 0.85, gradient: 1.2 },
     },
