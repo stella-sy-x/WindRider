@@ -52,6 +52,11 @@ export interface AirLook {
   // The sea of clouds and the puffs
   seaEmissive: number; // the sea's own light as a share of its colour
   seaFacets: number; // brightness spread across its facets, 0..1
+  seaBright: number; // the sea's colour times this (under a strong sun, under 1 keeps white cloud from clipping)
+  seaHaze: number; // 0: the floor is lit, faceted cloud; 1: it is the haze itself (unlit, the fog's colour) and only the puffs on it are cloud
+  seaJitter: number; // metres each vertex of the sea is thrown up or down, so the facets vary
+  seaRelief: number; // the sea as a quilt of rounded cloud heads this many metres tall (0: flat but for the jitter)…
+  seaWave: number; // …one head per this many metres
   puffShadowSky: number; // a puff's shaded side: cloud colour this far towards the horizon's…
   puffShadow: number; // …and this bright
   puffLit: number; // its lit side, times the cloud colour
@@ -212,6 +217,11 @@ export const LOOK_DEFAULTS: Look = {
     rim: 0.45,
     seaEmissive: 0.35,
     seaFacets: 0.1,
+    seaBright: 1,
+    seaHaze: 0,
+    seaJitter: 7,
+    seaRelief: 0,
+    seaWave: 260,
     puffShadowSky: 0.45,
     puffShadow: 0.72,
     puffLit: 1.05,
@@ -348,6 +358,11 @@ export const LOOK_RANGES: Record<string, [number, number, number?]> = {
   "air.rim": [0, 1.5],
   "air.seaEmissive": [0, 1],
   "air.seaFacets": [0, 0.5],
+  "air.seaBright": [0.2, 1.2],
+  "air.seaHaze": [0, 1],
+  "air.seaJitter": [0, 20],
+  "air.seaRelief": [0, 80],
+  "air.seaWave": [60, 800, 5],
   "air.puffShadowSky": [0, 1],
   "air.puffShadow": [0.2, 1.2],
   "air.puffLit": [0.5, 1.5],

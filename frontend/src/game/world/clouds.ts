@@ -74,7 +74,7 @@ const fragmentShader = /* glsl */ `
 export class SoftClouds {
   readonly mesh: THREE.Mesh;
 
-  constructor(world: World, count: number, lift: number, banks: number) {
+  constructor(world: World, count: number, lift: number, banks: number, sea: { depth: number; count: number } | null = null) {
     const { course, seed, palette } = world;
     const rng = makeRng(seed, "soft clouds");
     const puffs: number[] = [];
@@ -92,6 +92,14 @@ export class SoftClouds {
       const z = range(rng, course.start.z - 500, course.endZ + 1300);
       const width = range(rng, 110, 260);
       cloud(course.x(z) + range(rng, -900, 900), course.y(z) + range(rng, 160, 380) + lift, z, width, width * range(rng, 0.3, 0.45), 6 + Math.floor(rng() * 6));
+    }
+    // Clusters lying on the sea of clouds: wide, low and dense, so the sea reads as cloud (its flat
+    // floor shows only between them); the same puffs as the clouds above, so one kind of cloud
+    for (let i = 0; sea && i < sea.count; i++) {
+      const z = range(rng, course.start.z - 600, course.endZ + 1400);
+      const width = range(rng, 160, 340);
+      const height = width * range(rng, 0.2, 0.3);
+      cloud(course.x(z) + range(rng, -1000, 1000), course.y(z) - sea.depth + height * 0.25, z, width, height, 10 + Math.floor(rng() * 5));
     }
     // Banks across the racing line: fly straight through them
     for (let i = 0; i < banks; i++) {
