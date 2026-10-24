@@ -138,7 +138,9 @@ export const ARCHIPELAGO: Biome = {
     // Lanterns gather around the ponds
     { id: "stoneLantern", spacing: 10, chance: 0.7, height: [2.6, 3.4], colors: { stone: "#efe6d2", stone2: "#b8c79a", roof: "#3f7fb8" }, where: { lateral: [0, 300], on: "rock", wet: true } },
   ],
-  sky: { cloudSea: { depth: 260 }, puffs: 65, puffsBelow: true, puffLift: 200, mist: { mode: "camera" }, fog: [80, 1400] },
+  sky: { cloudSea: { depth: 260 }, puffs: 65, puffsBelow: true, puffLift: 200, mist: { mode: "camera" } },
+  // The haze begins close and reaches far: islands keep arriving out of it for a long way
+  look: { air: { fogNear: 80, fogFar: 1400 } },
   particles: {
     ambient: [
       { kind: "motes", rate: 12, colors: ["#ffe9b0", "#fff6dc"] },

@@ -43,6 +43,22 @@ export const ATMOSPHERE = {
   // still), and one over the seconds a fade takes. WorldView sets both every frame
   now: { value: 0 },
   revealRate: { value: 1 },
+  // The mood's air (look.ts AirLook), set by WorldView every frame: the sun's glow across the
+  // sky and the haze (wide disc exponent and strength, core exponent and strength), the sun's
+  // and the moon's disc, the sky gradient's curve, the far silhouettes (towards the zenith,
+  // shade), the dome clouds' brightness, where the mist begins under the camera, over what
+  // distance it builds and how much it may hide, the backlit rims, and the puffs' shading
+  // (shaded side towards the horizon, its brightness, the lit side, the sun through the edge)
+  glow: { value: new THREE.Vector4(6, 0.35, 48, 0.5) },
+  discs: { value: new THREE.Vector2(2.6, 1.4) },
+  skyCurve: { value: 0.6 },
+  silhouette: { value: new THREE.Vector2(1, 1) },
+  cloudBright: { value: 1 },
+  mistDrop: { value: 40 },
+  mistRange: { value: 280 },
+  mistCap: { value: 0.85 },
+  rim: { value: 0.45 },
+  puff: { value: new THREE.Vector4(0.45, 0.72, 1.05, 1.2) },
 };
 
 /**
@@ -116,13 +132,17 @@ export const BORN_GLSL = /* glsl */ `
 /**
  * Mist: below a level a little under the camera (rock far beneath you sinks into
  * the haze over a sea of clouds), or below a fixed height (pooling in a valley).
- * Needs atmoMistDensity, atmoMistMode, atmoMistHeight and atmoMistThickness.
+ * Needs atmoMistDensity, atmoMistMode, atmoMistHeight and atmoMistThickness; declares the rest
+ * (ATMOSPHERE.mistDrop, mistRange, mistCap), so a material only adds their values.
  */
 export const MIST = /* glsl */ `
+  uniform float atmoMistDrop;
+  uniform float atmoMistRange;
+  uniform float atmoMistCap;
   float atmoMist(vec3 world, float dist) {
-    float level = mix(cameraPosition.y - 40.0, atmoMistHeight, atmoMistMode);
+    float level = mix(cameraPosition.y - atmoMistDrop, atmoMistHeight, atmoMistMode);
     float above = world.y - level;
-    return atmoMistDensity * (1.0 - exp(-max(-above, 0.0) / max(atmoMistThickness, 1.0))) * (1.0 - exp(-dist / 280.0));
+    return atmoMistDensity * (1.0 - exp(-max(-above, 0.0) / max(atmoMistThickness, 1.0))) * (1.0 - exp(-dist / max(atmoMistRange, 1.0)));
   }
 `;
 
@@ -147,11 +167,17 @@ const CAUSTICS = /* glsl */ `
   }
 `;
 
-/** The sky's glow around the sun; the haze uses the same curve so distant terrain melts into the sky */
-const SUN_GLOW = /* glsl */ `
+/**
+ * The sky's glow around the sun: a wide disc and a bright core (ATMOSPHERE.glow); the haze uses
+ * the same curve so distant terrain melts into the sky. Needs atmoSunDirection and
+ * atmoSunColor; declares atmoGlow itself. One chunk for the sky, the land, the water and the
+ * far plants, so they all sit in the same air
+ */
+export const SUN_GLOW = /* glsl */ `
+  uniform vec4 atmoGlow;
   vec3 sunGlow(vec3 dir) {
     float d = max(dot(dir, atmoSunDirection), 0.0);
-    return atmoSunColor * (pow(d, 6.0) * 0.35 + pow(d, 48.0) * 0.5);
+    return atmoSunColor * (pow(d, atmoGlow.x) * atmoGlow.y + pow(d, atmoGlow.z) * atmoGlow.w);
   }
 `;
 
@@ -164,6 +190,7 @@ const PARS = /* glsl */ `
   uniform float atmoMistMode;
   uniform float atmoMistHeight;
   uniform float atmoMistThickness;
+  uniform float atmoRim;
   uniform float atmoStrata;
   uniform float atmoUnderwater;
   uniform float atmoCaustics;
@@ -186,6 +213,11 @@ export function atmospheric<T extends THREE.MeshLambertMaterial>(material: T, st
     shader.uniforms.atmoMistMode = ATMOSPHERE.mistMode;
     shader.uniforms.atmoMistHeight = ATMOSPHERE.mistHeight;
     shader.uniforms.atmoMistThickness = ATMOSPHERE.mistThickness;
+    shader.uniforms.atmoMistDrop = ATMOSPHERE.mistDrop;
+    shader.uniforms.atmoMistRange = ATMOSPHERE.mistRange;
+    shader.uniforms.atmoMistCap = ATMOSPHERE.mistCap;
+    shader.uniforms.atmoGlow = ATMOSPHERE.glow;
+    shader.uniforms.atmoRim = ATMOSPHERE.rim;
     shader.uniforms.atmoStrata = strataUniform;
     shader.uniforms.atmoUnderwater = ATMOSPHERE.underwater;
     shader.uniforms.atmoCaustics = ATMOSPHERE.caustics;
@@ -259,7 +291,7 @@ export function atmospheric<T extends THREE.MeshLambertMaterial>(material: T, st
           // Edges seen against the sun catch its light
           vec3 worldNormal = inverseTransformDirection(normal, viewMatrix);
           float rim = pow(1.0 - clamp(dot(worldNormal, -viewDir), 0.0, 1.0), 3.0);
-          gl_FragColor.rgb += atmoSunColor * rim * pow(towardsSun, 3.0) * 0.45;
+          gl_FragColor.rgb += atmoSunColor * rim * pow(towardsSun, 3.0) * atmoRim;
           if (atmoUnderwater > 0.0) {
             // Under the sea: ripples of light from the surface, cast along the sun's rays,
             // brightest on what faces up, fading into the haze
@@ -271,7 +303,7 @@ export function atmospheric<T extends THREE.MeshLambertMaterial>(material: T, st
           #ifdef USE_FOG
             float fogFactor = smoothstep(fogNear, fogFar, vFogDepth);
             float mist = atmoMist(vAtmoWorld, dist);
-            gl_FragColor.rgb = mix(gl_FragColor.rgb, atmoMistColor, clamp(mist, 0.0, 0.85) * (1.0 - fogFactor));
+            gl_FragColor.rgb = mix(gl_FragColor.rgb, atmoMistColor, clamp(mist, 0.0, atmoMistCap) * (1.0 - fogFactor));
             gl_FragColor.rgb = mix(gl_FragColor.rgb, fogColor + sunGlow(viewDir), fogFactor);
             // Just arrived: out of the haze, the color the far land already has, not out of nothing;
             // on its way out: back into it. A plain blend, no dither, so nothing speckles
@@ -306,6 +338,10 @@ const skyFragment = /* glsl */ `
   uniform float surface;
   uniform float surfaceGlow;
   uniform float time;
+  uniform float skyCurve;
+  uniform vec2 silhouette;
+  uniform vec2 discs;
+  uniform float cloudBright;
   varying vec3 vDirection;
   ${SUN_GLOW}
   ${CAUSTICS}
@@ -348,7 +384,7 @@ const skyFragment = /* glsl */ `
       return;
     }
     float up = max(dir.y, 0.0);
-    vec3 color = mix(horizon, zenith, pow(up, 0.6));
+    vec3 color = mix(horizon, zenith, pow(up, skyCurve));
 
     // Horizon silhouettes: distant land painted on the dome, so the real land, arriving out
     // of the haze at the edge of the fog, comes into a place that already had a shape there.
@@ -362,22 +398,23 @@ const skyFragment = /* glsl */ `
       float band = smoothstep(-0.3, -0.1, dir.y) * silhouettes;
       // Far: faint low hills right on the horizon
       float sky0 = noise(ring * 3.0 + vec2(11.0, 5.0)) * 0.03;
+      // The mood's air says how far towards the zenith the layers go (silhouette.x) and how dark they are (.y)
       float fill = smoothstep(0.0, 0.008, sky0 - dir.y) * 0.15 * band;
-      color = mix(color, mix(horizon, zenith, 0.12) * 0.95, fill);
+      color = mix(color, mix(horizon, zenith, 0.12 * silhouette.x) * mix(1.0, 0.95, silhouette.y), fill);
       // Mid: a little lower and darker, with a second octave of detail
       float sky1 = (noise(ring * 5.0 + vec2(37.0, 19.0)) * 0.7 + noise(ring * 10.0 + vec2(3.0, 71.0)) * 0.3) * 0.05 - 0.012;
       fill = smoothstep(0.0, 0.005, sky1 - dir.y) * 0.25 * band;
-      color = mix(color, mix(horizon, zenith, 0.18) * 0.9, fill);
+      color = mix(color, mix(horizon, zenith, 0.18 * silhouette.x) * mix(1.0, 0.9, silhouette.y), fill);
       // Near: the darkest, the land the fog is about to give up
       float sky2 = (noise(ring * 8.0 + vec2(53.0, 29.0)) * 0.65 + noise(ring * 16.0 + vec2(91.0, 13.0)) * 0.35) * 0.08 - 0.025;
       fill = smoothstep(0.0, 0.003, sky2 - dir.y) * 0.4 * band;
-      color = mix(color, mix(horizon, zenith, 0.22) * 0.84, fill);
+      color = mix(color, mix(horizon, zenith, 0.22 * silhouette.x) * mix(1.0, 0.84, silhouette.y), fill);
     }
 
     color += sunGlow(dir);
     // The sun (or moon) itself, brighter than white so it blooms
     float d = dot(dir, atmoSunDirection);
-    color += atmoSunColor * smoothstep(0.9990, 0.9994, d) * mix(2.6, 1.4, night);
+    color += atmoSunColor * smoothstep(0.9990, 0.9994, d) * mix(discs.x, discs.y, night);
 
     // Painted clouds drifting overhead, lit from the sun's side with a silver lining
     // Project onto a cloud layer; clamp so directions below the horizon don't divide by zero
@@ -385,7 +422,7 @@ const skyFragment = /* glsl */ `
     float shape = fbm(uv * 1.3) * 0.75 + fbm(uv * 4.1) * 0.25;
     float cover = smoothstep(0.52, 0.78, shape) * smoothstep(0.0, 0.18, dir.y);
     float lit = pow(max(d, 0.0), 4.0);
-    vec3 cloud = mix(clouds * mix(0.85, 0.55, night), atmoSunColor, lit * 0.55 + 0.1);
+    vec3 cloud = mix(clouds * mix(0.85, 0.55, night) * cloudBright, atmoSunColor, lit * 0.55 + 0.1);
     cloud += atmoSunColor * pow(max(d, 0.0), 24.0) * (1.0 - smoothstep(0.6, 0.85, shape)) * 1.5;
     color = mix(color, cloud, cover * 0.85);
 
@@ -429,6 +466,11 @@ export function skyMaterial(): THREE.ShaderMaterial {
       surface: ATMOSPHERE.surface,
       surfaceGlow: ATMOSPHERE.surfaceGlow,
       time: ATMOSPHERE.time,
+      atmoGlow: ATMOSPHERE.glow,
+      skyCurve: ATMOSPHERE.skyCurve,
+      silhouette: ATMOSPHERE.silhouette,
+      discs: ATMOSPHERE.discs,
+      cloudBright: ATMOSPHERE.cloudBright,
     },
     vertexShader: skyVertex,
     fragmentShader: skyFragment,

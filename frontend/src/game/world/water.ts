@@ -2,7 +2,7 @@ import * as THREE from "three";
 import { FX_LIGHT, sceneryTime as fxTime } from "../particles";
 import { FX_LIGHT as GLOW_LIGHT } from "../toon";
 import { WATER } from "../tuning";
-import { ATMOSPHERE, MIST } from "./atmosphere";
+import { ATMOSPHERE, MIST, SUN_GLOW } from "./atmosphere";
 import type { WaterKind } from "./terrain/river";
 import type { IslandFall, World } from "./World";
 import type { IslandPond } from "./terrain/shapes";
@@ -53,17 +53,15 @@ const COMMON = /* glsl */ `
   uniform float atmoMistThickness;
   ${MIST}
   ${NOISE}
-  vec3 waterSunGlow(vec3 dir) {
-    float d = max(dot(dir, atmoSunDirection), 0.0);
-    return atmoSunColor * (pow(d, 6.0) * 0.35 + pow(d, 48.0) * 0.5);
-  }
+  ${SUN_GLOW}
+  vec3 waterSunGlow(vec3 dir) { return sunGlow(dir); }
   vec3 waterAir(vec3 color, vec3 world, float fogDepth) {
     vec3 toFrag = world - cameraPosition;
     float dist = length(toFrag);
     vec3 viewDir = toFrag / max(dist, 0.001);
     #ifdef USE_FOG
       float fogFactor = smoothstep(fogNear, fogFar, fogDepth);
-      color = mix(color, atmoMistColor, clamp(atmoMist(world, dist), 0.0, 0.85) * (1.0 - fogFactor));
+      color = mix(color, atmoMistColor, clamp(atmoMist(world, dist), 0.0, atmoMistCap) * (1.0 - fogFactor));
       color = mix(color, fogColor + waterSunGlow(viewDir), fogFactor);
     #endif
     return color;
@@ -626,6 +624,10 @@ export class WaterView {
       atmoMistMode: ATMOSPHERE.mistMode,
       atmoMistHeight: ATMOSPHERE.mistHeight,
       atmoMistThickness: ATMOSPHERE.mistThickness,
+      atmoMistDrop: ATMOSPHERE.mistDrop,
+      atmoMistRange: ATMOSPHERE.mistRange,
+      atmoMistCap: ATMOSPHERE.mistCap,
+      atmoGlow: ATMOSPHERE.glow,
     };
   }
 

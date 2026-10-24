@@ -2,7 +2,8 @@ import * as THREE from "three";
 import { sceneryTime as fxTime } from "../../particles";
 import { FX_LIGHT } from "../../toon";
 import { FLORA, STRUCTURES, TERRAIN } from "../../tuning";
-import { ATMOSPHERE, BORN_GLSL, MIST, atmospheric } from "../atmosphere";
+import { ATMOSPHERE, BORN_GLSL, MIST, SUN_GLOW, atmospheric } from "../atmosphere";
+import { lookFor } from "../look";
 import type { VegetationSpec } from "../biomes/types";
 import { shifted, sunDirection } from "../palette";
 import { STRUCTURE_INFO, structuresOf } from "../structures/kinds";
@@ -216,6 +217,7 @@ const impostorFragment = /* glsl */ `
   uniform float atmoMistHeight;
   uniform float atmoMistThickness;
   ${MIST}
+  ${SUN_GLOW}
   varying vec2 vUv;
   varying vec3 vTint;
   varying vec3 vWorld;
@@ -229,10 +231,9 @@ const impostorFragment = /* glsl */ `
       vec3 toFrag = vWorld - cameraPosition;
       float dist = length(toFrag);
       vec3 viewDir = toFrag / max(dist, 0.001);
-      float d = max(dot(viewDir, atmoSunDirection), 0.0);
-      vec3 glow = atmoSunColor * (pow(d, 6.0) * 0.35 + pow(d, 48.0) * 0.5);
+      vec3 glow = sunGlow(viewDir);
       float fogFactor = smoothstep(fogNear, fogFar, vFogDepth);
-      color = mix(color, atmoMistColor, clamp(atmoMist(vWorld, dist), 0.0, 0.85) * (1.0 - fogFactor));
+      color = mix(color, atmoMistColor, clamp(atmoMist(vWorld, dist), 0.0, atmoMistCap) * (1.0 - fogFactor));
       color = mix(color, fogColor + glow, fogFactor);
       // Just arrived: out of the haze; on its way out: back into it. The same plain blend as
       // the land (atmosphere.ts), so plants fade with the ground they stand on
@@ -366,6 +367,10 @@ export class FloraView {
     this.impostorMaterial.uniforms.atmoMistMode = ATMOSPHERE.mistMode;
     this.impostorMaterial.uniforms.atmoMistHeight = ATMOSPHERE.mistHeight;
     this.impostorMaterial.uniforms.atmoMistThickness = ATMOSPHERE.mistThickness;
+    this.impostorMaterial.uniforms.atmoMistDrop = ATMOSPHERE.mistDrop;
+    this.impostorMaterial.uniforms.atmoMistRange = ATMOSPHERE.mistRange;
+    this.impostorMaterial.uniforms.atmoMistCap = ATMOSPHERE.mistCap;
+    this.impostorMaterial.uniforms.atmoGlow = ATMOSPHERE.glow;
     this.impostorMaterial.uniforms.atmoNow = ATMOSPHERE.now;
     this.impostorMaterial.uniforms.atmoRevealRate = ATMOSPHERE.revealRate;
     this.impostorMaterial.uniforms.floraFull = floraFull;
@@ -395,8 +400,10 @@ export class FloraView {
     if (this.baked || !this.atlas) return;
     this.baked = true;
     const palette = this.world.palette;
+    const air = lookFor(palette).air;
     const scene = new THREE.Scene();
-    scene.add(new THREE.HemisphereLight(new THREE.Color(palette.horizon).lerp(new THREE.Color(palette.zenith), 0.25), palette.cloud, palette.ambient));
+    // The same sky and bounce light the world has (WorldView)
+    scene.add(new THREE.HemisphereLight(new THREE.Color(palette.horizon).lerp(new THREE.Color(palette.zenith), air.hemiSky), air.hemiGround ?? palette.cloud, palette.ambient));
     const sun = new THREE.DirectionalLight(palette.sun, palette.sunIntensity);
     // Lit from the camera's side and above, like the sun seen over your shoulder
     sun.position.set(0.5, Math.max(0.35, sunDirection(palette).y), 1);

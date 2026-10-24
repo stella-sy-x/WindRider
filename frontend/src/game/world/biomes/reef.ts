@@ -140,14 +140,15 @@ export const REEF: Biome = {
     { id: "spiritStatue", spacing: 150, chance: 0.5, height: [4, 6], colors: { stone: "#9fb0b8", stone2: "#5fa898", roof: "#9fb0b8", light: "#7afff0", trim: "#ffe08a" }, where: { lateral: [20, 110], facing: true } },
     { id: "stoneLantern", spacing: 44, chance: 0.4, height: [2.6, 3.6], colors: { stone: "#b8c4c8", stone2: "#5fa898", roof: "#2f6a7a", light: "#7afff0", trim: "#ffe08a" }, where: { lateral: [0, 110] } },
   ],
+  // The water hides what is far: the haze begins close and is complete by 640 m
+  look: { air: { fogNear: 30, fogFar: 640 } },
   sky: {
     cloudSea: null,
     puffs: 0,
     puffsBelow: false,
     puffLift: 0,
-    // The deep blue gathers towards the seabed, and the water hides what is far
+    // The deep blue gathers towards the seabed (the water hides what is far: `look.air`)
     mist: { mode: "valley", above: 50, thickness: 50 },
-    fog: [30, 640],
     underwater: {
       surface: 130,
       shoals: 70,

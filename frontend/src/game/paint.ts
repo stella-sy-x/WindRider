@@ -1,5 +1,6 @@
 import * as THREE from "three";
 import { PAINT, PAINT_DEFAULTS } from "./tuning";
+import { lookFor } from "./world/look";
 import type { PaintGrade, Palette } from "./world/palette";
 
 // The painted (storybook) look, step one: a colour grade over the finished frame, a vignette
@@ -189,23 +190,26 @@ function tint(color: THREE.Color, out: THREE.Color): THREE.Color {
   return out;
 }
 
-const tints = new WeakMap<Palette, { sun: THREE.Color; sky: THREE.Color; ground: THREE.Color }>();
+const tints = new WeakMap<Palette, { sun: THREE.Color; sky: THREE.Color; ground: THREE.Color; key: string }>();
 const scratch = new THREE.Color();
 
 /**
  * The mood's sun, sky and ground as tints: the lit side goes towards the sun's colour, shade
  * facing up towards the sky's, shade facing down towards the ground's (the light bounced up
- * from the sea of clouds, the valley: the hemisphere light's own ground colour)
+ * from the sea of clouds, the valley: the hemisphere light's own ground colour). How far the
+ * sky tint leans to the zenith and the ground tint to the sun is the mood's air (look.ts)
  */
 export function paintTints(palette: Palette): { sun: THREE.Color; sky: THREE.Color; ground: THREE.Color } {
+  const air = lookFor(palette).air;
+  const key = `${air.tintSky}/${air.tintGround}/${air.hemiGround ?? ""}`;
   let t = tints.get(palette);
-  if (!t) {
+  if (!t || t.key !== key) {
     const sun = tint(new THREE.Color(palette.sun), new THREE.Color());
     // Nearer the horizon than the zenith: a zenith-blue tint on warm rock mixes to grey (complementaries)
-    const sky = tint(scratch.set(palette.horizon).lerp(new THREE.Color(palette.zenith), 0.3), new THREE.Color());
+    const sky = tint(scratch.set(palette.horizon).lerp(new THREE.Color(palette.zenith), air.tintSky), new THREE.Color());
     // The bounce light under things: the ground's (cloud sea's) colour warmed by the sun's
-    const ground = tint(scratch.set(palette.cloud).lerp(new THREE.Color(palette.sun), 0.5), new THREE.Color());
-    t = { sun, sky, ground };
+    const ground = tint(scratch.set(air.hemiGround ?? palette.cloud).lerp(new THREE.Color(palette.sun), air.tintGround), new THREE.Color());
+    t = { sun, sky, ground, key };
     tints.set(palette, t);
   }
   return t;

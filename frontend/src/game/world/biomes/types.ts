@@ -223,8 +223,6 @@ export interface SkySpec {
    * pooling `above` metres over the valley floor, fading out `thickness` metres higher
    */
   mist: { mode: "camera" } | { mode: "valley"; above: number; thickness: number };
-  /** Where the haze begins and where it hides everything, metres (250 and 1300 when left out) */
-  fog?: [number, number];
   /** Under the sea: the sky is the water's surface, light ripples over the land, shafts of light slant down, sea life drifts by */
   underwater?: UnderwaterSpec;
 }
