@@ -43,33 +43,59 @@ const MOODS: readonly Palette[] = [
     sunAzimuth: 35,
     night: 0,
     mist: "#e6f4fb",
-    mistDensity: 0.45,
+    look: { air: { mistDensity: 0.45 } },
     glow: 1.25,
   },
   {
-    // Amber light, warm gold horizon
+    // The autumn is in the trees and the grass; the air is clear
     name: "Autumn",
-    // Stella, 2026-10-24. The numbers below are not there yet: the sky, haze and sun are still amber
+    // Stella, 2026-10-24. Step 1 (the same day): the air made clear. The amber horizon, haze, cloud and sun
+    // came with the repository's first commit (from the old Sky Isles) and had never been chosen; from
+    // 400 m out they melted the cloud sea, the far islands and the sky into one amber mass. Now the sky
+    // climbs from a pale blue-white to a blue a little deeper than Alpine's, the sun is a warm white, the
+    // cloud sea white, and the haze the horizon's colour, so far islands go pale and cool and keep their shape
     brief: "A clean autumn afternoon, about three o'clock: the autumn is in the orange trees and the dry grass, the light itself is clear.",
-    horizon: "#ffe2bd",
-    zenith: "#5f9bd6",
+    horizon: "#dde8f0",
+    zenith: "#3f82c4",
     grass: "#a9a24c",
     forest: "#c4642c",
     trunk: "#5a3b25",
     rock: "#8a6b58",
     snow: "#fffaf2",
-    cloud: "#fff8ee",
+    cloud: "#ffffff",
     accent: "#6f98d9",
-    sun: "#fff1d6",
+    sun: "#ffe8c4", // a three o'clock sun: gold on what it lights, the shade left to the cool sky
     sunIntensity: 2.3,
     ambient: 1.5,
     sunElevation: 26,
-    sunAzimuth: 40,
+    // Behind the pilot and to the right (150°): the light is placed for the camera, as a painter or TFT
+    // places it, so the faces a racer sees are the lit ones. Flying into the sun (40°) showed only shade.
+    // Racers all head for the finish, so the sun stays near this angle; if play testing finds too much
+    // backlight on the bends, the sun can follow the course's heading instead (backlog)
+    sunAzimuth: 150,
     night: 0,
-    mist: "#ffe8cc",
-    mistDensity: 0.3, // was 0.45: with the painted look's warmth on top, far islands melted into the sky
+    mist: "#e4ecf2",
     glow: 1.2,
     look: {
+      // A clear afternoon: no haze within 250 m (the biome's begins at 80), the far islands keep their shape to 1800
+      // The sea of clouds is the faceted floor alone, with nothing lying on it, painted 60 % in the haze's
+      // colour (seaHaze 0.6: at 1 it lost its facets and the whole lower half of the picture read as fog).
+      // Clusters of puffs on it read, from 260 m above, as a grey and white patchwork (soft), as scales
+      // (hard-edged), as boats (one cut-out card per cloud); low-poly hull clouds as white rock, at 50k
+      // triangles. Below the line, only the floor (Stella, 2026-10-24)
+      // The puffs' shade is the sky's blue, not the horizon's cream
+      // No mist under the camera at all (Alpine keeps 0.45): a clear afternoon, and the far haze is enough
+      air: { fogNear: 250, fogFar: 1800, seaHaze: 0.6, puffShadowZenith: 0.5, mistDensity: 0 },
+      // The whole map at 3 m cells, loaded before the start, nothing ever swapped (Stella, 2026-10-24: an
+      // island changing shape as a finer level takes over is worse than not drawing it; a dissolve between
+      // levels was tried once and rejected; the Archipelago is an open course where every island can matter,
+      // so none is drawn coarser than another). Every tier reaches past the far end of the course (2.3 km),
+      // so every node splits to 3 m at once and nothing is dropped behind; the start waits for all of it.
+      // Measured on seed 1 on a desktop (1893x901): 982 land nodes, 558k land triangles, 450k drawn a frame
+      // with every tree a full tree, 153 draw calls, 1.2 ms GPU and 2.7 ms CPU (with the tiers at 1400 m:
+      // 131k drawn, 75 calls, 0.65 / 0.96 ms); six workers load it in a few seconds. Desktop first: laptops
+      // and phones get their own numbers when the game is done
+      view: { lodDetail: 4000, lodNear: 4000, lodFar: 4000, viewDistance: 4000, prefetchDistance: 4000, readyRadius: 4000, decorationMaxLod: 0 },
       // Judged 2026-10-23/24 (Stella, in ?tune): grade 0.82, gradient 1.2; lift and warmth eased on the 24th against a yellow veil
       paint: { grade: 0.82, lift: 0.06, warmth: 0.3, shadowTint: 0.5, contrast: 1.05, saturation: 1.1, vignette: 0.4, grain: 0, ramp: 1, steps: 3, soft: 0.12, warmLight: 0.5, coolShade: 0.15, bounce: 0.7, shade: 0.85, gradient: 1.2 },
     },
@@ -101,7 +127,9 @@ export const ARCHIPELAGO: Biome = {
       features: [
         // Clean teardrops along the line, no holes, the default soft noise. Dense enough that most islands have a
         // neighbour a bridge's length away (120: about 30 level pairs 12 to 50 m apart per course; 60 gave 8)
-        { kind: "islands", count: 120, size: [14, 55], lateral: [25, 100], rise: [-80, 120], surface: 0, holes: 0 },
+        // Mostly below the line (rise -130 to 60, about a quarter above; it was -80 to 120, over half above):
+        // what a racer sees is then island tops, grass, ponds and falls in the sun, not undersides in shade
+        { kind: "islands", count: 120, size: [14, 55], lateral: [25, 100], rise: [-130, 60], surface: 0, holes: 0 },
       ],
     },
     islandFalls: { chance: 0.15, colors: { deep: "#3f8fb0", shallow: "#9fdff0", foam: "#ffffff" } },

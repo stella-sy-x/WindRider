@@ -179,10 +179,14 @@ function buildGate(ctx: LandContext, kind: GateKind, z: number, look: ShapeLook,
   }
 }
 
-/** A spot near the line: z along the course, then sideways by a lateral range either side */
-function scatter(ctx: LandContext, lateral: [number, number], spread = 300): { x: number; z: number; s: number } {
+/** Metres before the start and past the finish that land features reach: nothing is seen or flown there (Stella, 2026-10-24: start and finish are to become portals, with nothing outside them) */
+export const BEFORE_START = 60;
+export const PAST_FINISH = 100;
+
+/** A spot near the line: z along the course (from just before the start to just past the finish), then sideways by a lateral range either side */
+function scatter(ctx: LandContext, lateral: [number, number]): { x: number; z: number; s: number } {
   const { course, rng } = ctx;
-  const z = range(rng, course.start.z - spread, course.endZ + spread);
+  const z = range(rng, course.start.z - BEFORE_START, course.endZ + PAST_FINISH);
   frame(course, z);
   const s = (rng() < 0.5 ? -1 : 1) * range(rng, lateral[0], lateral[1]);
   return { x: p.x + side.x * s, z: p.z + side.z * s, s };
@@ -298,7 +302,7 @@ function buildFeature(ctx: LandContext, f: Feature) {
     }
   } else if (f.kind === "boulders") {
     for (let i = 0; i < f.count; i++) {
-      const { x, z } = scatter(ctx, f.lateral, 150);
+      const { x, z } = scatter(ctx, f.lateral);
       const g = groundAt(ctx, x, z, p.y - 100);
       const r = range(rng, f.size[0], f.size[1]);
       const yaw = range(rng, 0, Math.PI * 2);

@@ -1,5 +1,6 @@
 import * as THREE from "three";
 import { TERRAIN } from "../../tuning";
+import { type ViewLook, lookFor } from "../look";
 import { bornFresh, bornSwapped } from "../atmosphere";
 import { PLANT_STRIDE } from "../flora/species";
 import type { FloraView } from "../flora/view";
@@ -8,6 +9,7 @@ import { Plant } from "../trees";
 import type { LandCollider } from "../landCollider";
 import type { World } from "../World";
 import { NODE_SIZE, type TerrainMesh, VOXEL, nodeKey } from "./mesh";
+import { BEFORE_START, PAST_FINISH } from "./recipes";
 
 // Streams generator-v2 land around the camera as an octree of nodes: 384 m
 // nodes far away, split into 192, 96 and finally 48 m nodes as you get close. Every
@@ -33,7 +35,7 @@ import { NODE_SIZE, type TerrainMesh, VOXEL, nodeKey } from "./mesh";
 // leave holes), and it never stops the workers: the finer replacements still
 // load ahead of you, so the land is complete before it enters the radius.
 //
-// Beyond the view distance, out to TERRAIN.prefetchDistance, land ahead of you is
+// Beyond the view distance, out to the mood's prefetchDistance (look.view), land ahead of you is
 // generated too and held off screen (loaded, never shown): when it comes within the
 // view distance it is already there and fades in at once, instead of waiting for a
 // worker. Prefetch requests always queue behind requests for land on screen.
@@ -41,7 +43,7 @@ import { NODE_SIZE, type TerrainMesh, VOXEL, nodeKey } from "./mesh";
 // Requests are ordered by distance, but the land under the racing line comes first:
 // land more than LINE_LATERAL metres off the line (decoration) is pushed back in the
 // queue, and land past TERRAIN.decorationLateral never splits finer than
-// TERRAIN.decorationMaxLod, and past TERRAIN.generateLateral no land is made at all:
+// the mood's decorationMaxLod (look.view), and past TERRAIN.generateLateral no land is made at all:
 // the canyon walls hide it. The lateral distance is from the node's box to the line
 // at its centre z, in x and y (the plane the walls are measured in), so a coarse
 // node the line runs through counts as on the line.
@@ -89,6 +91,8 @@ interface Node {
 export class LandStreamer {
   ready = false;
   private readonly world: World;
+  /** How far and how finely the land is drawn: the mood's look.view, read again every update (the tune panel moves it) */
+  private view: ViewLook;
   private readonly group: THREE.Group;
   private readonly material: THREE.Material;
   private readonly flora: FloraView | null;
@@ -110,6 +114,7 @@ export class LandStreamer {
 
   constructor(world: World, group: THREE.Group, material: THREE.Material, flora: FloraView | null, collider: LandCollider) {
     this.world = world;
+    this.view = lookFor(world.palette).view;
     this.collider = collider;
     this.group = group;
     this.material = material;
@@ -121,7 +126,7 @@ export class LandStreamer {
     // The land's footprint: the course from before the start to past the end, out to its extent either side
     let xMin = Infinity;
     let xMax = -Infinity;
-    for (let z = course.start.z - 600; z <= course.endZ + 900; z += 50) {
+    for (let z = course.start.z - BEFORE_START - 150; z <= course.endZ + PAST_FINISH + 250; z += 50) {
       xMin = Math.min(xMin, course.x(z));
       xMax = Math.max(xMax, course.x(z));
     }
@@ -131,8 +136,9 @@ export class LandStreamer {
     }
     const ix0 = Math.floor((xMin - extent) / size);
     const ix1 = Math.floor((xMax + extent) / size);
-    const iz0 = Math.floor((course.start.z - 600) / size);
-    const iz1 = Math.floor((course.endZ + 900) / size);
+    // Only as far as features reach, plus a shape's size: nothing stands before the start or past the finish
+    const iz0 = Math.floor((course.start.z - BEFORE_START - 150) / size);
+    const iz1 = Math.floor((course.endZ + PAST_FINISH + 250) / size);
     for (let ix = ix0; ix <= ix1; ix++) {
       for (let iz = iz0; iz <= iz1; iz++) {
         const range = this.columnRange(ROOT_LOD, ix, iz);
@@ -215,6 +221,7 @@ export class LandStreamer {
 
   /** Which nodes should be on screen from here, and which to ask the workers for next */
   update(at: THREE.Vector3, request: (r: NodeRequest) => boolean, velocity?: THREE.Vector3) {
+    this.view = lookFor(this.world.palette).view;
     this.lookAhead.copy(at);
     this.predicting = !!velocity && velocity.lengthSq() > 1;
     if (this.predicting) {
@@ -252,7 +259,7 @@ export class LandStreamer {
     for (const node of this.desired) {
       if (node.shown) continue;
       const d = node.box.distanceToPoint(at);
-      if (d < TERRAIN.readyRadius && !this.shownAncestor(node) && !this.visibleCoverage(node)) missingNearby = true;
+      if (d < this.view.readyRadius && !this.shownAncestor(node) && !this.visibleCoverage(node)) missingNearby = true;
       if (node.state === "idle") wanted.push({ node, d: this.order(node, d) });
     }
     this.ready = !missingNearby;
@@ -276,14 +283,14 @@ export class LandStreamer {
     // of it, and a pilot who climbs them is not racing (nothing out there is paid for)
     if (node.lateral > TERRAIN.generateLateral) return;
     const d = node.box.distanceToPoint(at);
-    const ahead = d > TERRAIN.viewDistance;
+    const ahead = d > this.view.viewDistance;
     // Beyond the view: prefetched (loaded, not shown) out to the prefetch distance, and
     // only ahead of the camera; the course runs towards +z and you never fly back
-    if (ahead && (d > TERRAIN.prefetchDistance || node.box.max.z < at.z)) return;
-    const split = node.lod === 3 ? TERRAIN.lodFar : node.lod === 2 ? TERRAIN.lodNear : TERRAIN.lodDetail;
+    if (ahead && (d > this.view.prefetchDistance || node.box.max.z < at.z)) return;
+    const split = node.lod === 3 ? this.view.lodFar : node.lod === 2 ? this.view.lodNear : this.view.lodDetail;
     const detailDistance = this.predicting ? Math.min(d, node.box.distanceToPoint(this.lookAhead)) : d;
     // Decoration, off to the side of the racing line, never splits finer than decorationMaxLod
-    const finest = node.lateral > TERRAIN.decorationLateral ? Math.min(Math.max(TERRAIN.decorationMaxLod, 0), ROOT_LOD) : 0;
+    const finest = node.lateral > TERRAIN.decorationLateral ? Math.min(Math.max(this.view.decorationMaxLod, 0), ROOT_LOD) : 0;
     node.split = node.lod > finest && detailDistance < split + (node.split ? TERRAIN.lodHysteresis : 0);
     if (node.split) {
       for (const child of this.childrenOf(node)) this.visit(child, at);

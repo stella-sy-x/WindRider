@@ -30,7 +30,7 @@ export const LAGOON: Biome = {
       sunAzimuth: 20,
       night: 0,
       mist: "#e6f8ff",
-      mistDensity: 0.35,
+      look: { air: { mistDensity: 0.35 } },
       glow: 1.3,
     },
     {
@@ -53,7 +53,7 @@ export const LAGOON: Biome = {
       sunAzimuth: -20,
       night: 0.85,
       mist: "#2a4a7a",
-      mistDensity: 0.5,
+      look: { air: { mistDensity: 0.5 } },
       glow: 0.9,
     },
   ],

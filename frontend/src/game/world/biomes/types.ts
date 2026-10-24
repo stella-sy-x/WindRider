@@ -208,8 +208,11 @@ export interface UnderwaterSpec {
 
 /** Mist and clouds around the land */
 export interface SkySpec {
-  /** A faceted floor of clouds this far below the racing line (null: none) */
-  cloudSea: { depth: number } | null;
+  /**
+   * A faceted floor of clouds this far below the racing line (null: none), and how many clusters
+   * of soft puffs lie on it, wide and low, so it reads as cloud rather than as white dunes
+   */
+  cloudSea: { depth: number; puffs?: number } | null;
   /** Puffy clouds drifting above (and, over a sea of clouds, below) the land */
   puffs: number;
   /** Some puffs drift below the line too (only where there is no ground in the way) */

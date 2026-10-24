@@ -29,7 +29,7 @@ export const TWILIGHT: Biome = {
       sunAzimuth: -15,
       night: 0.45,
       mist: "#6a5a9a",
-      mistDensity: 0.6,
+      look: { air: { mistDensity: 0.6 } },
       glow: 1.0,
     },
     {
@@ -52,7 +52,7 @@ export const TWILIGHT: Biome = {
       sunAzimuth: 30,
       night: 1,
       mist: "#2f2458",
-      mistDensity: 0.6,
+      look: { air: { mistDensity: 0.6 } },
       glow: 0.85,
       aurora: 0.25,
     },

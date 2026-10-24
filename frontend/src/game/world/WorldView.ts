@@ -55,6 +55,8 @@ export class WorldView {
   private readonly sky: THREE.Mesh;
   /** The sky's light from above and the ground's (the sea of clouds') from below */
   private readonly hemi: THREE.HemisphereLight;
+  /** The sea of clouds' floor, whose share of haze (look.air.seaHaze) is set every frame */
+  private cloudSeaMaterial: THREE.MeshLambertMaterial | null = null;
   private scene: THREE.Scene | null = null;
   private fogColorKey = "";
   private disposed = false;
@@ -81,8 +83,8 @@ export class WorldView {
     this.group.add(this.sky);
     const { cloudSea, puffs, puffLift, banks } = world.biome.sky;
     if (cloudSea) this.buildCloudSea(cloudSea.depth);
-    if (puffs > 0 || banks) {
-      this.softClouds = new SoftClouds(world, puffs, puffLift, banks ?? 0);
+    if (puffs > 0 || banks || cloudSea?.puffs) {
+      this.softClouds = new SoftClouds(world, puffs, puffLift, banks ?? 0, cloudSea?.puffs ? { depth: cloudSea.depth, count: cloudSea.puffs } : null);
       this.group.add(this.softClouds.mesh);
     }
     if (underwater) {
@@ -116,7 +118,6 @@ export class WorldView {
     ATMOSPHERE.sunDirection.value.copy(sunDirection(palette));
     ATMOSPHERE.sunColor.value.set(palette.sun);
     ATMOSPHERE.mistColor.value.set(palette.mist);
-    ATMOSPHERE.mistDensity.value = palette.mistDensity;
     const mist = world.biome.sky.mist;
     ATMOSPHERE.mistMode.value = mist.mode === "valley" ? 1 : 0;
     ATMOSPHERE.horizon.value.set(palette.horizon);
@@ -167,9 +168,18 @@ export class WorldView {
     ATMOSPHERE.mistCap.value = air.mistCap;
     ATMOSPHERE.rim.value = air.rim;
     ATMOSPHERE.puff.value.set(air.puffShadowSky, air.puffShadow, air.puffLit, air.puffGlow);
+    ATMOSPHERE.puffShadowZenith.value = air.puffShadowZenith;
+    ATMOSPHERE.mistDensity.value = air.mistDensity;
     this.hemi.color.set(palette.horizon).lerp(new THREE.Color(palette.zenith), air.hemiSky);
     this.hemi.groundColor.set(air.hemiGround ?? palette.cloud);
     this.hemi.intensity = palette.ambient;
+    if (this.cloudSeaMaterial) {
+      // seaHaze 1: the floor is the haze itself, unlit, in the fog's colour; the puffs on it are the clouds
+      const m = this.cloudSeaMaterial;
+      m.color.setScalar(1 - air.seaHaze);
+      m.emissive.set(palette.cloud).multiplyScalar(air.seaEmissive * (1 - air.seaHaze));
+      m.emissive.lerp(new THREE.Color(air.fogColor ?? palette.horizon), air.seaHaze);
+    }
   }
 
   /**
@@ -223,20 +233,46 @@ export class WorldView {
   /** A lumpy, faceted floor of clouds far below the islands, sloping down with the course */
   private buildCloudSea(depth: number) {
     const { course, palette } = this.world;
-    const step = 50;
-    const columns = 80;
+    // Built once in the mood's air (its relief, facets and own light): a change applies to the next map
+    const air = lookFor(palette).air;
+    // With relief: a quilt of rounded cloud heads (one dome per cell of a jittered grid seaWave metres
+    // wide, seaRelief metres tall, neighbours joined by the taller of the two), so the sea is lumps
+    // pressed together, not a terrain; a jitter per vertex so the facets vary. Flat-shaded, each head
+    // gets a lit crown and a shaded side like the islands, and the hollows between them take the
+    // sky's colour
+    const step = air.seaRelief > 0 ? 40 : 50;
+    const columns = Math.round(4000 / step);
     const z0 = course.start.z - 1500;
     const rows = Math.ceil((course.endZ + 2000 - z0) / step);
-    const point = (row: number, column: number) => {
+    const w = Math.max(air.seaWave, 1);
+    const seed = this.world.seed;
+    const dome = (x: number, z: number): number => {
+      if (air.seaRelief <= 0) return 0;
+      const cx = Math.floor(x / w);
+      const cz = Math.floor(z / w);
+      let h = 0;
+      for (let i = -1; i <= 1; i++) {
+        for (let k = -1; k <= 1; k++) {
+          const ox = (cx + i + hash3(cx + i, cz + k, seed) - 0.5) * w;
+          const oz = (cz + k + hash3(cx + i, cz + k, seed + 1) - 0.5) * w;
+          const radius = w * (0.55 + 0.35 * hash3(cx + i, cz + k, seed + 2));
+          const d2 = ((x - ox) * (x - ox) + (z - oz) * (z - oz)) / (radius * radius);
+          if (d2 < 1) h = Math.max(h, (1 - d2) * (1 - d2) * (0.7 + 0.3 * hash3(cx + i, cz + k, seed + 3)));
+        }
+      }
+      return h;
+    };
+    const point = (row: number, column: number): [number, number, number, number] => {
       const z = z0 + row * step;
-      const bump = (hash3(row, column, 11) - 0.5) * 14;
-      return [course.x(z) + (column - columns / 2) * step, course.y(z) - depth + bump, z];
+      const x = course.x(z) + (column - columns / 2) * step;
+      const jitter = (hash3(row, column, 11) - 0.5) * 2 * air.seaJitter;
+      const head = dome(x, z);
+      return [x, course.y(z) - depth + jitter + air.seaRelief * head, z, head];
     };
     const positions: number[] = [];
     const colors: number[] = [];
-    // Built once in the mood's air (its facets and own light): a change applies to the next map
-    const air = lookFor(palette).air;
     const base = new THREE.Color(palette.cloud);
+    const hollow = new THREE.Color(air.fogColor ?? palette.horizon).lerp(base, 0.4);
     const color = new THREE.Color();
     for (let r = 0; r < rows; r++) {
       for (let c = 0; c < columns; c++) {
@@ -244,9 +280,12 @@ export class WorldView {
           [point(r, c), point(r + 1, c), point(r + 1, c + 1)],
           [point(r, c), point(r + 1, c + 1), point(r, c + 1)],
         ]) {
-          color.copy(base).multiplyScalar(1 - air.seaFacets + air.seaFacets * hash3(r, c, tri[2][0] | 0));
+          // The hollows between the heads take the sky's colour, the crowns the cloud's
+          const head = (tri[0][3] + tri[1][3] + tri[2][3]) / 3;
+          color.copy(hollow).lerp(base, air.seaRelief > 0 ? Math.min(1, head * 1.5) : 1);
+          color.multiplyScalar(air.seaBright * (1 - air.seaFacets + air.seaFacets * hash3(r, c, tri[2][0] | 0)));
           for (const v of tri) {
-            positions.push(...v);
+            positions.push(v[0], v[1], v[2]);
             colors.push(color.r, color.g, color.b);
           }
         }
@@ -258,6 +297,7 @@ export class WorldView {
     geometry.computeVertexNormals();
     const material = new THREE.MeshLambertMaterial({ vertexColors: true });
     material.emissive.set(palette.cloud).multiplyScalar(air.seaEmissive);
+    this.cloudSeaMaterial = material;
     this.group.add(new THREE.Mesh(geometry, this.material(material)));
   }
 

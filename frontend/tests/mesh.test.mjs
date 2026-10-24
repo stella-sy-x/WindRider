@@ -8,6 +8,7 @@ import { cleanMesh, remapFaces } from '../src/game/world/meshCleanup.ts';
 import { LandStreamer } from '../src/game/world/terrain/streamer.ts';
 import { LandCollider } from '../src/game/world/landCollider.ts';
 import { TERRAIN } from '../src/game/tuning.ts';
+import { lookFor } from '../src/game/world/look.ts';
 import { TerrainField } from '../src/game/world/terrain/field.ts';
 
 function edgesOf(positions) {
@@ -81,13 +82,14 @@ test('LOD hysteresis keeps fine nodes while hovering around the split distance',
   const node = land.node(2, 0, 0, 0, null);
   const camera = new THREE.Vector3();
   const old = TERRAIN.lodHysteresis;
+  const { lodNear } = lookFor(world.palette).view;
   try {
     TERRAIN.lodHysteresis = 48;
-    land.visit(node, camera.set(192 + TERRAIN.lodNear - 1, 96, 96));
+    land.visit(node, camera.set(192 + lodNear - 1, 96, 96));
     assert.equal(node.split, true);
-    land.visit(node, camera.set(192 + TERRAIN.lodNear + 20, 96, 96));
+    land.visit(node, camera.set(192 + lodNear + 20, 96, 96));
     assert.equal(node.split, true);
-    land.visit(node, camera.set(192 + TERRAIN.lodNear + 49, 96, 96));
+    land.visit(node, camera.set(192 + lodNear + 49, 96, 96));
     assert.equal(node.split, false);
   } finally { TERRAIN.lodHysteresis = old; land.dispose(); }
 });

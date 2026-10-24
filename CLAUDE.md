@@ -25,6 +25,16 @@ the shade the colour of its sky (an amber mood goes gold and violet, a
 crisp blue one stays crisp). Flat faces stay flat; the painted look lives
 in the light and the colour, not in smoothed normals.
 
+The reference for that look is Teamfight Tactics' art direction (Stella,
+2026-10-24: Claude works on the visuals as a former TFT art director would;
+the style and its techniques are the target, never its assets). What that
+means here: the light is placed for the camera, not for geography (a
+mood's sun sits behind the pilot, about 150°, so the faces a racer sees
+are lit; if a course's bends show too much backlight, the sun may follow
+the course's heading); shade is always coloured, never grey; distance is
+colour steps, not a fog bank; bloom is for magic, never for sky or cloud;
+silhouettes read from far away.
+
 ## The game
 
 Wind Rider is a browser wingsuit racer. Seeded procedural courses through
@@ -147,6 +157,97 @@ structures, sky, particles, music); update it when a biome recipe changes.
 `docs/debug-mode.md` is test mode.
 
 ## Change log
+
+### 2026-10-24: No land before the start or past the finish (Claude)
+
+- `BEFORE_START` (60 m) and `PAST_FINISH` (100 m) in `terrain/recipes.ts`:
+  land features scatter only between them (was 300 m either way, the
+  streamer's roots 600 behind and 900 past), since nothing is seen or
+  flown there. Archipelago seed 1: 15 islands and 52k triangles (9 % of
+  the map) stood behind the start, now 2 and 8k. Every seed's features
+  move (the random range changed); the 120 islands stand a quarter
+  denser. Stella's plan behind it, parked in the backlog: the start and
+  the finish become portals with nothing outside them.
+
+### 2026-10-24: Pond water stops at the bowl; a crash log in dev builds (Claude)
+
+- Crashes in empty air under the Archipelago's islands: `World.pondDistance`
+  treated a pond as its surface disc alone, negative everywhere under it,
+  so every pond was a column of "water" down through the island and the
+  air beneath. The water is now the body in the bowl (the disc on top,
+  the bowl's depth under it). Test: air under the island and beside the
+  lip, over two seeds. Stella's two "void" crashes were both this pond,
+  found with the log below.
+- Dev builds log every crash (`Game.logCrash`): the cause (abyss, land as
+  drawn, tree, pond, sea, rock field), the part, position, hit point,
+  speed, and the distances to rock, tree, pond, water and the abyss line
+  at the last step, in `window.__crashes` and the console.
+- Still worth knowing: the abyss line (`ABYSS` 240 m under the line) sits
+  20 m above the cloud sea's floor (260), so a dive crashes in the air
+  just over the clouds (backlog).
+
+### 2026-10-24: Archipelago Autumn: the whole map at 3 m, nothing swapped (Claude)
+
+- Stella: an island changing shape as a finer level takes over is worse
+  than not drawing it (a dissolve between levels was tried once and
+  rejected), and the Archipelago is an open course where every island can
+  matter, so no "decoration" there is drawn coarser than the line's land.
+  Desktop browsers first; laptops and phones get their own numbers when
+  the game is done. So Autumn's `look.view` puts every tier, the view and
+  prefetch distances and the ready radius past the end of the course
+  (4000 m) with `decorationMaxLod` 0: every node splits to 3 m at once,
+  the start waits for all of it, nothing is dropped behind, every tree is
+  a full tree. `readyRadius` and `decorationMaxLod` left `TERRAIN` for
+  `look.view` to make that possible.
+- Measured, seed 1, desktop, 1893×901: 982 land nodes, 558k land
+  triangles, 450k drawn a frame, 153 draw calls, 1.2 ms GPU, 2.7 ms CPU
+  (the 1400 m tiers: 131k drawn, 75 calls, 0.65 / 0.96 ms). Whole-map
+  numbers from the mesher, start to 1400 m ahead, three seeds: 12 m
+  everywhere 13k to 23k triangles; 6 m everywhere 60k to 105k; 3 m
+  everywhere 180k to 300k and 365 to 503 drawn nodes.
+
+### 2026-10-24: The view distance and the mist's density are the mood's (Claude)
+
+- `look.view`: the LOD tiers (`lodDetail` 140, `lodNear` 300, `lodFar`
+  700), `viewDistance` (700) and `prefetchDistance` (1200) left `TERRAIN`
+  for the mood's look: a mood's haze says how far land is worth drawing,
+  and Stella wants streaming decided per mood, never globally. The
+  streamer reads the mood's `view` at every update (the tune panel moves
+  it live); full trees give way to impostors at the mood's `lodDetail`.
+  The racing line's land is always within every tier, so collisions are
+  unchanged. Archipelago Autumn draws to 1400 m at 12 m cells (prefetch
+  1900): a clear afternoon's haze begins far out and the islands must
+  arrive before they are seen. Measured over three seeds, the islands
+  700 to 1400 m ahead at 12 m cells are 7k to 15k triangles; 24 m cells
+  are never shown, since they lose the 14 m islands and the land would
+  change shape as it came in.
+- `mistDensity` left the palette for `look.air` (every mood carries its
+  old number in `look.air.mistDensity`), so it has a slider in the Look
+  folder; the mist's colour stays the palette's `mist`. Autumn: no mist
+  under the camera (0), and the cloud sea's floor 60 % haze-coloured
+  (`seaHaze` 0.6, was 1: at 1 it lost its facets and the lower half of
+  the picture read as fog, which is what "雾蒙蒙" was).
+
+### 2026-10-24: Archipelago Autumn: the sea of clouds is the haze floor alone (Claude)
+
+- `sky.cloudSea` on the Archipelago carries no `puffs` any more: below
+  the line there is only the unlit haze floor (`seaHaze` 1). Everything
+  tried on it read wrong from 260 m above, which is the only way a cloud
+  sea is ever seen: puff clusters as a grey and white patchwork (a puff
+  is shaded by its height in its cloud and the puffs are drawn unsorted,
+  so grey bottoms paint over white tops), hard-edged or square puffs as
+  scales, one paper-cut card per cloud (lobed outline, flat white, a
+  shade band) as a row of boats, low-poly hull clouds as white rock at
+  50k triangles. Stella: no face budget for cloud decoration.
+- `look.air.puffShadowZenith` (0 as built; Autumn 0.5): the puffs' shade
+  takes the horizon's colour this far towards the zenith's, so under a
+  warm grade the shade stays blue, not cream. Cloud widths (70 to 320 m),
+  proportions (0.25 to 0.6) and puff counts (4 to 12) are spread wide: the
+  clouds were all alike and stacked into even bands.
+- A cloud is a cluster of camera-facing puff cards; nothing about that
+  changed. The soft edge, the continuous shade and the overlapping
+  half-transparent cards are what make it read as cloud; hardening any
+  of them shows every card's outline.
 
 ### 2026-10-24: Every map's look in three layers; a brief per mood (Claude)
 

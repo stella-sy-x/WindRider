@@ -34,7 +34,7 @@ export const REEF: Biome = {
       sunAzimuth: 15,
       night: 0.12,
       mist: "#1b6f9e",
-      mistDensity: 0.5,
+      look: { air: { mistDensity: 0.5 } },
       glow: 1.25,
     },
     {
@@ -57,7 +57,7 @@ export const REEF: Biome = {
       sunAzimuth: -20,
       night: 0.85,
       mist: "#061c38",
-      mistDensity: 0.6,
+      look: { air: { mistDensity: 0.6 } },
       glow: 0.9,
     },
   ],

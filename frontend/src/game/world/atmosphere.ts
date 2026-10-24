@@ -59,6 +59,7 @@ export const ATMOSPHERE = {
   mistCap: { value: 0.85 },
   rim: { value: 0.45 },
   puff: { value: new THREE.Vector4(0.45, 0.72, 1.05, 1.2) },
+  puffShadowZenith: { value: 0 },
 };
 
 /**

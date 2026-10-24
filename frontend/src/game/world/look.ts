@@ -38,6 +38,7 @@ export interface AirLook {
   /** Clouds painted on the dome: their brightness (1: as built) */
   cloudBright: number;
   // The mist below you (over a sea of clouds; in a valley the biome's `mist` says where it pools)
+  mistDensity: number; // how thick it is, 0..1 (its colour is the mood's `mist`)
   mistDrop: number; // metres under the camera where it begins
   mistThickness: number; // metres over which it thickens
   mistRange: number; // metres of distance over which it builds up
@@ -52,7 +53,13 @@ export interface AirLook {
   // The sea of clouds and the puffs
   seaEmissive: number; // the sea's own light as a share of its colour
   seaFacets: number; // brightness spread across its facets, 0..1
-  puffShadowSky: number; // a puff's shaded side: cloud colour this far towards the horizon's…
+  seaBright: number; // the sea's colour times this (under a strong sun, under 1 keeps white cloud from clipping)
+  seaHaze: number; // 0: the floor is lit, faceted cloud; 1: it is the haze itself (unlit, the fog's colour) and only the puffs on it are cloud
+  seaJitter: number; // metres each vertex of the sea is thrown up or down, so the facets vary
+  seaRelief: number; // the sea as a quilt of rounded cloud heads this many metres tall (0: flat but for the jitter)…
+  seaWave: number; // …one head per this many metres
+  puffShadowSky: number; // a puff's shaded side: cloud colour this far towards the sky's colour…
+  puffShadowZenith: number; // …which is the horizon's, this far towards the zenith's (0: the horizon as built)
   puffShadow: number; // …and this bright
   puffLit: number; // its lit side, times the cloud colour
   puffGlow: number; // the sun's light through its edge
@@ -172,8 +179,24 @@ export interface PaintLook {
   gradient: number;
 }
 
+/**
+ * How far the land is drawn and at what detail, metres from the camera: a mood's haze says what
+ * is worth drawing (Stella, 2026-10-24: the view is the mood's, never a global). Looks only: the
+ * colliders follow the drawn land, but the racing line's land is always within every tier
+ */
+export interface ViewLook {
+  lodDetail: number; // within this of any land node: the finest 3 m cells
+  lodNear: number; // 6 m cells
+  lodFar: number; // 12 m cells; beyond, 24 m, which is never shown (see viewDistance)
+  viewDistance: number; // land further than this is not drawn: keep it at lodFar, since 24 m cells lose the small islands and the far land would change shape as it comes in
+  prefetchDistance: number; // the workers make land ahead out to here, held off screen until it comes within viewDistance; always more than viewDistance
+  readyRadius: number; // the start waits until the land this close has arrived (the whole map: as far as viewDistance)
+  decorationMaxLod: number; // land more than TERRAIN.decorationLateral off the line never splits finer than this level (2: 12 m cells; 0: as fine as the line's)
+}
+
 export interface Look {
   air: AirLook;
+  view: ViewLook;
   land: LandLook;
   water: WaterLook;
   plants: PlantLook;
@@ -204,6 +227,7 @@ export const LOOK_DEFAULTS: Look = {
     silhouetteSky: 1,
     silhouetteShade: 1,
     cloudBright: 1,
+    mistDensity: 0.5,
     mistDrop: 40,
     mistThickness: 120,
     mistRange: 280,
@@ -212,12 +236,27 @@ export const LOOK_DEFAULTS: Look = {
     rim: 0.45,
     seaEmissive: 0.35,
     seaFacets: 0.1,
+    seaBright: 1,
+    seaHaze: 0,
+    seaJitter: 7,
+    seaRelief: 0,
+    seaWave: 260,
     puffShadowSky: 0.45,
+    puffShadowZenith: 0,
     puffShadow: 0.72,
     puffLit: 1.05,
     puffGlow: 1.2,
     tintSky: 0.3,
     tintGround: 0.5,
+  },
+  view: {
+    lodDetail: 140,
+    lodNear: 300,
+    lodFar: 700,
+    viewDistance: 700,
+    prefetchDistance: 1200,
+    readyRadius: 260,
+    decorationMaxLod: 2,
   },
   land: {
     snowLine: 0,
@@ -348,7 +387,21 @@ export const LOOK_RANGES: Record<string, [number, number, number?]> = {
   "air.rim": [0, 1.5],
   "air.seaEmissive": [0, 1],
   "air.seaFacets": [0, 0.5],
+  "air.seaBright": [0.2, 1.2],
+  "air.seaHaze": [0, 1],
+  "air.seaJitter": [0, 20],
+  "air.seaRelief": [0, 80],
+  "air.seaWave": [60, 800, 5],
+  "air.mistDensity": [0, 1],
+  "view.lodDetail": [50, 400, 10],
+  "view.lodNear": [100, 1000, 10],
+  "view.lodFar": [300, 2500, 10],
+  "view.viewDistance": [300, 3000, 10],
+  "view.prefetchDistance": [500, 4000, 10],
+  "view.readyRadius": [100, 4000, 10],
+  "view.decorationMaxLod": [0, 3, 1],
   "air.puffShadowSky": [0, 1],
+  "air.puffShadowZenith": [0, 1],
   "air.puffShadow": [0.2, 1.2],
   "air.puffLit": [0.5, 1.5],
   "air.puffGlow": [0, 3],

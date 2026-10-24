@@ -43,9 +43,17 @@ with every number explained beside it in `look.ts`:
 
 - **air**: the haze (where it begins and ends, its colour, by default the
   horizon's), the sky gradient's curve, the sun's glow and discs, the far
-  silhouettes, the dome clouds, the mist under the camera, the hemisphere
-  light's colours, the backlit rims, the sea of clouds and the puffs, and
-  the painted look's tints.
+  silhouettes, the dome clouds, the mist under the camera (its density;
+  its colour is the palette's `mist`), the hemisphere light's colours, the
+  backlit rims, the sea of clouds and the puffs, and the painted look's
+  tints.
+- **view**: how far the land is drawn and at what detail (the 3, 6 and
+  12 m tiers, the view distance, the prefetch distance, how much must have
+  arrived before the start, how fine land off the line goes), since a
+  mood's haze says what is worth drawing. Looks only: the racing line's
+  land is always within every tier. With every distance past the end of
+  the course the whole map loads at 3 m before the start and nothing is
+  ever swapped (Archipelago Autumn).
 - **land**: the snow line, the cover slope, the painted noise, the strata,
   the slope bands of cover and soil, wet rock, the snow's fade, the crystal
   surfaces' tints, and what the mesher bakes (undersides, rock and cover
@@ -118,12 +126,12 @@ so the islands got ponds and bridges of their own instead (2026-10-18/19).
 - **Moods**: Alpine; Autumn. (No night mood: the islands are a daytime biome.) Briefs: Alpine (draft), a crisp alpine morning high over the sea of clouds, a white sun, a clean blue sky, green islands; Autumn (Stella, 2026-10-24), a clean autumn afternoon about three o'clock, the autumn in the orange trees and the dry grass, the light itself clear (its sky, haze and sun are still amber: not there yet).
 - **Ground**: none. Ponds on 45 % of islands 20 m and up (a bowl carved into the top under a flat rock lip, the island's grain smoothed around it; the water is solid like a river pool; `World.islandPonds`). Waterfalls off 15 % of big islands, kept rare for gameplay later; the two are independent.
 - **Surfaces**: 0 the islands (warm brown rock, green cap); 1 the gates (same rock, greyer); 2 worked stone (the bridges).
-- **Features**: 120 floating islands (14 to 55 m) without holes, dense enough that most have a neighbour within a bridge's reach.
+- **Features**: 120 floating islands (14 to 55 m) without holes, dense enough that most have a neighbour within a bridge's reach; mostly below the racing line (rise −130 to 60 m, about a quarter above, since 2026-10-24: a racer sees sunlit tops, ponds and falls rather than undersides in shade).
 - **Gates**: arch 3, pillars 2, bridge 2 (a stone bridge between two islands either side of the line, its arch centred on the line), needles 1, spur 1.
 - **Bridges** (`World.findIslandBridges`): stone bridges between neighbouring islands off the line, 80 % of the pairs 10 to 50 m apart rim to rim, each island in one at most, ramped where one island stands higher (up to about 24 degrees), the gap under the arch checked empty; solid like the land.
 - **Flora**: pine, oak and birch in groves of their own (a patch of noise per species, 90 m across; forest cover 0.45, the odd tree between), bush, boulder. No grass tufts (the flat cards looked like paper cut-outs; removed 2026-10-23).
 - **Structures** (all on island rock): watchtower (landmark, 18 to 24 m), einsteinBust (landmark, about one level in three, beside the line), windmill (bare island tops), shrineGate (facing), stoneLantern sparse everywhere and dense around the ponds (`wet`).
-- **Sky**: cloud sea 260 m below, 65 puffs above and below, camera mist; the haze from 80 to 1400 m (the biome's `look.air`). **Particles**: motes, petals, a few fireflies (both moods are day, so they never swarm).
+- **Sky**: cloud sea 260 m below, nothing lying on it (its floor is the haze itself in Autumn, `look.air.seaHaze`; a faceted floor read as dunes, ice or crumpled paper, puff clusters on it as a patchwork, scales or boats, hull meshes as white rock), 65 puffs above and below in widely scattered sizes, their shade halfway to the zenith in Autumn (`look.air.puffShadowZenith`), camera mist; the haze from 80 to 1400 m (the biome's `look.air`; Autumn 250 to 1800). **Particles**: motes, petals, a few fireflies (both moods are day, so they never swarm).
 - **Music**: Soaring Above the Clouds (file still named `sky-isles_`).
 
 ## Coral Lagoon

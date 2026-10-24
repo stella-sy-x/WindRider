@@ -36,8 +36,8 @@ const FAR_SCALE_GLSL = /* glsl */ `
   uniform float floraFull;
   float floraFarScale(float dist) { return 1.0 - 0.15 * smoothstep(floraFull, floraFull * 1.5, dist); }
 `;
-/** Where full trees give way to impostors: a full-detail node's box is within lodDetail (+ hysteresis) of the camera */
-const floraFull = { get value() { return TERRAIN.lodDetail + TERRAIN.lodHysteresis; } };
+/** Where full trees give way to impostors: a full-detail node's box is within the mood's lodDetail (+ hysteresis) of the camera */
+const floraFullFor = (palette: Palette) => ({ get value() { return lookFor(palette).view.lodDetail + TERRAIN.lodHysteresis; } });
 
 const ATLAS_COLUMNS = 4;
 const ATLAS_ROWS = 4;
@@ -72,7 +72,7 @@ function plantMaterial(
     shader.uniforms.floraGust = FLORA_UNIFORMS.gust;
     shader.uniforms.floraWind = wind;
     shader.uniforms.floraFade = { get value() { return FLORA.grassDistance; } };
-    shader.uniforms.floraFull = floraFull;
+    shader.uniforms.floraFull = floraFullFor(palette);
     shader.uniforms.floraLights = { get value() { return built ? structures().lights : 1; } };
     if (spin) shader.uniforms.floraSpin = { get value() { return spin.rate * structures().sails; } };
     shader.vertexShader = shader.vertexShader
@@ -375,7 +375,7 @@ export class FloraView {
     this.impostorMaterial.uniforms.atmoGlow = ATMOSPHERE.glow;
     this.impostorMaterial.uniforms.atmoNow = ATMOSPHERE.now;
     this.impostorMaterial.uniforms.atmoRevealRate = ATMOSPHERE.revealRate;
-    this.impostorMaterial.uniforms.floraFull = floraFull;
+    this.impostorMaterial.uniforms.floraFull = floraFullFor(world.palette);
     this.materials.push(this.impostorMaterial);
     const quad = new THREE.PlaneGeometry(2, FRAME_Y1 - FRAME_Y0).translate(0, (FRAME_Y1 - FRAME_Y0) / 2, 0);
     this.geometries.push(quad);
