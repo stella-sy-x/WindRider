@@ -111,7 +111,9 @@ export const ARCHIPELAGO: Biome = {
       features: [
         // Clean teardrops along the line, no holes, the default soft noise. Dense enough that most islands have a
         // neighbour a bridge's length away (120: about 30 level pairs 12 to 50 m apart per course; 60 gave 8)
-        { kind: "islands", count: 120, size: [14, 55], lateral: [25, 100], rise: [-80, 120], surface: 0, holes: 0 },
+        // Mostly below the line (rise -130 to 60, about a quarter above; it was -80 to 120, over half above):
+        // what a racer sees is then island tops, grass, ponds and falls in the sun, not undersides in shade
+        { kind: "islands", count: 120, size: [14, 55], lateral: [25, 100], rise: [-130, 60], surface: 0, holes: 0 },
       ],
     },
     islandFalls: { chance: 0.15, colors: { deep: "#3f8fb0", shallow: "#9fdff0", foam: "#ffffff" } },
