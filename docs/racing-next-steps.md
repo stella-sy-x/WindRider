@@ -114,6 +114,21 @@ cosmetics, items and the gallery are gone; the game is racing only.
 - **Progression and matchmaking**: daily or all-time leaderboards (new
   backend endpoints), weekly challenges, a "Quick Race" that matches 2 to 4
   players on a random seed, 3 to 5 featured seeds as the competitive pool.
+- **Start and finish portals** (Stella's idea, 2026-10-24, parked: not
+  worth the effort yet). The start and the finish each become a portal
+  and nothing exists before the one or past the other (the land cut is
+  done already: `BEFORE_START` 60 m, `PAST_FINISH` 100 m in recipes.ts).
+  To decide before building: (1) what crossing the finish portal does:
+  vanish into it with a flash and cut to the results (Claude's pick: a
+  ceremony, nothing to draw outside), or fly on over empty sky with the
+  results over it (the line still runs 1000 m past the finish for the
+  victory glide); (2) whether the start portal is seen at all: the chase
+  camera looks ahead, so only a countdown push-out through the portal, a
+  crash look-back or a waiting lobby would show it; (3) its look: a
+  giant crystal gate with a glowing membrane (cheapest, one family with
+  the gates), a worked-stone arch, or one per biome (five assets). Gold
+  for the frame (the finish beam's and the trail's gold), the membrane
+  in the biome's accent; bloom allowed, it is magic.
 - **The abyss line** (`ABYSS` 240 m under the racing line) sits 20 m above
   the Archipelago's cloud sea (260 m): a dive crashes in the air just over
   the clouds. Lower it to the floor, or make the clouds the crash.
@@ -136,6 +151,12 @@ cosmetics, items and the gallery are gone; the game is racing only.
   of 2026-10-19.
 
 ## Done lately
+
+- 2026-10-24: no land before the start or past the finish: features
+  scatter from 60 m before the start to 100 m past the finish (was 300
+  either way) and the land's root nodes follow. Archipelago seed 1: 15
+  islands and 52k triangles behind the start became 2 and 8k; the 120
+  islands now stand a quarter denser along the course.
 
 - 2026-10-24: ponds no longer crash you under their islands (the water
   was a column all the way down; now the body in the bowl); dev builds

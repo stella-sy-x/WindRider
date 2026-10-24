@@ -158,6 +158,17 @@ structures, sky, particles, music); update it when a biome recipe changes.
 
 ## Change log
 
+### 2026-10-24: No land before the start or past the finish (Claude)
+
+- `BEFORE_START` (60 m) and `PAST_FINISH` (100 m) in `terrain/recipes.ts`:
+  land features scatter only between them (was 300 m either way, the
+  streamer's roots 600 behind and 900 past), since nothing is seen or
+  flown there. Archipelago seed 1: 15 islands and 52k triangles (9 % of
+  the map) stood behind the start, now 2 and 8k. Every seed's features
+  move (the random range changed); the 120 islands stand a quarter
+  denser. Stella's plan behind it, parked in the backlog: the start and
+  the finish become portals with nothing outside them.
+
 ### 2026-10-24: Pond water stops at the bowl; a crash log in dev builds (Claude)
 
 - Crashes in empty air under the Archipelago's islands: `World.pondDistance`

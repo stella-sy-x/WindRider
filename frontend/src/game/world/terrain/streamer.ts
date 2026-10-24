@@ -9,6 +9,7 @@ import { Plant } from "../trees";
 import type { LandCollider } from "../landCollider";
 import type { World } from "../World";
 import { NODE_SIZE, type TerrainMesh, VOXEL, nodeKey } from "./mesh";
+import { BEFORE_START, PAST_FINISH } from "./recipes";
 
 // Streams generator-v2 land around the camera as an octree of nodes: 384 m
 // nodes far away, split into 192, 96 and finally 48 m nodes as you get close. Every
@@ -125,7 +126,7 @@ export class LandStreamer {
     // The land's footprint: the course from before the start to past the end, out to its extent either side
     let xMin = Infinity;
     let xMax = -Infinity;
-    for (let z = course.start.z - 600; z <= course.endZ + 900; z += 50) {
+    for (let z = course.start.z - BEFORE_START - 150; z <= course.endZ + PAST_FINISH + 250; z += 50) {
       xMin = Math.min(xMin, course.x(z));
       xMax = Math.max(xMax, course.x(z));
     }
@@ -135,8 +136,9 @@ export class LandStreamer {
     }
     const ix0 = Math.floor((xMin - extent) / size);
     const ix1 = Math.floor((xMax + extent) / size);
-    const iz0 = Math.floor((course.start.z - 600) / size);
-    const iz1 = Math.floor((course.endZ + 900) / size);
+    // Only as far as features reach, plus a shape's size: nothing stands before the start or past the finish
+    const iz0 = Math.floor((course.start.z - BEFORE_START - 150) / size);
+    const iz1 = Math.floor((course.endZ + PAST_FINISH + 250) / size);
     for (let ix = ix0; ix <= ix1; ix++) {
       for (let iz = iz0; iz <= iz1; iz++) {
         const range = this.columnRange(ROOT_LOD, ix, iz);
