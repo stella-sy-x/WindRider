@@ -100,6 +100,16 @@ cd frontend && npm install && npm run dev  # http://localhost:5173
 - Terrain generators beat imported models for anything placed many times;
   imported CC BY models are for a few distinctive things (credit them in
   `CREDITS.md`).
+- A map's look is the mood's. Everything that decides how a map looks and
+  is not a thing's own design lives in `world/look.ts` in three layers:
+  `LOOK_DEFAULTS` (the numbers the game was built with), a biome's `look`,
+  a mood's `look`, each writing only what it changes. What belongs to the
+  player (the pilot, its trails, the camera, the picture's quality) stays
+  in `tuning.ts`, the same in every map. How a thing is built or moves (a
+  pine's taper, a jellyfish's beat, a noise frequency) stays with the
+  thing; one of its numbers is promoted into the look only when a mood
+  needs it. Every mood has a `brief`: one sentence saying what it is,
+  which its numbers are judged against.
 
 ### Architecture (frontend/src)
 
@@ -114,6 +124,7 @@ cd frontend && npm install && npm run dev  # http://localhost:5173
 | `game/trail.ts` | Glowing ribbon trail |
 | `game/toon.ts` | Flat material and shared light parameters |
 | `game/world/` | Terrain generation, biomes, courses, trees, water, atmosphere |
+| `game/world/look.ts` | How a map looks beyond its colours: every rule and number, in three layers (defaults, biome, mood) |
 | `game/world/crystals.ts` | Crystal gates |
 | `game/world/deep.ts` | Underwater life: light shafts, fish, jellyfish and their discharge |
 | `game/world/landCollider.ts` | Collision with drawn land meshes |
@@ -136,6 +147,46 @@ structures, sky, particles, music); update it when a biome recipe changes.
 `docs/debug-mode.md` is test mode.
 
 ## Change log
+
+### 2026-10-24: Every map's look in three layers; a brief per mood (Claude)
+
+- `world/look.ts`: a `Look` is every rule and number that decides how a
+  map looks and is not a thing's own design, in nine groups: `air` (the
+  haze, the sky's gradient and sun glow, the discs, the far silhouettes,
+  the dome clouds, the mist under the camera, the hemisphere light's
+  colours, the backlit rims, the sea of clouds and the puffs, the painted
+  look's tints), `land` (how the land is painted), `water`, `plants`,
+  `structures`, `gates`, `deep`, `particles` (size and brightness per
+  kind) and `paint` (the painted look, formerly `PAINT` in tuning.ts and
+  `paint` in the palette). `LOOK_DEFAULTS` holds the numbers the game was
+  built with; a biome's `look` and then a mood's write over it
+  (`resolveLook`). About 110 numbers and colours that were literals in
+  shaders, builders and tuning groups now read from it; the 400 or so that
+  are a thing's own design (noise frequencies, animation rates, a tree's
+  part shades) stayed where they were. Colours born as GLSL literals are
+  linear triples; colours born as hex strings stay hex.
+- The tune panel's `Look: <mood>` folder binds sliders to the mood's
+  edited copy (`lookEdited`); `override` on makes the picture take them,
+  off keeps the numbers as written and greys the sliders; "Copy settings
+  as JSON" writes the difference from the layers below, to paste into the
+  mood. Values the mesher bakes (undersides, rock and cover jitter) and
+  values built once (the sea of clouds, structure colours, gate counts)
+  apply to the next map. `window.__look` exposes the resolver to scripts.
+- Every mood has a `brief`. Autumn's is Stella's (a clean autumn afternoon
+  about three o'clock, the autumn in the trees and grass, the light itself
+  clear; its numbers are not there yet). The other ten are drafts.
+- Verified picture-equal, step by step: a frozen start-line frame per mood
+  (seed 1, 1440×810, `frontend/tests/frame-harness.js`) read back from the
+  canvas and compared pixel for pixel; every step within 30 pixels of 1.17
+  million, 1 to 3 levels off (floating point). The harness pins the
+  clocks, snaps the camera, hides the pilot, builds a fresh world per mood
+  and throws the first world after a page load away: those were the
+  sources of frame-to-frame noise.
+- Found on the way, left as they were (backlog): the crystal surfaces'
+  sheen uses a fixed light direction, not the sun; the water's night
+  dimming has two different values (pool 0.32, falling curtain 0.4), now
+  two look numbers; the sun glow was copied in three shaders, now one
+  chunk.
 
 ### 2026-10-23: Undersides out of the grey (Claude)
 

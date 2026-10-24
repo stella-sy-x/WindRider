@@ -6,7 +6,7 @@ before touching code, and updates this one at commit time: finished items
 move to "Done lately", what the work turned up goes under "Now" or "Next".
 Keep "Now" short: it is what is actually in flight.
 
-Last updated 2026-10-19.
+Last updated 2026-10-24.
 
 ## Where things stand
 
@@ -21,39 +21,38 @@ cosmetics, items and the gallery are gone; the game is racing only.
 
 ## Now
 
-0. **The painted look**, one step at a time, judged on the Archipelago's
-   Autumn mood (the closest to a storybook already), each step a tuning
-   group with an off switch so it can be compared and dropped. Step 1 is
-   in (branch `paint-look`, PR #13): a colour grade over the finished
-   frame, warm highlights, violet shadows, lifted blacks, vignette, paper
-   grain (`PAINT` in tuning.ts, `paint.ts`, a pass after the bloom; High
-   quality only). Each mood is judged on its own and keeps its own numbers
-   (`paint` in its palette); in `?tune` the Painted look sliders hold
-   Stella's numbers for the mood on screen: `override` on shows them, off
-   shows the numbers as written and greys the sliders; reset returns them
-   to the written ones, and "Copy settings as JSON" includes them to
-   paste into the palette. Judged so
-   far: Archipelago Autumn (full strength).
-   Step 2 is in on Autumn, under judgement: the sun's light banded into
-   three steps with soft edges in every flat-shaded land, plant and
-   structure material, the lit side warmed, the shade cooled (`ramp`,
-   `steps`, `soft`, `warmLight`, `coolShade`; `PAINT_LAMBERT_GLSL` replaces
-   three's Lambert chunk inside `atmospheric()`). Each face keeps one band:
-   no smoothed normals. Step 3 is in on Autumn, under judgement: a
-   vertical wash on every thing (`gradient`), its bottom towards the sky's
-   colour and darker, its top towards the sun's and lighter; the mesher
-   writes a `rise` per vertex (where it sits within its own shape, or over
-   the line on the ground), plants use their own height. Silhouette
-   ornament is next, after the three steps are judged on Autumn.
-   Order after that: the day moods (Alpine, Lagoon noon, Glacier polar day
-   and dawn, Gloaming), then the nights, the Reef last with its own grade. Steps to come if step 1 reads right: ramped (two or three step)
-   lighting with warm/cool shadow colours and a sky-driven ambient, in the
-   flat-shaded material (never smoothed normals on the low-poly land: that
-   was tried once and turned every facet into a gradient); a vertical
-   vertex-colour gradient per island and tree; then silhouette ornament on
-   structures and trees. Validation order over the other biomes is
-   Stella's to decide (Glacier's snow is the stress test for cool shadows;
-   the Reef needs its own grade under water).
+0. **Autumn, step 1: the air of a clean autumn afternoon.** Autumn's brief
+   (Stella, 2026-10-24): a clean autumn afternoon about three o'clock, the
+   autumn in the orange trees and the dry grass, the light itself clear.
+   Its numbers are not there yet: the sky's horizon, the haze, the mist
+   and the sun are all amber (copied from the old Sky Isles with the
+   repository's first commit, never chosen), so from 400 m out the cloud
+   sea, the far islands and the sky melt into one amber mass ("黄沙漫天":
+   the middle and far distance carry no information). Only the five
+   atmosphere colours change in step 1 (horizon to a pale blue-white,
+   zenith a little deeper than Alpine's, sun warm white, mist and cloud
+   with them), on the `look-per-mood` branch once its PR is in; same-frame
+   before/after for Stella. Then, judged one at a time: the haze's start
+   (80 m is early) and the sun glow's width; the cloud sea's own relief
+   and shading so it reads as cloud; tone mapping (none today: everything
+   over 1 clips per channel to a flat amber-white, the cloud sea under a
+   2.3 sun included; a global decision, not a mood's).
+1. **The painted look**, one step at a time, judged on Autumn first, each
+   step its own numbers in the mood's `look.paint` (branch `paint-look`,
+   PR #13; the numbers moved from `PAINT`/`palette.paint` into the look on
+   2026-10-24). Step 1 in: a colour grade over the finished frame (lifted
+   blacks, shadows towards the sky, highlights towards the sun, vignette;
+   `paint.ts`, a pass after the bloom, High quality only). Step 2 in: the
+   sun's light banded into three soft steps in every flat-shaded material,
+   the lit side towards the sun's colour, the shade towards the sky's
+   (`PAINT_LAMBERT_GLSL` inside `atmospheric()`); each face keeps one band,
+   never smoothed normals. Step 3 in: a vertical wash per thing
+   (`gradient`, the mesher's `rise` per vertex). Judged so far: Autumn at
+   grade 0.82, ramp 1, gradient 1.2. Silhouette ornament is next, after
+   Autumn's air is right. Order after that: the day moods (Alpine, Lagoon
+   noon, Glacier polar day and dawn, Gloaming), then the nights, the Reef
+   last with its own grade (Glacier's snow is the stress test for cool
+   shadows).
 1. **Jellyfish as gameplay (Reef).** The discharge exists and reads clearly:
    a seeded 4 s cycle, 0.5 s telegraph, 1 s shock hoop (`DEEP`, `deep.ts`,
    `jellyCycle()` is the CPU copy of the shader's phase). Nothing happens
@@ -115,11 +114,25 @@ cosmetics, items and the gallery are gone; the game is racing only.
 
 ## Known breakage
 
+- The crystal surfaces' sheen (`terrain/material.ts`) is lit from a fixed
+  direction (0.35, 0.8, 0.45), not the sun: it reads the same at dawn and
+  noon. Found 2026-10-24 while inventorying the look; left as it was.
+- Every mood's `brief` except Autumn's is a draft (Claude, 2026-10-24):
+  judge each against its picture and rewrite in Stella's words.
+
 - None in the tests (59 pass). `docs/audit-2026-10-11.md` is a snapshot and
   is not kept up to date; `CREDITS.md` and `docs/biomes.md` are current as
   of 2026-10-19.
 
 ## Done lately
+
+- 2026-10-24: every map's look in three layers (`world/look.ts`:
+  defaults, biome, mood; about 110 numbers and colours out of shaders,
+  builders and tuning groups; `paint` folded in), a `brief` per mood, the
+  `Look: <mood>` folder in `?tune` with override and JSON copy, and a
+  frame harness that proved every step picture-equal (branch
+  `look-per-mood`, on top of PR #13). The map's look and the player's
+  (tuning.ts) are now apart.
 
 - 2026-10-19: the Archipelago rebuilt as the island biome: 120 islands,
   ponds on nearly half of them with lanterns around, a `bridge` gate kind
