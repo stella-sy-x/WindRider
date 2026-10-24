@@ -16,6 +16,15 @@ of `rooms.py` COLORS); every glowing particle uses that gold. Each biome
 mood's `accent` is muted (no neon) and belongs to the biome's own things:
 the gates and future biome gameplay pieces, never the pilot or its effects.
 
+The look we are moving towards is a storybook: nostalgic, fairy-tale,
+ornate. "Nostalgic" means the feeling (soft colour, lifted blacks, a haze
+like memory), never an aged or dirty picture: no grain, no scratches, no
+worn paper, no dust on the lens. Warmth is not a rule either: each mood
+keeps its own temperature, the lit side takes the colour of its sun and
+the shade the colour of its sky (an amber mood goes gold and violet, a
+crisp blue one stays crisp). Flat faces stay flat; the painted look lives
+in the light and the colour, not in smoothed normals.
+
 ## The game
 
 Wind Rider is a browser wingsuit racer. Seeded procedural courses through
@@ -127,6 +136,120 @@ structures, sky, particles, music); update it when a biome recipe changes.
 `docs/debug-mode.md` is test mode.
 
 ## Change log
+
+### 2026-10-23: Undersides out of the grey (Claude)
+
+- The grade pass keeps its shadows cool (the mood's sky tint) and lifts
+  black to a deep version of the sky, never a fixed grey. Warm shadows
+  under a warm sun were tried for the undersides and read as a yellow veil
+  over the whole picture: the temperature contrast (cool shade, warm
+  light) is what keeps a warm mood crisp. Undersides get their warmth from
+  the bounce term in the lighting pass instead.
+- `PAINT.bounce`: the brightness of shade facing down against shade
+  facing up, 0.7 by default: a painter's underside is darker and warm
+  (the bounce tint is the cloud sea's colour warmed by the sun), never a
+  flat pale tan. Brightening undersides was tried first and washed them
+  out. The gradient's bottom is darker too (0.8). The Archipelago's
+  under-rock is a richer brown (#7a4e2c, was a greyish #5e4330), and
+  Autumn's mist is thinner (0.3, was 0.45): with the grade's warmth on
+  top, far islands melted into the sky.
+
+### 2026-10-24: Shade out of the grey-white (Claude)
+
+- Shaded island sides were a pale cool grey: the cool shift was stacked
+  three times (the hemisphere light is sky-coloured already, the Lambert
+  chunk multiplied a sky tint on top, the grade pushed darks to the sky
+  again), and a zenith-blue tint on warm brown rock mixes to grey, since
+  they are complementary. The light's sky tint now leans to the horizon
+  (0.3 towards the zenith), `coolShade` defaults to 0.2 (Autumn 0.15),
+  and `PAINT.shade` (0.85) keeps shade darker than the hemisphere light
+  alone makes it: a painter's shade is darker and still coloured.
+
+### 2026-10-24: Autumn's grade eased: lift 0.06, warmth 0.3 (Claude)
+
+- Against a yellow veil over the whole picture, like an old photograph:
+  the mood is amber already (horizon, mist, sun), and the grade's warm
+  highlights and a high lift piled more amber and haze on it.
+
+### 2026-10-23: Groves, no trees on rims, undersides in the bounce light (Claude)
+
+- Plants pick their species with each species boosted in groves of its
+  own (`placement.ts`: a patch of noise per species, 90 m across, a floor
+  of 0.12 outside), so a wood reads as a pine wood or an oak wood with the
+  odd other tree. Archipelago: pine 3 / oak 3 / birch 2.5, forest cover
+  0.45, open density 0.1.
+- On a floating thing a plant needs 5 m of rock under its foot
+  (`RIM_DEPTH`): a rim thins to nothing and recedes at coarse detail, so
+  trees on the very edge hung in the air.
+- Painted light: shade facing down takes the mood's ground (bounce) tint,
+  the hemisphere light's own ground colour (`palette.cloud`), shade facing
+  up the sky's; the gradient's bottom is the bounce tint too. Undersides
+  of islands and trees were going grey-blue under the sky tint.
+  `updatePaintLight` takes the camera for the view-space up.
+
+### 2026-10-23: Painted look, step 3: a vertical wash per thing (Claude)
+
+- `PAINT.gradient`: every atmospheric material multiplies its colour by a
+  wash from the mood's sky tint (darker) at a thing's bottom to its sun
+  tint (lighter) at its top, a few percent each way. The mesher writes
+  `rise` per vertex (`TerrainField.riseAt`: 0 to 1 within the nearest
+  shape's box, an island from its tip to its top; on the ground, low to
+  high over the line, the valley floor about 0.45); plants and structures
+  use their own unit height. No geometry added: a float per terrain
+  vertex and one mix in the fragment shader. Judged on the Archipelago's
+  Autumn mood at 0.6.
+
+### 2026-10-23: Paper airplane closed into a watertight solid (Claude)
+
+- `pilot.glb` rebuilt from its own 16 paper sheets: each sheet (faces joined
+  across nearly coplanar edges) becomes the convex hull of its vertices
+  pushed 3 mm either way along its normal, a closed thin slab with the
+  sheet's exact outline; the slabs are joined, not booleaned. 32 verts / 51
+  faces / 22 open edges became 146 / 228 / none. Same silhouette and
+  thickness taper (the raised root layers are still there), no crack along
+  the wing root under the banded light, nothing to leak under a rim light
+  or the glow shell. Hulling whole parts (keel, wings) was tried first and
+  filled the fold between wing and keel; per-sheet slabs do not.
+
+### 2026-10-23: Painted look: the tints are each mood's own sun and sky (Claude)
+
+- The lit side and the highlights go towards the mood's sun colour, the
+  shade and the shadows towards its sky colour (`paintTints`: the palette's
+  `sun`, and `horizon` lerp `zenith`, each scaled to a mean of 1 and kept
+  within 0.55 to 1.6), in both the Lambert chunk and the grade pass; the
+  sliders say how far, never which colour. A fixed gold/violet made the
+  Alpine mood warm when it should stay crisp.
+
+### 2026-10-23: Painted look, step 2: banded light, warm lit side, cool shade (Claude)
+
+- `PAINT_LAMBERT_GLSL` (paint.ts) replaces three's
+  `lights_lambert_pars_fragment` in every `atmospheric()` material (land,
+  plants, structures): the sun's `dotNL` quantised into `steps` bands with
+  `soft` edges, the lit side multiplied towards gold (`warmLight`), the
+  hemisphere's share of the shade towards blue-violet (`coolShade`), all
+  blended in by `ramp` (0 is Lambert exactly). Uniforms in `PAINT_LIGHT`,
+  fed each frame by `updatePaintLight(palette)` at any quality. Each flat
+  face takes one band; normals are never smoothed on the low-poly land.
+  Judged on the Archipelago's Autumn mood, which carries the numbers.
+
+### 2026-10-23: Painted look, step 1: colour grade, vignette, paper grain (Claude)
+
+- `PAINT` tuning group ("Painted look" in `?tune`), off by default
+  (`grade` 0): a full-screen pass (`paint.ts`, a `ShaderPass` after the
+  `OutputPass` on the bloom chain, so it grades in display space like a
+  LUT) with warm highlights, violet-blue shadows, lifted blacks, contrast,
+  saturation, a corner vignette and a grain fixed to the screen like
+  paper. Skipped entirely at grade 0; runs only with the bloom (High
+  quality). An experiment towards a storybook look, judged one mood at a
+  time: a judged mood carries its own numbers (`paint` in its palette,
+  `PaintGrade`) over PAINT's defaults. In `?tune` the sliders hold the
+  tuner's numbers for the mood on screen (`paintEdited`, loaded by
+  `paintToSliders`, moved by `slidersToPaint`): `PAINT.override` on shows
+  them, off shows the numbers as written and greys the sliders; reset
+  returns them to the written ones, the JSON copy carries them; PAINT is
+  kept out of the saved tuning. Archipelago Autumn judged first, at full strength. The next steps (ramped lighting with warm/cool
+  shadows, vertex-colour gradients, silhouette ornament) wait on how the
+  grade reads across the moods.
 
 ### 2026-10-19: Archipelago moods trimmed to Alpine and Autumn (Claude)
 

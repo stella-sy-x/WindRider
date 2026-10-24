@@ -21,6 +21,39 @@ cosmetics, items and the gallery are gone; the game is racing only.
 
 ## Now
 
+0. **The painted look**, one step at a time, judged on the Archipelago's
+   Autumn mood (the closest to a storybook already), each step a tuning
+   group with an off switch so it can be compared and dropped. Step 1 is
+   in (branch `paint-look`, PR #13): a colour grade over the finished
+   frame, warm highlights, violet shadows, lifted blacks, vignette, paper
+   grain (`PAINT` in tuning.ts, `paint.ts`, a pass after the bloom; High
+   quality only). Each mood is judged on its own and keeps its own numbers
+   (`paint` in its palette); in `?tune` the Painted look sliders hold
+   Stella's numbers for the mood on screen: `override` on shows them, off
+   shows the numbers as written and greys the sliders; reset returns them
+   to the written ones, and "Copy settings as JSON" includes them to
+   paste into the palette. Judged so
+   far: Archipelago Autumn (full strength).
+   Step 2 is in on Autumn, under judgement: the sun's light banded into
+   three steps with soft edges in every flat-shaded land, plant and
+   structure material, the lit side warmed, the shade cooled (`ramp`,
+   `steps`, `soft`, `warmLight`, `coolShade`; `PAINT_LAMBERT_GLSL` replaces
+   three's Lambert chunk inside `atmospheric()`). Each face keeps one band:
+   no smoothed normals. Step 3 is in on Autumn, under judgement: a
+   vertical wash on every thing (`gradient`), its bottom towards the sky's
+   colour and darker, its top towards the sun's and lighter; the mesher
+   writes a `rise` per vertex (where it sits within its own shape, or over
+   the line on the ground), plants use their own height. Silhouette
+   ornament is next, after the three steps are judged on Autumn.
+   Order after that: the day moods (Alpine, Lagoon noon, Glacier polar day
+   and dawn, Gloaming), then the nights, the Reef last with its own grade. Steps to come if step 1 reads right: ramped (two or three step)
+   lighting with warm/cool shadow colours and a sky-driven ambient, in the
+   flat-shaded material (never smoothed normals on the low-poly land: that
+   was tried once and turned every facet into a gradient); a vertical
+   vertex-colour gradient per island and tree; then silhouette ornament on
+   structures and trees. Validation order over the other biomes is
+   Stella's to decide (Glacier's snow is the stress test for cool shadows;
+   the Reef needs its own grade under water).
 1. **Jellyfish as gameplay (Reef).** The discharge exists and reads clearly:
    a seeded 4 s cycle, 0.5 s telegraph, 1 s shock hoop (`DEEP`, `deep.ts`,
    `jellyCycle()` is the CPU copy of the shader's phase). Nothing happens

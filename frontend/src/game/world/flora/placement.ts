@@ -32,6 +32,11 @@ const SMALL_STRUCTURE_LOD = 2;
 const SMALL_SPACING = 40;
 /** Floats per structure site: x, y, z, the radius plants keep clear of */
 const SITE_STRIDE = 4;
+/** Metres of rock a plant needs under its foot on a floating thing (keeps it off the rim) */
+const RIM_DEPTH = 5;
+/** Metres across a species' grove patches, and a species' share of its weight outside its groves */
+const GROVE_SCALE = 90;
+const GROVE_FLOOR = 0.12;
 
 /** The topmost land surface in a column within [y0, y1), or NaN */
 function surfaceIn(world: World, x: number, z: number, y0: number, y1: number, shapesNear: boolean): number {
@@ -302,7 +307,12 @@ export function placeFlora(world: World, box: Box, lod: number): { plants: Float
   const gx1 = Math.floor(box.x1 / spacing - 0.5);
   const gz0 = Math.ceil(box.z0 / spacing - 0.5);
   const gz1 = Math.floor(box.z1 / spacing - 0.5);
-  const totalWeight = veg.species.reduce((a, s) => a + s.weight, 0);
+  const groveWeights = new Array<number>(veg.species.length).fill(0);
+  // A species' grove: its own patch of low-frequency noise, strong in the middle of a patch
+  const groveBoost = (i: number, x: number, z: number) => {
+    const n = 0.5 + 0.5 * noise(x / GROVE_SCALE + i * 37.3, z / GROVE_SCALE - i * 19.1);
+    return GROVE_FLOOR + (1 - GROVE_FLOOR) * smoothstep(0.35, 0.7, n) * 3;
+  };
   const plantsHere = lod <= PLANT_MAX_LOD;
   for (let gi = gx0 - 1; plantsHere && gi <= gx1 + 1; gi++) {
     for (let gk = gz0 - 1; gk <= gz1 + 1; gk++) {
@@ -321,18 +331,27 @@ export function placeFlora(world: World, box: Box, lod: number): { plants: Float
       if (inWater(x, y, z)) continue;
       if (!surfaceOk(x, y, z, near)) continue;
       if (upness(world, x, y, z) < veg.minUp) continue;
-      // Which species: weighted, among those that like this spot
+      // On a floating thing, stand where the rock is deep: a rim thins to nothing, and at coarse
+      // detail it recedes, so a tree on the very edge is drawn hanging in the air
+      if (near && field.distance(x, y - RIM_DEPTH, z) > 0) continue;
+      // Which species: weighted, among those that like this spot. Each species has groves of its
+      // own (a patch of noise per species boosts it there and starves it elsewhere), so a wood
+      // reads as a pine wood or an oak wood with the odd other tree, not a shuffle
       const wet = nearWater(x, y, z);
       const inForest = forest > 0.5;
       const fits = (s: FloraSpecies) =>
         (!s.where?.above || (above >= s.where.above[0] && above <= s.where.above[1])) &&
         (s.where?.wet === undefined || s.where.wet === wet) &&
         (s.where?.forest === undefined || s.where.forest === inForest);
-      let r = hash3(gi, gk, salt + 3) * totalWeight;
+      let totalHere = 0;
+      for (let i = 0; i < veg.species.length; i++) {
+        groveWeights[i] = veg.species[i].weight * groveBoost(i, x, z);
+        totalHere += groveWeights[i];
+      }
+      let r = hash3(gi, gk, salt + 3) * totalHere;
       let pick = -1;
       for (let i = 0; i < veg.species.length; i++) {
-        const s = veg.species[i];
-        r -= s.weight;
+        r -= groveWeights[i];
         if (r <= 0) {
           pick = i;
           break;

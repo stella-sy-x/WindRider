@@ -120,6 +120,28 @@ export class TerrainField {
   }
 
   /**
+   * Where a point sits within the shape nearest to it, 0 at the shape's bottom, 1 at its top
+   * (the painted look's vertical gradient: an island cool and dark at its tip, warm and light
+   * on top). NaN where the ground is nearest, or nothing is
+   */
+  riseAt(x: number, y: number, z: number): number {
+    let nearest = this.ground ? this.ground.distance(x, y, z) : Infinity;
+    let rise = NaN;
+    const list = this.cells.get(cellKey(Math.floor(x / CELL), Math.floor(y / CELL), Math.floor(z / CELL)));
+    if (list) {
+      for (const shape of list) {
+        if (!near(shape, x, y, z)) continue;
+        const ds = shape.distance(x, y, z);
+        if (ds < nearest) {
+          nearest = ds;
+          rise = Math.min(Math.max((y - shape.min.y) / Math.max(shape.max.y - shape.min.y, 1), 0), 1);
+        }
+      }
+    }
+    return rise;
+  }
+
+  /**
    * Samples an n×n×n block of the field (origin `o`, spacing `step`) into `out`,
    * x fastest. Returns false, leaving `out` untouched, if the block is plainly
    * all air or all rock. Same results as `distance` for every sample.

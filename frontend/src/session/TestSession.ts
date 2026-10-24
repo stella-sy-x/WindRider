@@ -19,7 +19,7 @@ export interface TestState {
 
 /**
  * Test mode (`/?test`): free flight through any biome. No clock, nothing saved.
- * Worlds, lighting moods and half speed are switched from its panel, without
+ * Worlds, lighting moods and the speed (normal, half, frozen) are switched from its panel, without
  * reloading, to check looks and music together. It has no keys of its own: a
  * test key would have to be kept clear of every rebindable flight key
  */
@@ -108,7 +108,7 @@ export class TestSession {
     this.show(biome, mood);
   }
 
-  toggleSpeed() {
-    this.game?.toggleTestSpeed();
+  setSpeed(rate: number) {
+    this.game?.setTestSpeed(rate);
   }
 }

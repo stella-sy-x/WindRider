@@ -51,6 +51,44 @@ export const FX = {
   autoQuality: true, // drop effects if the frame rate can't keep up
 };
 
+/**
+ * The painted (storybook) look (paint.ts): a colour grade over the finished frame with a
+ * vignette (a pass on the bloom chain, High quality only), and the banded light. Judged one
+ * mood at a time: the numbers below are what a mood starts from; a judged mood carries its own
+ * (`paint` in its palette). In ?tune the sliders hold your numbers for the mood on screen:
+ * with `override` on the picture uses them, off it uses the numbers as written and the sliders
+ * go grey (still yours to move). Copy the JSON into the palette to keep a set. Nothing here is
+ * saved across visits. Looks only
+ */
+export const PAINT = {
+  override: false, // on: the picture takes the sliders; off: the mood's numbers as written, the sliders grey
+  grade: 0, // 0..1: how much of the grade below is applied (0 skips the pass)
+  lift: 0.06, // black level lifted to a dark warm grey: ink on paper, never pure black
+  warmth: 0.5, // highlights pushed towards the mood's sun colour (gold on an amber mood, nothing on a white-sun one)
+  shadowTint: 0.5, // shadows pushed towards the mood's sky colour
+  contrast: 1.05,
+  saturation: 1.1,
+  paintVignette: 0.4, // the corners darkened, the middle untouched (FX.vignette is the speed one)
+  grain: 0, // screen grain. Off: the nostalgia we want is a feeling (warm light, soft colour), never an aged or dirty picture; the grain read as a film over the lens
+  // Step two, the light itself (every flat-shaded land, plant and structure material): the sun's
+  // light quantised into a few bands with soft edges, the lit side warmed, the shade cooled.
+  // The flat faces stay flat: each face takes one band. Never smoothed normals on the low-poly land
+  ramp: 0, // 0..1: how far from Lambert's linear light to the banded one (0 leaves the light alone)
+  steps: 3, // bands of light, dark to lit
+  soft: 0.12, // 0..0.5: how soft each band's edge is (0 hard, like cel shading)
+  warmLight: 0.5, // the lit side pushed towards the mood's sun colour
+  coolShade: 0.2, // the shade pushed towards the mood's sky colour. Gently: the hemisphere light is sky-coloured already, and a cool tint on warm rock mixes to grey
+  bounce: 0.7, // shade facing down against shade facing up: under 1 darker (a painter's underside), over 1 lit by a bright bounce from below
+  shade: 0.85, // brightness of shade against Lambert's: the hemisphere light alone leaves shade pale; a painter's shade is darker
+  // Step three, a vertical wash on every thing: its bottom a few percent towards the sky's colour and
+  // darker, its top towards the sun's and lighter (an island from its tip to its top, a tree from
+  // its foot to its crown, the ground from the valley floor up). Vertex colour, no new geometry
+  gradient: 0, // 0..1: strength of the wash
+};
+
+/** PAINT as written above: what a mood without numbers of its own takes, and what reset returns a mood to */
+export const PAINT_DEFAULTS = { ...PAINT };
+
 /** The crystal gates */
 export const RINGS = {
   crystals: 16, // crystals per gate (finish gets 1.5×); applies to the next map
@@ -208,6 +246,7 @@ export const AUDIO = {
   nightMuffle: 0.55, // how much the highs are rolled off at night
 };
 
+// (PAINT is not here: its sliders mirror the mood on screen, paint.ts keeps the numbers per mood)
 const GROUPS = { ANIM, FX, RINGS, CAMERA, TERRAIN, FLORA, STRUCTURES, WATER, DEEP, AUTOPILOT, AUDIO } as const;
 const DEFAULTS = JSON.parse(JSON.stringify(GROUPS)) as typeof GROUPS;
 const STORAGE_KEY = "windrider.tuning.speed-control-v1";
@@ -292,6 +331,22 @@ export const RANGES: Record<string, [number, number, number?]> = {
   bloomThreshold: [0.5, 1.5],
   bloomResolution: [0.5, 2, 0.05],
   bloomSamples: [0, 4, 1],
+  grade: [0, 1],
+  ramp: [0, 1],
+  steps: [2, 5, 1],
+  soft: [0, 0.5],
+  warmLight: [0, 1.5],
+  coolShade: [0, 1.5],
+  bounce: [0.3, 1.5],
+  shade: [0.4, 1.2],
+  gradient: [0, 1.5],
+  lift: [0, 0.3],
+  warmth: [0, 2],
+  shadowTint: [0, 2],
+  contrast: [0.7, 1.5],
+  saturation: [0, 2],
+  paintVignette: [0, 1.5],
+  grain: [0, 0.5],
   crystals: [6, 32, 1],
   drift: [0, 3],
   driftRate: [0, 3],
@@ -374,6 +429,7 @@ export const RANGES: Record<string, [number, number, number?]> = {
 export const TUNING_GROUPS: [string, Group][] = [
   ["Pilot animation", ANIM],
   ["Trails & particles", FX],
+  ["Painted look", PAINT],
   ["Crystal gates", RINGS],
   ["Camera", CAMERA],
   ["Terrain", TERRAIN],

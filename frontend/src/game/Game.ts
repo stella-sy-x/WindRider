@@ -2,6 +2,8 @@ import { TestPlayback } from "./testPlayback";
 import * as THREE from "three";
 import type { EffectComposer } from "three/examples/jsm/postprocessing/EffectComposer.js";
 import type { UnrealBloomPass } from "three/examples/jsm/postprocessing/UnrealBloomPass.js";
+import type { ShaderPass } from "three/examples/jsm/postprocessing/ShaderPass.js";
+import { PAINT_SHADER, paintEdited, paintToSliders, resetPaint, slidersToPaint, updatePaintLight, updatePaintPass } from "./paint";
 import { Ambient } from "./ambient";
 import { Autopilot } from "./autopilot";
 import { GameAudio } from "./audio";
@@ -21,7 +23,7 @@ import { clamp } from "./math";
 import { SpeedLines } from "./speedlines";
 // The glow light shared by trims, flora and water (particles.ts has its own FX_LIGHT, the particle boost)
 import { FX_LIGHT as GLOW_LIGHT, GOLD, WHITE } from "./toon";
-import { FX, RANGES, RINGS, TUNING_GROUPS, WATER, loadTuning, resetTuning, saveTuning } from "./tuning";
+import { FX, PAINT, RANGES, RINGS, TUNING_GROUPS, WATER, loadTuning, resetTuning, saveTuning } from "./tuning";
 import { type Level, levelId, seedLevel } from "./world/biomes";
 import { type WaterHit, World } from "./world/World";
 import { WorldView } from "./world/WorldView";
@@ -188,6 +190,7 @@ export class Game {
   private readonly crystalPoints: THREE.Vector3[] = [];
   private composer: EffectComposer | null = null;
   private bloomPass: UnrealBloomPass | null = null;
+  private paintPass: ShaderPass | null = null;
   private composerLoading = false;
   private bloomFailed = false;
   /** Stands in for the bloom's target while shaders are compiled (see compileShaders) */
@@ -541,11 +544,11 @@ export class Game {
     this.debris.setColor(color);
   }
 
-  /** Test mode only (from its panel): half speed on, or back to normal. No key does this */
-  toggleTestSpeed() {
+  /** Test mode only (from its panel): normal, half or frozen (0: the frame keeps drawing, nothing moves). No key does this */
+  setTestSpeed(rate: number) {
     if (!this.testPlayback || controlsBlocked()) return;
     this.input.reset();
-    this.events.testSpeed?.(this.testPlayback.toggle());
+    this.events.testSpeed?.(this.testPlayback.set(rate));
   }
 
   observeInput(observer: InputObserver): () => void {
@@ -659,6 +662,7 @@ export class Game {
     this.softParticles.dispose();
     this.speedLines.dispose();
     this.debris.dispose();
+    this.paintPass?.dispose();
     this.composer?.dispose();
     this.compileTarget.dispose();
     this.renderer.dispose();
@@ -1448,6 +1452,7 @@ export class Game {
 
   private render() {
     const camera = this.rig.camera;
+    updatePaintLight(this.world.palette, camera);
     // Particle sizes are in metres: keep the conversion in step with the zooming FOV
     this.particles.setViewport(this.renderer.domElement.height, camera.fov);
     this.softParticles.setViewport(this.renderer.domElement.height, camera.fov);
@@ -1466,6 +1471,7 @@ export class Game {
       for (let i = 0; i < this.bloomPass.bloomTintColors.length; i++) {
         this.bloomPass.bloomTintColors[i].setScalar(i < 2 ? 1 : FX.bloomHalo);
       }
+      if (this.paintPass) updatePaintPass(this.paintPass, camera.aspect, this.world.palette);
       this.composer.render();
     } else {
       this.renderer.render(this.scene, camera);
@@ -1484,6 +1490,7 @@ export class Game {
         import("three/examples/jsm/postprocessing/UnrealBloomPass.js"),
         import("three/examples/jsm/postprocessing/OutputPass.js"),
         import("three/examples/jsm/postprocessing/FXAAPass.js"),
+        import("three/examples/jsm/postprocessing/ShaderPass.js"),
       ]);
     } catch (error) {
       // No bloom then: draw straight to the screen
@@ -1492,7 +1499,7 @@ export class Game {
       reloadForNewBuild(error);
       return;
     }
-    const [{ EffectComposer }, { RenderPass }, { UnrealBloomPass }, { OutputPass }, { FXAAPass }] = modules;
+    const [{ EffectComposer }, { RenderPass }, { UnrealBloomPass }, { OutputPass }, { FXAAPass }, { ShaderPass }] = modules;
     this.composerLoading = false;
     if (!this.bloomOn || this.composer) return;
     const size = this.renderer.getDrawingBufferSize(new THREE.Vector2());
@@ -1507,6 +1514,10 @@ export class Game {
     this.bloomPass = new UnrealBloomPass(new THREE.Vector2(size.x, size.y), FX.bloom, FX.bloomRadius, FX.bloomThreshold);
     composer.addPass(this.bloomPass);
     composer.addPass(new OutputPass());
+    // The painted look grades the finished frame in display space, like a LUT would
+    this.paintPass = new ShaderPass(PAINT_SHADER);
+    this.paintPass.enabled = false;
+    composer.addPass(this.paintPass);
     if (FX.bloomSamples === 0) composer.addPass(new FXAAPass());
     this.composer = composer;
   }
@@ -1515,8 +1526,10 @@ export class Game {
   private rebuildBloom() {
     this.composer?.dispose();
     this.bloomPass?.dispose();
+    this.paintPass?.dispose();
     this.composer = null;
     this.bloomPass = null;
+    this.paintPass = null;
     this.renderer.setPixelRatio(this.pixelRatio());
     this.resize();
   }
@@ -1537,8 +1550,10 @@ export class Game {
     if (!this.bloomOn && this.composer) {
       this.composer.dispose();
       this.bloomPass?.dispose();
+      this.paintPass?.dispose();
       this.composer = null;
       this.bloomPass = null;
+      this.paintPass = null;
     }
     this.renderer.setPixelRatio(this.pixelRatio(quality));
     this.particles.budget = QUALITY[quality].particles;
@@ -1587,13 +1602,28 @@ export class Game {
       .onChange((q: Quality) => this.setQuality(q))
       .listen();
     view.add(FX, "autoQuality").name("auto quality").onChange(save);
-    const syncQuality = setInterval(() => (settings.quality = this.quality), 500);
+    // The painted look's sliders show the mood on screen: taken from it now, and again whenever the mood changes
+    let paintedMood = this.world.palette;
+    paintToSliders(paintedMood);
+    const syncQuality = setInterval(() => {
+      settings.quality = this.quality;
+      if (this.world.palette !== paintedMood) {
+        paintedMood = this.world.palette;
+        paintToSliders(paintedMood);
+        gui.controllersRecursive().forEach((c) => c.updateDisplay());
+      }
+    }, 500);
 
     // Physics isn't saved: a forgotten tweak shouldn't follow you into races
     const flight = gui.addFolder("Flight physics (not saved)");
     for (const key of Object.keys(FLIGHT) as (keyof typeof FLIGHT)[]) flight.add(FLIGHT, key);
     flight.close();
 
+    // The painted look's sliders go grey while PAINT.override is off (the picture uses the numbers as written then)
+    const paintSliders: { domElement: HTMLElement }[] = [];
+    const dimPaint = () => {
+      for (const c of paintSliders) c.domElement.style.opacity = PAINT.override ? "" : "0.4";
+    };
     for (const [title, group] of TUNING_GROUPS) {
       const folder = gui.addFolder(title);
       for (const key of Object.keys(group)) {
@@ -1603,7 +1633,14 @@ export class Game {
           typeof group[key] === "boolean" || !range
             ? folder.add(group, key)
             : folder.add(group, key, range[0], range[1], range[2] ?? (range[1] - range[0]) / 200);
+        if (group === PAINT && key !== "override") paintSliders.push(controller);
         controller.onChange(() => {
+          // A painted-look slider is yours for the mood on screen, seen with override on; nothing saved, its JSON goes into the palette
+          if (group === PAINT) {
+            if (key === "override") dimPaint();
+            else slidersToPaint(this.world.palette);
+            return;
+          }
           save();
           // The bloom's render targets are built with these: rebuild them
           if (key === "bloomResolution" || key === "bloomSamples") this.rebuildBloom();
@@ -1611,13 +1648,18 @@ export class Game {
       }
       folder.close();
     }
+    dimPaint();
 
     const actions = {
       barrelLeft: () => this.barrelRoll(-1),
       barrelRight: () => this.barrelRoll(1),
-      copy: () => void navigator.clipboard?.writeText(JSON.stringify({ FLIGHT, ...Object.fromEntries(TUNING_GROUPS) }, null, 2)),
+      copy: () =>
+        void navigator.clipboard?.writeText(
+          JSON.stringify({ FLIGHT, ...Object.fromEntries(TUNING_GROUPS.filter(([, group]) => group !== PAINT)), paint: { mood: this.world.palette.name, ...paintEdited(this.world.palette) } }, null, 2),
+        ),
       reset: () => {
         resetTuning();
+        resetPaint(this.world.palette);
         gui.controllersRecursive().forEach((c) => c.updateDisplay());
       },
     };

@@ -63,8 +63,10 @@ const MOODS: readonly Palette[] = [
     sunAzimuth: 40,
     night: 0,
     mist: "#ffe8cc",
-    mistDensity: 0.45,
+    mistDensity: 0.3, // was 0.45: with the painted look's warmth on top, far islands melted into the sky
     glow: 1.2,
+    // Judged 2026-10-23/24 (Stella, in ?tune): grade 0.82, gradient 1.2; lift and warmth eased on the 24th against a yellow veil
+    paint: { grade: 0.82, lift: 0.06, warmth: 0.3, shadowTint: 0.5, contrast: 1.05, saturation: 1.1, vignette: 0.4, grain: 0, ramp: 1, steps: 3, soft: 0.12, warmLight: 0.5, coolShade: 0.15, bounce: 0.7, shade: 0.85, gradient: 1.2 },
   },
 ];
 
@@ -79,7 +81,7 @@ export const ARCHIPELAGO: Biome = {
     groundSurface: 0,
     surfaces: [
       // 0: the islands: warm brown rock, green cap, no strata
-      { rock: "#93694a", rock2: "#a47a58", bands: 0, under: "#5e4330", top: "#8cb648", top2: "#9ec255", snow: false },
+      { rock: "#93694a", rock2: "#a47a58", bands: 0, under: "#7a4e2c", top: "#8cb648", top2: "#9ec255", snow: false },
       // 1: the gates: the same rock a touch greyer so they read against the islands
       { rock: "#8a7360", rock2: "#9a836e", bands: 0, under: "#55423a", top: "#8cb648", snow: false },
       // 2: worked stone (the bridges): courses of pale masonry, a paved top
@@ -106,19 +108,20 @@ export const ARCHIPELAGO: Biome = {
     kind: "flora",
     spacing: 5,
     density: 0.8,
-    openDensity: 0.3,
-    forest: { scale: 100, cover: 0.6 },
+    openDensity: 0.1, // between the woods, the odd tree
+    forest: { scale: 100, cover: 0.45 },
     treeline: 400,
     minUp: 0.75,
     species: [
-      // Pine over most island tops; oaks and birches among them, bushes and the odd boulder in the open
-      { id: "pine", weight: 5, height: [8, 15], foliage: "#3f7a3a", foliage2: "#4d8a40", trunk: "#6b4a2f" },
+      // Pine, oak and birch woods, each in groves of its own (placement.ts), bushes and the odd boulder in the open
+      { id: "pine", weight: 3, height: [8, 15], foliage: "#3f7a3a", foliage2: "#4d8a40", trunk: "#6b4a2f" },
       { id: "oak", weight: 3, height: [7, 13], foliage: "#4f8f37", foliage2: "#6aa342", trunk: "#5b4330" },
-      { id: "birch", weight: 2, height: [8, 13], foliage: "#8cbf4a", foliage2: "#a9cd57", trunk: "#e8e4da" },
+      { id: "birch", weight: 2.5, height: [8, 13], foliage: "#8cbf4a", foliage2: "#a9cd57", trunk: "#e8e4da" },
       { id: "bush", weight: 2, height: [1.4, 2.6], foliage: "#4d8a35", foliage2: "#6a9d3d", where: { forest: false } },
       { id: "boulder", weight: 0.3, height: [1.2, 2.6], foliage: "#a47a58", foliage2: "#93694a", where: { forest: false } },
     ],
-    grass: { spacing: 2.6, height: [0.5, 0.9], color: "#7aa848", tip: "#c8d070", flowers: ["#ffffff", "#ffd84a", "#c58cff", "#ff7a9c"], flowerShare: 0.25 },
+    // No grass tufts: the flat cards read as paper cut-outs against the painted look
+    grass: null,
   },
   structures: [
     // Everything stands on island rock (`on`): a great watchtower on an island per stretch; a bust of Albert Einstein (an Easter egg, in about one level in
