@@ -114,6 +114,9 @@ cosmetics, items and the gallery are gone; the game is racing only.
 - **Progression and matchmaking**: daily or all-time leaderboards (new
   backend endpoints), weekly challenges, a "Quick Race" that matches 2 to 4
   players on a random seed, 3 to 5 featured seeds as the competitive pool.
+- **The abyss line** (`ABYSS` 240 m under the racing line) sits 20 m above
+  the Archipelago's cloud sea (260 m): a dive crashes in the air just over
+  the clouds. Lower it to the floor, or make the clouds the crash.
 - **Wind currents or thermals** as visible columns that make route choices.
   Speed-feel posts along the track are no longer needed: the walls give the
   motion reference.
@@ -133,6 +136,10 @@ cosmetics, items and the gallery are gone; the game is racing only.
   of 2026-10-19.
 
 ## Done lately
+
+- 2026-10-24: ponds no longer crash you under their islands (the water
+  was a column all the way down; now the body in the bowl); dev builds
+  log every crash with its cause and distances (`window.__crashes`).
 
 - 2026-10-24: Archipelago Autumn loads the whole map at 3 m before the
   start and never swaps a level (`look.view` past the course's end,

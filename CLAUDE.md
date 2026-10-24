@@ -158,6 +158,23 @@ structures, sky, particles, music); update it when a biome recipe changes.
 
 ## Change log
 
+### 2026-10-24: Pond water stops at the bowl; a crash log in dev builds (Claude)
+
+- Crashes in empty air under the Archipelago's islands: `World.pondDistance`
+  treated a pond as its surface disc alone, negative everywhere under it,
+  so every pond was a column of "water" down through the island and the
+  air beneath. The water is now the body in the bowl (the disc on top,
+  the bowl's depth under it). Test: air under the island and beside the
+  lip, over two seeds. Stella's two "void" crashes were both this pond,
+  found with the log below.
+- Dev builds log every crash (`Game.logCrash`): the cause (abyss, land as
+  drawn, tree, pond, sea, rock field), the part, position, hit point,
+  speed, and the distances to rock, tree, pond, water and the abyss line
+  at the last step, in `window.__crashes` and the console.
+- Still worth knowing: the abyss line (`ABYSS` 240 m under the line) sits
+  20 m above the cloud sea's floor (260), so a dive crashes in the air
+  just over the clouds (backlog).
+
 ### 2026-10-24: Archipelago Autumn: the whole map at 3 m, nothing swapped (Claude)
 
 - Stella: an island changing shape as a finer level takes over is worse

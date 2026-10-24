@@ -26,12 +26,15 @@ import { SpeedLines } from "./speedlines";
 import { FX_LIGHT as GLOW_LIGHT, GOLD, WHITE } from "./toon";
 import { FX, RANGES, TUNING_GROUPS, loadTuning, resetTuning, saveTuning } from "./tuning";
 import { type Level, levelId, seedLevel } from "./world/biomes";
-import { type WaterHit, World } from "./world/World";
+import { ABYSS, type WaterHit, World } from "./world/World";
 import { WorldView } from "./world/WorldView";
 import type { Palette } from "./world/palette";
 import type { Ring } from "./world/course";
 import { reloadForNewBuild } from "../staleBuild";
 import { onHold } from "./hold";
+
+/** A metre to a tenth, Infinity as is (the crash log) */
+const round = (v: number) => (Number.isFinite(v) ? Math.round(v * 10) / 10 : v);
 
 const STEP = 1 / 120; // physics runs at a fixed rate, rendering interpolates
 const MAX_STEPS_PER_FRAME = 12;
@@ -774,6 +777,37 @@ export class Game {
     this.crashBurst(kind, normal, hitPoint);
     this.audio.crash();
     this.combo = 0;
+    if (import.meta.env.DEV) this.logCrash(part, land, lost);
+  }
+
+  /**
+   * Dev builds: what a crash hit and how far every other solid was, kept in `window.__crashes` and
+   * printed, for crashes in seemingly empty air (Stella, 2026-10-24). The distances are from where the
+   * pilot was at the last step, the one it was still outside everything
+   */
+  private logCrash(part: HitPart | null, land: boolean, lost: boolean) {
+    const p = this.prevPosition;
+    const w = this.world;
+    const rock = w.rock.distance(p.x, p.y, p.z);
+    const tree = w.trees.distance(p.x, p.y, p.z);
+    const pond = w.pondDistance(p.x, p.y, p.z);
+    const sea = w.seaAt(p.z);
+    const water = sea === null ? Infinity : p.y - sea;
+    const nearest = Math.min(rock, tree, pond, water);
+    const cause = lost ? "abyss" : land ? "land as drawn" : nearest === tree ? "tree" : nearest === pond ? "pond" : nearest === water ? "sea" : "rock field";
+    const entry = {
+      time: Math.round(this.elapsed * 10) / 10,
+      cause,
+      part,
+      landShown: this.landShown(),
+      position: p.toArray().map((v) => Math.round(v)),
+      hitPoint: land ? landHit.point.toArray().map((v) => Math.round(v * 10) / 10) : null,
+      speed: Math.round(this.flight.speed),
+      distances: { rock: round(rock), tree: round(tree), pond: round(pond), water: round(water), aboveAbyss: round(p.y - (w.course.y(p.z) - ABYSS)) },
+    };
+    const crashes = ((window as unknown as { __crashes?: unknown[] }).__crashes ??= []);
+    crashes.push(entry);
+    console.info("[windrider] crash", entry);
   }
 
   private step(input: FlightInput) {

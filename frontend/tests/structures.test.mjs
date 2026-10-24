@@ -144,6 +144,10 @@ test("island ponds sit in clean bowls under a rock lip, their water is solid, an
       }
       // The water is solid like a river pool, though the rock under it is open
       assert.ok(world.distance(p.x, p.level - 0.5, p.z) < 0, "the water counts as solid");
+      // The water stops at the bowl: under the island, within the pond's radius, there is only air
+      // (another island's pond may be nearer those points, so only "not inside water" is asked)
+      assert.ok(world.pondDistance(p.x, p.level - 60, p.z) > 0, "no water under the island");
+      assert.ok(world.pondDistance(p.x + p.r + 5, p.level, p.z) > 0.5, "no water beside the lip");
       assert.ok(world.course.distance(p.x, p.level, p.z) >= 24, "clear of the racing tube");
     }
     // The wet lanterns (the last structure) all stand by a pond

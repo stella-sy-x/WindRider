@@ -14,7 +14,7 @@ import { TreeIndex } from "./trees";
 // Distances beyond this don't matter for scoring, so lookups can stop there
 export const PROXIMITY_RANGE = 12;
 /** Fall this far below the racing line and you're lost in the clouds */
-const ABYSS = 240;
+export const ABYSS = 240;
 const SEA_STEP = 8;
 const SEA_PAD = 1700;
 const START_AIM_LIFT = 4; // metres above the first ring's centre the start aims at, for the sink on the way
@@ -284,13 +284,19 @@ export class World {
     return true;
   }
 
-  /** Distance to a pond's water: the flat disc of its surface (negative under it, inside the bowl) */
-  private pondDistance(x: number, y: number, z: number): number {
+  /**
+   * Distance to a pond's water: the body of water in the bowl, a flat disc on top and the bowl's
+   * depth under it (negative inside). It used to be the disc alone, negative everywhere under it:
+   * a column of "water" all the way down through the island and the air beneath, where flying
+   * under an island with a pond crashed in empty air (Stella, 2026-10-24)
+   */
+  pondDistance(x: number, y: number, z: number): number {
     let d = Infinity;
     for (const p of this.islandPonds) {
       const out = Math.hypot(x - p.x, z - p.z) - p.r;
-      const dy = y - p.level;
-      const v = out > 0 ? Math.hypot(out, Math.max(dy, 0)) : dy;
+      // Signed distance to the slab between the bowl's bottom and the surface
+      const dy = Math.max(y - p.level, p.top - p.depth - y);
+      const v = out > 0 || dy > 0 ? Math.hypot(Math.max(out, 0), Math.max(dy, 0)) : Math.max(out, dy);
       if (v < d) d = v;
     }
     return d;
