@@ -68,7 +68,11 @@ const MOODS: readonly Palette[] = [
     sunIntensity: 2.3,
     ambient: 1.5,
     sunElevation: 26,
-    sunAzimuth: 40,
+    // Behind the pilot and to the right (150°): the light is placed for the camera, as a painter or TFT
+    // places it, so the faces a racer sees are the lit ones. Flying into the sun (40°) showed only shade.
+    // Racers all head for the finish, so the sun stays near this angle; if play testing finds too much
+    // backlight on the bends, the sun can follow the course's heading instead (backlog)
+    sunAzimuth: 150,
     night: 0,
     mist: "#e4ecf2",
     mistDensity: 0.3, // was 0.45: with the painted look's warmth on top, far islands melted into the sky

@@ -25,6 +25,16 @@ the shade the colour of its sky (an amber mood goes gold and violet, a
 crisp blue one stays crisp). Flat faces stay flat; the painted look lives
 in the light and the colour, not in smoothed normals.
 
+The reference for that look is Teamfight Tactics' art direction (Stella,
+2026-10-24: Claude works on the visuals as a former TFT art director would;
+the style and its techniques are the target, never its assets). What that
+means here: the light is placed for the camera, not for geography (a
+mood's sun sits behind the pilot, about 150°, so the faces a racer sees
+are lit; if a course's bends show too much backlight, the sun may follow
+the course's heading); shade is always coloured, never grey; distance is
+colour steps, not a fog bank; bloom is for magic, never for sky or cloud;
+silhouettes read from far away.
+
 ## The game
 
 Wind Rider is a browser wingsuit racer. Seeded procedural courses through

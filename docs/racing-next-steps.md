@@ -81,6 +81,14 @@ cosmetics, items and the gallery are gone; the game is racing only.
 
 ## Next
 
+- **The sun follows the course's heading** (TFT's light-for-the-camera, taken
+  all the way): each frame the mood's sun azimuth is measured from the
+  course's direction at the pilot, smoothed through bends, so every stretch
+  is lit from behind the pilot. One uniform and a light position per frame.
+  Only if play testing finds the fixed 150° (Autumn, 2026-10-24) leaves too
+  many bends backlit; racers all head for the finish, so it may never be
+  needed. The sun disc would drift across the sky on hard turns.
+
 - **Biome gameplay pieces**, grown out of what is already on screen rather
   than new abstract pickups, coloured with the biome's `accent`. Jellyfish
   first; candidates after: thermals above Twilight's mushroom caps,
